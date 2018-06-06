@@ -12,6 +12,14 @@ from spodernet.utils.cuda_utils import CUDATimer
 class ConvE(object):
     def __init__(self, num_entities, num_relations):
         super(ConvE, self).__init__()
+#         self.num_entities = num_entities
+#         self.emb_e_real = torch.nn.Embedding(num_entities, Config.embedding_dim, padding_idx=0)
+#         self.emb_e_img = torch.nn.Embedding(num_entities, Config.embedding_dim, padding_idx=0)
+#         self.emb_rel_real = torch.nn.Embedding(num_relations, Config.embedding_dim, padding_idx=0)
+#         self.emb_rel_img = torch.nn.Embedding(num_relations, Config.embedding_dim, padding_idx=0)
+#         self.inp_drop = torch.nn.Dropout(Config.input_dropout)
+#         self.loss = torch.nn.BCELoss()
+        
         self.emb_e = tf.get_variable("entity_embeddings", 
                                      [num_entities, Config.embedding_dim],
                                     initializer =  tf.contrib.layers.xavier_initializer())
