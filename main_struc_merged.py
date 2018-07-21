@@ -1,8 +1,9 @@
 import copy
-import numpy as np
-import sys
-import tensorflow as tf
 import os
+import sys
+
+import numpy as np
+import tensorflow as tf
 
 from spodernet.hooks import LossHook, ETAHook
 from spodernet.preprocessing.batching import StreamBatcher
@@ -52,6 +53,8 @@ def main():
     # Config.L2 = 0.995
     Config.cuda = True
     Config.emb_size = 200
+    Config.add_variable_summaries = Config.add_variable_summaries or False
+    Config.add_tensor_summaries = Config.add_tensor_summaries or False
 
     # Preprocess the dataset, if needed, and then load it.
     if Config.process:

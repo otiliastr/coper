@@ -1,9 +1,9 @@
 import numpy as np
 
 from spodernet.preprocessing.pipeline import Pipeline, DatasetStreamer
-from spodernet.preprocessing.processors import JsonLoaderProcessors, 
-    AddToVocab, StreamToHDF5, CustomTokenizer, 
-    ConvertTokenToIdx, ToLower, DictKey2ListMapper
+from spodernet.preprocessing.processors import (
+    JsonLoaderProcessors, AddToVocab, StreamToHDF5, CustomTokenizer,
+    ConvertTokenToIdx, ToLower, DictKey2ListMapper)
 from spodernet.utils.logger import Logger
 
 __all__ = [
