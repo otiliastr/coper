@@ -157,7 +157,7 @@ def main():
 
             if model.summaries is not None and \
                SUMMARY_STEPS is not None and \
-               SUMMARY_STEPS % iteration == 0:
+               iteration % SUMMARY_STEPS == 0:
                 summaries, model_loss, _ = session.run(
                     (model.summaries, model.loss, model.train_op), feed_dict)
             else:
