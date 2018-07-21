@@ -53,8 +53,9 @@ def main():
     # Config.L2 = 0.995
     Config.cuda = True
     Config.emb_size = 200
-    Config.add_variable_summaries = Config.add_variable_summaries or False
-    Config.add_tensor_summaries = Config.add_tensor_summaries or False
+    
+    add_variable_summaries = False
+    add_tensor_summaries = False
 
     # Preprocess the dataset, if needed, and then load it.
     if Config.process:
@@ -91,9 +92,9 @@ def main():
             'input_dropout': Config.input_dropout,
             'hidden_dropout': Config.feature_map_dropout,
             'output_dropout': Config.dropout,
-            'learning_rate': Config.learning_rate, 
-            'add_variable_summaries': Config.add_variable_summaries, 
-            'add_tensor_summaries': Config.add_tensor_summaries})
+            'learning_rate': Config.learning_rate,
+            'add_variable_summaries': add_variable_summaries,
+            'add_tensor_summaries': add_tensor_summaries})
 
     # Load the adjacency matrix of nodes with similar structure.
     adj_matrix = load_adjacency_matrix(
