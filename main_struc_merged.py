@@ -21,7 +21,9 @@ from utilities import (
 DEVICE = '/GPU:0'
 MODEL_NAME = 'conve_equal_merge_opt_bl_params_test_2'
 MAX_EPOCHS = 1000
-SUMMARY_STEPS = 100
+SUMMARY_EPOCHS = 50
+CHECKPOINT_EPOCHS = 50
+EVAL_EPOCHS = 50
 
 ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
@@ -134,6 +136,8 @@ def main():
         # total_weight = semant_loss_weight + struct_loss_weight
         # semant_loss_weight /= total_weight
         # struct_loss_weight /= total_weight
+        
+        new_epoch = True
 
         for str2var in train_batcher:
             # Apply label smoothing.
@@ -156,8 +160,9 @@ def main():
                     model.struct_loss_weight: struct_loss_weight}
 
             if model.summaries is not None and \
-               SUMMARY_STEPS is not None and \
-               iteration % SUMMARY_STEPS == 0:
+               new_epoch and \
+               SUMMARY_EPOCHS is not None and \
+               epoch % SUMMARY_EPOCHS == 0:
                 summaries, model_loss, _ = session.run(
                     (model.summaries, model.loss, model.train_op), feed_dict)
             else:
@@ -171,18 +176,23 @@ def main():
 
             iteration += 1
 
+        new_epoch = False
+
         # Evaluate, if necessary.
-        if epoch % 5 == 0:
+        if epoch % EVAL_EPOCHS == 0:
+            print('Running dev evaluation.')
             ranking_and_hits(
-                model, MODEL_NAME, dev_batcher, 
-                vocab, 'dev_evaluation', session)            
+                model, MODEL_NAME, dev_batcher,
+                vocab, 'dev_evaluation', session)
             if iteration != 0:
+                print('Running test evaluation.')
                 ranking_and_hits(
-                    model, MODEL_NAME, test_batcher, 
+                    model, MODEL_NAME, test_batcher,
                     vocab, 'test_evaluation', session)
 
-        print('Saving trained model at %s.' % MODEL_PATH)
-        saver.save(session, MODEL_PATH)
+        if epoch % CHECKPOINT_EPOCHS == 0:
+            print('Saving trained model at %s.' % MODEL_PATH)
+            saver.save(session, MODEL_PATH)
 
 
 if __name__ == '__main__':
