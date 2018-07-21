@@ -112,7 +112,7 @@ def main():
     model.print_parameters()
 
     # Create a TensorFlow session and start training.
-    session = tf.Session()
+    session = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
     saver = tf.train.Saver()
     summary_writer = tf.summary.FileWriter(LOG_DIR, session.graph)
 
