@@ -52,8 +52,8 @@ class ConvE(object):
         rel_emb = self.variables['rel_emb']
         e1_emb = tf.nn.embedding_lookup(ent_emb, self.e1, name='e1_emb')
         rel_emb = tf.nn.embedding_lookup(rel_emb, self.rel, name='rel_emb')
-        predictions = self._create_predictions(e1_emb, rel_emb)
-        semant_loss = self._create_semant_loss(predictions, self.e2_multi)
+        self.predictions = self._create_predictions(e1_emb, rel_emb)
+        semant_loss = self._create_semant_loss(self.predictions, self.e2_multi)
         struct_loss = self._create_struct_loss(e1_emb, self.e2_struct)
 
         # Combine the two losses according to the provided weights.
