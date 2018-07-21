@@ -23,6 +23,10 @@ MODEL_NAME = 'conve_equal_merge_opt_bl_params_test_2'
 MAX_EPOCHS = 1000
 SUMMARY_STEPS = 100
 
+ADD_LOSS_SUMMARIES = True
+ADD_VARIABLE_SUMMARIES = False
+ADD_TENSOR_SUMMARIES = False
+
 # /zfsauton/home/gis/research/qa/models/prelim_tests/ConvE/tmp/merged_v0/
 WORKING_DIR = '/usr0/home/ostretcu/code/george/models/prelim_tests/ConvE/tmp/merged_v0'
 LOG_DIR = os.path.join(WORKING_DIR, 'logs')
@@ -55,9 +59,6 @@ def main():
     # Config.L2 = 0.995
     Config.cuda = True
     Config.emb_size = 200
-    
-    add_variable_summaries = False
-    add_tensor_summaries = False
 
     # Preprocess the dataset, if needed, and then load it.
     if Config.process:
@@ -99,8 +100,9 @@ def main():
                 'hidden_dropout': Config.feature_map_dropout,
                 'output_dropout': Config.dropout,
                 'learning_rate': Config.learning_rate,
-                'add_variable_summaries': add_variable_summaries,
-                'add_tensor_summaries': add_tensor_summaries})
+                'add_loss_summaries': ADD_LOSS_SUMMARIES,
+                'add_variable_summaries': ADD_VARIABLE_SUMMARIES,
+                'add_tensor_summaries': ADD_TENSOR_SUMMARIES})
 
     # Load the adjacency matrix of nodes with similar structure.
     adj_matrix = load_adjacency_matrix(

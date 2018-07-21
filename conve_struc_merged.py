@@ -27,6 +27,7 @@ class ConvE(object):
         self.num_rel = model_descriptors['num_rel']
         self.emb_size = model_descriptors['emb_size']
 
+        self._loss_summaries = model_descriptors['add_loss_summaries']
         self._variable_summaries = model_descriptors['add_variable_summaries']
         self._tensor_summaries = model_descriptors['add_tensor_summaries']
 
@@ -184,9 +185,9 @@ class ConvE(object):
         with tf.name_scope('semant_loss'):
             semant_loss = tf.reduce_sum(
                 tf.losses.sigmoid_cross_entropy(targets, predictions))
-            
-            if self._tensor_summaries:
-                _create_summaries('loss', semant_loss)
+
+            if self._loss_summaries:
+                tf.summary.scalar('loss', semant_loss)
         return semant_loss
 
     def _create_struct_loss(self, e1_emb, ent_similarities):
@@ -203,8 +204,8 @@ class ConvE(object):
             struct_loss = tf.reduce_sum(
                 tf.losses.sigmoid_cross_entropy(ent_similarities, e1_sim))
 
-            if self._tensor_summaries:
-                _create_summaries('loss', struct_loss)
+            if self._loss_summaries:
+                tf.summary.scalar('loss', struct_loss)
         return struct_loss
 
     def print_parameters(self):
