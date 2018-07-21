@@ -16,6 +16,7 @@ from evaluation_tf import ranking_and_hits
 from utilities import *
 
 
+DEVICE = '/GPU:0'
 MODEL_NAME = 'conve_equal_merge_opt_bl_params_test_2'
 MAX_EPOCHS = 1000
 
@@ -78,17 +79,18 @@ def main():
     train_batcher.subscribe_to_events(LossHook('train', print_every_x_batches=100))
 
     # Create the model.
-    model = ConvE(model_descriptors={
-        'num_ent': vocab['e1'].num_token,
-        'num_rel': vocab['rel'].num_token,
-        'emb_size': Config.emb_size,
-        'batch_size': Config.batch_size,
-        'input_dropout': Config.input_dropout,
-        'hidden_dropout': Config.feature_map_dropout,
-        'output_dropout': Config.dropout,
-        'learning_rate': Config.learning_rate, 
-        'add_variable_summaries': Config.add_variable_summaries, 
-        'add_tensor_summaries': Config.add_tensor_summaries})
+    with tf.device(DEVICE):
+        model = ConvE(model_descriptors={
+            'num_ent': vocab['e1'].num_token,
+            'num_rel': vocab['rel'].num_token,
+            'emb_size': Config.emb_size,
+            'batch_size': Config.batch_size,
+            'input_dropout': Config.input_dropout,
+            'hidden_dropout': Config.feature_map_dropout,
+            'output_dropout': Config.dropout,
+            'learning_rate': Config.learning_rate, 
+            'add_variable_summaries': Config.add_variable_summaries, 
+            'add_tensor_summaries': Config.add_tensor_summaries})
 
     # Load the adjacency matrix of nodes with similar structure.
     adj_matrix = load_adjacency_matrix(
