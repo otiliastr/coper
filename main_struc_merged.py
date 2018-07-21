@@ -59,7 +59,7 @@ def main():
     # Config.label_smoothing_epsilon = 0.05
     # Config.learning_rate = 0.003
     # Config.L2 = 0.995
-    Config.cuda = True
+    Config.cuda = False
     Config.emb_size = 200
 
     # Preprocess the dataset, if needed, and then load it.
