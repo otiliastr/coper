@@ -73,16 +73,11 @@ def load_adjacency_matrix(path, num_ent):
 
 def prune_adjacency_matrix(adj_matrix):
     print('Pruning the adjacency matrix.')
-    for row_idx in range(adj_matrix.shape[0]):
-        # TODO: Make sure streambatcher bugs don't mess this up.
-        if adj_matrix[row_idx].mean() > 0:
-            avg_num_edges = adj_matrix[row_idx].mean()
-        else:
-            avg_num_edges = 1
-        similar_idxs = adj_matrix[row_idx] >= avg_num_edges
-        disimilar_idxs = adj_matrix[row_idx] < avg_num_edges
-        adj_matrix[row_idx, disimilar_idxs] = 0
-        adj_matrix[row_idx, similar_idxs] = 1
+    # TODO: Make sure streambatcher bugs don't mess this up.
+    avg_num_edges = np.mean(adj_matrix, axis=-1)
+    avg_num_edges[avg_num_edges <= 0] = 0
+    adj_matrix.fill(0)
+    adj_matrix[adj_matrix >= avg_num_edges[:, None]] = 1
     return adj_matrix
 
 
