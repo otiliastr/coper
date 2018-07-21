@@ -54,7 +54,7 @@ def main():
     args.remove(sys.argv[structure_walks_path_idx])
 
     # Parse console parameters and set global variables
-    Config.backend = Backends.TORCH
+    Config.backend = Backends.CNTK
     Config.parse_argv(args)
     # Config.label_smoothing_epsilon = 0.05
     # Config.learning_rate = 0.003
@@ -142,7 +142,7 @@ def main():
 
         for str2var in train_batcher:
             # Apply label smoothing.
-            e2_multi_val = str2var['e2_multi1_binary'].float()
+            e2_multi_val = str2var['e2_multi1_binary']
             e2_multi_val = (
                 ((1.0 - Config.label_smoothing_epsilon) * e2_multi_val) +
                 (1.0 / e2_multi_val.size(1)))
