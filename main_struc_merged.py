@@ -72,7 +72,8 @@ def main():
     # Create the train, dev, and test batch iterators.
     train_batcher = StreamBatcher(
         Config.dataset, 'train', Config.batch_size,
-        randomize=True, keys=INPUT_KEYS)
+        randomize=True, loader_threads=32, keys=INPUT_KEYS,
+        cache_size_GB=64)
     dev_batcher = StreamBatcher(
         Config.dataset, 'dev', Config.batch_size,
         randomize=False, loader_threads=4, keys=INPUT_KEYS)
@@ -149,15 +150,15 @@ def main():
             batch_e1 = np.reshape(str2var['e1'], (str2var['e1'].shape[0]))
 
             feed_dict = {
-                    model.e1: str2var['e1'],
-                    model.rel: str2var['rel'],
-                    model.e2_multi: e2_multi_val,
-                    model.e2_struct: adj_matrix[batch_e1],
-                    model.input_dropout: Config.input_dropout,
-                    model.hidden_dropout: Config.feature_map_dropout,
-                    model.output_dropout: Config.dropout,
-                    model.semant_loss_weight: semant_loss_weight,
-                    model.struct_loss_weight: struct_loss_weight}
+                model.e1: str2var['e1'],
+                model.rel: str2var['rel'],
+                model.e2_multi: e2_multi_val,
+                model.e2_struct: adj_matrix[batch_e1],
+                model.input_dropout: Config.input_dropout,
+                model.hidden_dropout: Config.feature_map_dropout,
+                model.output_dropout: Config.dropout,
+                model.semant_loss_weight: semant_loss_weight,
+                model.struct_loss_weight: struct_loss_weight}
 
             if model.summaries is not None and \
                new_epoch and \
