@@ -137,7 +137,7 @@ def main():
         # total_weight = semant_loss_weight + struct_loss_weight
         # semant_loss_weight /= total_weight
         # struct_loss_weight /= total_weight
-        
+
         new_epoch = True
 
         for str2var in train_batcher:
@@ -145,7 +145,7 @@ def main():
             e2_multi_val = str2var['e2_multi1_binary']
             e2_multi_val = (
                 ((1.0 - Config.label_smoothing_epsilon) * e2_multi_val) +
-                (1.0 / e2_multi_val.size(1)))
+                (1.0 / e2_multi_val.shape[1]))
 
             batch_e1 = np.reshape(str2var['e1'], (str2var['e1'].shape[0]))
 
