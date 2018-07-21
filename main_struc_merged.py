@@ -21,6 +21,7 @@ from utilities import (
 DEVICE = '/GPU:0'
 MODEL_NAME = 'conve_equal_merge_opt_bl_params_test_2'
 MAX_EPOCHS = 1000
+SUMMARY_STEPS = 100
 
 # /zfsauton/home/gis/research/qa/models/prelim_tests/ConvE/tmp/merged_v0/
 WORKING_DIR = '/usr0/home/ostretcu/code/george/models/prelim_tests/ConvE/tmp/merged_v0'
@@ -141,9 +142,7 @@ def main():
 
             batch_e1 = np.reshape(str2var['e1'], (str2var['e1'].shape[0]))
 
-            summary, model_loss, _ = session.run(
-                (model.summaries, model.loss, model.train_op),
-                feed_dict={
+            feed_dict = {
                     model.e1: str2var['e1'],
                     model.rel: str2var['rel'],
                     model.e2_multi: e2_multi_val,
@@ -152,10 +151,22 @@ def main():
                     model.hidden_dropout: Config.feature_map_dropout,
                     model.output_dropout: Config.dropout,
                     model.semant_loss_weight: semant_loss_weight,
-                    model.struct_loss_weight: struct_loss_weight})
+                    model.struct_loss_weight: struct_loss_weight}
+
+            if model.summaries is not None and \
+               SUMMARY_STEPS is not None and \
+               SUMMARY_STEPS % iteration == 0:
+                summaries, model_loss, _ = session.run(
+                    (model.summaries, model.loss, model.train_op), feed_dict)
+            else:
+                summaries = None
+                model_loss, _ = session.run(
+                    (model.loss, model.train_op), feed_dict)
 
             train_batcher.state.loss = model_loss
-            summary_writer.add_summary(summary, iteration)
+            if summaries is not None:
+                summary_writer.add_summary(summaries, iteration)
+
             iteration += 1
 
         # Evaluate, if necessary.
