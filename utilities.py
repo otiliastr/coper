@@ -4,7 +4,6 @@ from spodernet.preprocessing.pipeline import Pipeline, DatasetStreamer
 from spodernet.preprocessing.processors import (
     JsonLoaderProcessors, AddToVocab, StreamToHDF5, CustomTokenizer,
     ConvertTokenToIdx, ToLower, DictKey2ListMapper)
-from spodernet.utils.logger import Logger
 
 __all__ = [
     'preprocess_dataset', 'load_adjacency_matrix', 'prune_adjacency_matrix']
@@ -58,9 +57,9 @@ def preprocess_dataset(dataset_name, input_keys, delete_data=False):
 
 
 def load_adjacency_matrix(path, num_ent):
-    Logger.info(
-        'Loading the adjacency matrix for %d entities from %s' 
-        % (num_ent, path))
+    print(
+        ('Loading the adjacency matrix for %d entities from %s'
+         % (num_ent, path)))
     adj_matrix = np.zeros((num_ent, num_ent))
     with open(path, 'r') as walks:
         for walk in walks:
@@ -73,7 +72,7 @@ def load_adjacency_matrix(path, num_ent):
 
 
 def prune_adjacency_matrix(adj_matrix):
-    Logger.info('Pruning the adjacency matrix.')
+    print('Pruning the adjacency matrix.')
     for row_idx in range(adj_matrix.shape[0]):
         # TODO: Make sure streambatcher bugs don't mess this up.
         if adj_matrix[row_idx].mean() > 0:

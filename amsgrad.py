@@ -180,7 +180,7 @@ class AMSGradOptimizer(optimizer.Optimizer):
             v_t = scatter_add(v, indices, v_scaled_g_values)
 
         v_hat = self.get_slot(var, "v_hat")
-        v_hat = v_hat.assign(tf.max(v_hat, v_t))
+        v_hat = v_hat.assign(tf.maximum(v_hat, v_t))
         v_sqrt = math_ops.sqrt(v_hat)
         var_update = state_ops.assign_sub(var,
                                           lr * m_t / (v_sqrt + epsilon_t),

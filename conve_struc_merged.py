@@ -1,8 +1,6 @@
 import math
 import tensorflow as tf
 
-from spodernet.utils.logger import Logger
-
 from amsgrad import AMSGradOptimizer
 
 __all__ = ['ConvE']
@@ -47,11 +45,7 @@ class ConvE(object):
         self.semant_loss_weight = tf.placeholder(tf.float32)
         self.struct_loss_weight = tf.placeholder(tf.float32)
 
-        # We are using resource variables because due to
-        # some implementation details, this allows us to
-        # better utilize GPUs while training.
-        with tf.variable_scope('variables', use_resource=True):
-            self.variables = self._create_variables()
+        self.variables = self._create_variables()
 
         ent_emb = self.variables['ent_emb']
         rel_emb = self.variables['rel_emb']
@@ -213,14 +207,14 @@ class ConvE(object):
                 _create_summaries('loss', struct_loss)
         return struct_loss
 
-    def log_parameters(self):
+    def print_parameters(self):
         """Logs the trainable parameters of this model,
         along with their shapes.
         """
-        Logger.info('Trainable parameters:')
+        print('Trainable parameters:')
         num_parameters = 0
         # TODO: This is not entirely correct. You have to be careful about which graph you compute this for.
         for variable in tf.trainable_variables():
-            Logger.info('\t%s %s' % (variable.name, variable.shape))
+            print('\t%s %s' % (variable.name, variable.shape))
             num_parameters += variable.shape.num_elements()
-        Logger.info('Number of trainable parameters: %d' % num_parameters)
+        print('Number of trainable parameters: %d' % num_parameters)

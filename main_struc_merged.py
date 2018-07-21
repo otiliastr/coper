@@ -14,7 +14,8 @@ from spodernet.utils.logger import Logger, LogLevel
 
 from conve_struc_merged import ConvE
 from evaluation_tf import ranking_and_hits
-from utilities import *
+from utilities import (
+    preprocess_dataset, load_adjacency_matrix, prune_adjacency_matrix)
 
 
 DEVICE = '/GPU:0'
@@ -84,27 +85,31 @@ def main():
 
     # Create the model.
     with tf.device(DEVICE):
-        model = ConvE(model_descriptors={
-            'num_ent': vocab['e1'].num_token,
-            'num_rel': vocab['rel'].num_token,
-            'emb_size': Config.emb_size,
-            'batch_size': Config.batch_size,
-            'input_dropout': Config.input_dropout,
-            'hidden_dropout': Config.feature_map_dropout,
-            'output_dropout': Config.dropout,
-            'learning_rate': Config.learning_rate,
-            'add_variable_summaries': add_variable_summaries,
-            'add_tensor_summaries': add_tensor_summaries})
+        # We are using resource variables because due to
+        # some implementation details, this allows us to
+        # better utilize GPUs while training.
+        with tf.variable_scope('variables', use_resource=True):
+            model = ConvE(model_descriptors={
+                'num_ent': vocab['e1'].num_token,
+                'num_rel': vocab['rel'].num_token,
+                'emb_size': Config.emb_size,
+                'batch_size': Config.batch_size,
+                'input_dropout': Config.input_dropout,
+                'hidden_dropout': Config.feature_map_dropout,
+                'output_dropout': Config.dropout,
+                'learning_rate': Config.learning_rate,
+                'add_variable_summaries': add_variable_summaries,
+                'add_tensor_summaries': add_tensor_summaries})
 
     # Load the adjacency matrix of nodes with similar structure.
     adj_matrix = load_adjacency_matrix(
-        structure_walks_path, side=vocab['e1'].num_token)
+        structure_walks_path, num_ent=vocab['e1'].num_token)
     adj_matrix = prune_adjacency_matrix(adj_matrix)
 
     # Log some information.
-    Logger.info('Number of entities: %d' % vocab['e1'].num_token)
-    Logger.info('Number of relations: %d' % vocab['rel'].num_token)
-    model.log_parameters()
+    print('Number of entities: %d' % vocab['e1'].num_token)
+    print('Number of relations: %d' % vocab['rel'].num_token)
+    model.print_parameters()
 
     # Create a TensorFlow session and start training.
     session = tf.Session()
@@ -163,7 +168,7 @@ def main():
                     model, MODEL_NAME, test_batcher, 
                     vocab, 'test_evaluation', session)
 
-        Logger.info('Saving trained model at %s.' % MODEL_PATH)
+        print('Saving trained model at %s.' % MODEL_PATH)
         saver.save(session, MODEL_PATH)
 
 
