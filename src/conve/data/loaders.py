@@ -50,11 +50,12 @@ class Loader(six.with_metaclass(abc.ABCMeta, object)):
             directory (str): Directory in which to download the files.
             buffer_size (int, optional): Buffer size to use while downloading.
         """
+        os.makedirs(directory, exist_ok=True)
         for filename in self.filenames:
             path = os.path.join(directory, filename)
             url = self.url + '/' + filename
             if not os.path.exists(path):
-                logger.info('Downloading file from: %s', url)
+                logger.info('Downloading \'%s\' to \'%s\'.', url, directory)
                 response = requests.get(url, stream=True)
                 with open(os.path.join(directory, filename), 'wb') as handle:
                     for data in tqdm(response.iter_content(buffer_size)):
@@ -73,6 +74,9 @@ class _ConvELoader(Loader):
         # Download and potentially extract all needed files.
         directory = os.path.join(directory, self.dataset_name)
         self.maybe_extract(directory, buffer_size)
+
+        # One more directory is created due to the archive extraction.
+        directory = os.path.join(directory, self.dataset_name)
 
         # Load and preprocess the data.
         full_graph = {} # Maps from (e1, rel) to set of e2 values.
@@ -128,28 +132,28 @@ class _ConvELoader(Loader):
                     handle.write(json.dumps(sample)  + '\n')
                 elif not key[1].endswith('_reverse'):
                     e1, rel = key
-                    e2 = value
                     rel_reverse = rel + '_reverse'
-                    key_reverse = (e2, rel_reverse)
                     e2_multi1 = ' '.join(list(graph[key]))
-                    e2_multi2 = ' '.join(list(graph[key_reverse]))
-                    sample = {
-                        'e1': e1,
-                        'e2': e2,
-                        'rel': rel,
-                        'rel_eval': rel_reverse,
-                        'e2_multi1': e2_multi1,
-                        'e2_multi2': e2_multi2}
-                    handle.write(json.dumps(sample)  + '\n')
+                    for e2 in value:
+                        key_reverse = (e2, rel_reverse)
+                        e2_multi2 = ' '.join(list(graph[key_reverse]))
+                        sample = {
+                            'e1': e1,
+                            'e2': e2,
+                            'rel': rel,
+                            'rel_eval': rel_reverse,
+                            'e2_multi1': e2_multi1,
+                            'e2_multi2': e2_multi2}
+                        handle.write(json.dumps(sample)  + '\n')
 
 
 class KinshipLoader(_ConvELoader):
     def __init__(self):
-        filename = 'kinship.tar.gz'
-        super(KinshipLoader, self).__init__(filename)
+        dataset_name = 'kinship'
+        super(KinshipLoader, self).__init__(dataset_name)
 
 
 class WN18RRLoader(_ConvELoader):
     def __init__(self):
-        filename = 'WN18RR.tar.gz'
-        super(WN18RRLoader, self).__init__(filename)
+        dataset_name = 'WN18RR'
+        super(WN18RRLoader, self).__init__(dataset_name)
