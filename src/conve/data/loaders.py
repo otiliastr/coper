@@ -7,7 +7,9 @@ import os
 import tarfile
 import six
 
+import numpy as np
 import requests
+import tensorflow as tf
 
 from tqdm import tqdm
 
@@ -71,7 +73,8 @@ class _ConvELoader(Loader):
         super(_ConvELoader, self).__init__(url, [dataset_name + '.tar.gz'])
 
     def load_and_preprocess(self, directory, buffer_size=1024 * 1024):
-        logger.info('Loading ConvE dataset: %s', self.dataset_name)
+        logger.info(
+            'Loading and preprocessing the \'%s\' dataset.', self.dataset_name)
 
         # Download and potentially extract all needed files.
         directory = os.path.join(directory, self.dataset_name)
@@ -120,6 +123,12 @@ class _ConvELoader(Loader):
         self._write_graph(e1rel_to_e2_test, graphs['test.txt'], full_graph)
         self._write_graph(e1rel_to_e2_full, full_graph)
 
+        return {
+            'train': e1rel_to_e2_train, 
+            'dev': e1rel_to_e2_dev, 
+            'test': e1rel_to_e2_test, 
+            'full': e1rel_to_e2_full}
+
     def _write_graph(self, filename, graph, labels=None):
         with open(filename, 'w') as handle:
             for key, value in six.iteritems(graph):
@@ -147,6 +156,136 @@ class _ConvELoader(Loader):
                             'e2_multi1': e2_multi1,
                             'e2_multi2': e2_multi2}
                         handle.write(json.dumps(sample)  + '\n')
+
+    def create_tf_record_files(self, directory, buffer_size=1024 * 1024):
+        logger.info(
+            'Creating TF record files for the \'%s\' dataset.',
+            self.dataset_name)
+
+        json_files = self.load_and_preprocess(directory, buffer_size)
+
+        # We first load the entity and relation ID maps and handle missing 
+        # entries using -1 as their index.
+        entity_ids, relation_ids = self._assign_ids(json_files)
+        entity_ids['None'] = -1
+        relation_ids['None'] = -1
+        num_ent = len(entity_ids) - 1
+
+        directory = os.path.dirname(json_files['full'])
+        tf_record_filenames = {}
+
+        for filetype in ['train', 'dev', 'test']:
+            filename = os.path.join(directory, '{0}.tfrecords'.format(filetype))
+            tf_record_filenames[filetype] = filename
+            if not os.path.exists(filename):
+                tf_records_writer = tf.python_io.TFRecordWriter(filename)
+                with open(json_files[filetype], 'r') as handle:
+                    for line in handle:
+                        sample = json.loads(line)
+                        record = self._encode_sample_as_tf_record(
+                            sample, entity_ids, relation_ids, num_ent)
+                        tf_records_writer.write(record.SerializeToString())
+                tf_records_writer.close()
+
+        return tf_record_filenames
+
+    def _assign_ids(self, json_files):
+        directory = os.path.dirname(json_files['full'])
+        entities_file = os.path.join(directory, 'entities.txt')
+        relations_file = os.path.join(directory, 'relations.txt')
+
+        entities_exist = os.path.exists(entities_file)
+        relations_exist = os.path.exists(relations_file)
+
+        entity_names = {}
+        entity_ids = {}
+        relation_names = {}
+        relation_ids = {}
+
+        # Check if any of the index files already exist.
+        if entities_exist:
+            with open(entities_file, 'r') as handle:
+                for i, line in enumerate(handle):
+                    line = line.strip()
+                    entity_names[i] = line
+                    entity_ids[line] = i
+        if relations_exist:
+            with open(relations_file, 'r') as handle:
+                for i, line in enumerate(handle):
+                    line = line.strip()
+                    relation_names[i] = line
+                    relation_ids[line] = i
+
+        # Create any of the entity and relation index maps, if needed.
+        if not entities_exist or not relations_exist:
+            with open(json_files['full'], 'r') as handle:
+                full_data = []
+                for line in handle:
+                    full_data.append(json.loads(line))
+            num_ent = 0
+            num_rel = 0
+            for sample in full_data:
+                if not entities_exist:
+                    entities = set()
+                    entities.add(sample['e1'])
+                    entities.add(sample['e2'])
+                    entities.update(sample['e2_multi1'].split(' '))
+                    entities.update(sample['e2_multi2'].split(' '))
+                    for entity in entities:
+                        if entity != 'None' and entity not in entity_ids:
+                            entity_names[num_ent] = entity
+                            entity_ids[entity] = num_ent
+                            num_ent += 1
+                if not relations_exist:
+                    for relation in [sample['rel'], sample['rel_eval']]:
+                        if relation != 'None' and \
+                           relation not in relation_ids:
+                            relation_names[num_rel] = relation
+                            relation_ids[relation] = num_rel
+                            num_rel += 1
+
+        # Store the index maps in text files, if needed.
+        # TODO: Can be done more efficiently using ordered dictionaries.
+        if not entities_exist:
+            with open(entities_file, 'w') as handle:
+                for entity_id in range(num_ent):
+                    handle.write(entity_names[entity_id] + '\n')
+        if not relations_exist:
+            with open(relations_file, 'w') as handle:
+                for relation_id in range(num_rel):
+                    handle.write(relation_names[relation_id] + '\n')
+
+        return (entity_ids, relation_ids)
+
+    def _encode_sample_as_tf_record(
+        self, sample, entity_ids, relation_ids, num_ent):
+        e1 = entity_ids[sample['e1']]
+        e2 = entity_ids[sample['e2']]
+        rel = relation_ids[sample['rel']]
+        rel_eval = relation_ids[sample['rel_eval']]
+        e2_multi1 = [entity_ids[e] for e in sample['e2_multi1'].split(' ')]
+        e2_multi2 = [entity_ids[e] for e in sample['e2_multi2'].split(' ')]
+        e2_multi1 = np.array(e2_multi1)
+        e2_multi2 = np.array(e2_multi2)
+        e2_multi1_dense = np.zeros((num_ent,), np.int64)
+        e2_multi2_dense = np.zeros((num_ent,), np.int64)
+        e2_multi1_dense[e2_multi1] = 1
+        e2_multi2_dense[e2_multi2] = 1
+
+        def _int64(values):
+            return tf.train.Feature(
+                int64_list=tf.train.Int64List(value=values))
+
+        features = tf.train.Features(feature={
+            'e1': _int64([e1]),
+            'e2': _int64([e2]),
+            'rel': _int64([rel]),
+            'rel_eval': _int64([rel_eval]),
+            'e2_multi1': _int64(e2_multi1_dense.tolist()),
+            'e2_multi2': _int64(e2_multi2_dense.tolist())
+        })
+
+        return tf.train.Example(features=features)
 
 
 class NationsLoader(_ConvELoader):

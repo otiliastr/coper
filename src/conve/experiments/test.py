@@ -8,4 +8,4 @@ working_dir = os.path.join(os.getcwd(), 'temp')
 data_dir = os.path.join(working_dir, 'data')
 
 loader = KinshipLoader()
-loader.load_and_preprocess(data_dir)
+tf_record_filenames = loader.create_tf_record_files(data_dir)
