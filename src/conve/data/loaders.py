@@ -81,10 +81,39 @@ class _ConvELoader(Loader):
                       batch_size,
                       adj_matrix,
                       label_smoothing_epsilon,
+                      num_parallel_readers=32,
+                      num_parallel_batches=32,
                       buffer_size=1024 * 1024, 
                       prefetch_buffer_size=128):
         parser, filenames = self.create_tf_record_files(directory, buffer_size)
         adj_matrix = adj_matrix.astype(np.float32)
+        files = tf.data.Dataset.from_tensor_slices(filenames['train'])
+        def map_fn(sample):
+            sample = parser(sample)
+            return {
+                'e1': sample['e1'][None],
+                'e2': sample['e2'][None],
+                'rel': sample['rel'][None],
+                'rel_eval': sample['rel_eval'][None],
+                'e2_multi1': (
+                    ((1.0 - label_smoothing_epsilon) * sample['e2_multi1']) +
+                    (1.0 / sample['e2_multi1'].shape[0].value)),
+                'e2_multi2': sample['e2_multi2'],
+                # TODO: Avoid this hack.
+                'e2_struct': tf.py_func(
+                    lambda x: adj_matrix[x], [sample['e1']],
+                    Tout=tf.float32, stateful=False)
+            }
+        return files.apply(tf.contrib.data.parallel_interleave(
+            tf.data.TFRecordDataset, cycle_length=num_parallel_readers))\
+            .repeat()\
+            .apply(tf.contrib.data.map_and_batch(
+                map_func=map_fn, 
+                batch_size=batch_size, 
+                num_parallel_batches=num_parallel_batches))\
+            .shuffle(buffer_size=1000)\
+            .prefetch(prefetch_buffer_size)
+
         return tf.data.TFRecordDataset(filenames['train'])\
             .map(parser)\
             .map(lambda sample: {
@@ -157,7 +186,10 @@ class _ConvELoader(Loader):
             .prefetch(prefetch_buffer_size)
         return dataset, dataset_reverse
 
-    def create_tf_record_files(self, directory, buffer_size=1024 * 1024):
+    def create_tf_record_files(self, 
+                               directory, 
+                               max_records_per_file=10000, 
+                               buffer_size=1024 * 1024):
         logger.info(
             'Creating TF record files for the \'%s\' dataset.',
             self.dataset_name)
@@ -176,8 +208,11 @@ class _ConvELoader(Loader):
         tf_record_filenames = {}
 
         for filetype in ['train', 'dev', 'test']:
-            filename = os.path.join(directory, '{0}.tfrecords'.format(filetype))
-            tf_record_filenames[filetype] = filename
+            count = 0
+            file_index = 0
+            filename = os.path.join(
+                directory, '{0}-{1}.tfrecords'.format(filetype, file_index))
+            tf_record_filenames[filetype] = [filename]
             if not os.path.exists(filename):
                 tf_records_writer = tf.python_io.TFRecordWriter(filename)
                 with open(json_files[filetype], 'r') as handle:
@@ -186,6 +221,16 @@ class _ConvELoader(Loader):
                         record = self._encode_sample_as_tf_record(
                             sample, entity_ids, relation_ids)
                         tf_records_writer.write(record.SerializeToString())
+                        count += 1
+                        if count >= max_records_per_file:
+                            tf_records_writer.close()
+                            count = 0
+                            file_index += 1
+                            filename = os.path.join(
+                                directory, 
+                                '{0}-{1}.tfrecords'.format(filetype, file_index))
+                            tf_record_filenames[filetype].append(filename)
+                            tf_records_writer = tf.python_io.TFRecordWriter(filename)
                 tf_records_writer.close()
 
         def tf_record_parser(record):
