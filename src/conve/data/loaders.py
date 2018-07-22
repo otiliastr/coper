@@ -107,12 +107,12 @@ class _ConvELoader(Loader):
                     Tout=tf.float32, stateful=False)
             }
         return files.apply(tf.contrib.data.parallel_interleave(
-            tf.data.TFRecordDataset, cycle_length=num_parallel_readers))\
-            .repeat()\
-            .shuffle(buffer_size=1000)\
+            tf.data.TFRecordDataset, cycle_length=num_parallel_readers, 
+            block_length=batch_size, sloppy=True))\
+            .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))\
             .apply(tf.contrib.data.map_and_batch(
-                map_func=map_fn, 
-                batch_size=batch_size, 
+                map_func=map_fn,
+                batch_size=batch_size,
                 num_parallel_batches=num_parallel_batches))\
             .prefetch(prefetch_buffer_size)
 
