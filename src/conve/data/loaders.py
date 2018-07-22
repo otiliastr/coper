@@ -71,7 +71,7 @@ class _ConvELoader(Loader):
         self.dataset_name = dataset_name
         url = 'https://github.com/TimDettmers/ConvE/raw/master'
         super(_ConvELoader, self).__init__(url, [dataset_name + '.tar.gz'])
-        
+
         # TODO: This is a bad way of "leaking" this information because it may be incomplete when querried.
         self.num_ent = None
         self.num_rel = None
@@ -90,15 +90,17 @@ class _ConvELoader(Loader):
         files = tf.data.Dataset.from_tensor_slices(filenames['train'])
         def map_fn(sample):
             sample = parser(sample)
+            e2_multi1 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi1'], self.num_ent))
+            e2_multi2 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi2'], self.num_ent))
             return {
                 'e1': sample['e1'][None],
                 'e2': sample['e2'][None],
                 'rel': sample['rel'][None],
                 'rel_eval': sample['rel_eval'][None],
                 'e2_multi1': (
-                    ((1.0 - label_smoothing_epsilon) * sample['e2_multi1']) +
-                    (1.0 / sample['e2_multi1'].shape[0].value)),
-                'e2_multi2': sample['e2_multi2'],
+                    ((1.0 - label_smoothing_epsilon) * e2_multi1) + 
+                    (1.0 / self.num_ent)),
+                'e2_multi2': e2_multi2,
                 # TODO: Avoid this hack.
                 'e2_struct': tf.py_func(
                     lambda x: adj_matrix[x], [sample['e1']],
@@ -114,39 +116,18 @@ class _ConvELoader(Loader):
             .shuffle(buffer_size=1000)\
             .prefetch(prefetch_buffer_size)
 
-        return tf.data.TFRecordDataset(filenames['train'])\
-            .map(parser)\
-            .map(lambda sample: {
-                'e1': sample['e1'][None],
-                'e2': sample['e2'][None],
-                'rel': sample['rel'][None],
-                'rel_eval': sample['rel_eval'][None],
-                'e2_multi1': (
-                    ((1.0 - label_smoothing_epsilon) * sample['e2_multi1']) +
-                    (1.0 / sample['e2_multi1'].shape[0].value)),
-                'e2_multi2': sample['e2_multi2'],
-                # TODO: Avoid this hack.
-                'e2_struct': tf.py_func(
-                    lambda x: adj_matrix[x], [sample['e1']],
-                    Tout=tf.float32, stateful=False)
-            })\
-            .repeat()\
-            .batch(batch_size)\
-            .shuffle(buffer_size=1000)\
-            .prefetch(prefetch_buffer_size)
-
-    def dev_datasets(self, 
-                      directory, 
-                      batch_size,
-                      buffer_size=1024 * 1024, 
-                      prefetch_buffer_size=128):
+    def dev_datasets(self,
+                     directory,
+                     batch_size,
+                     buffer_size=1024 * 1024,
+                     prefetch_buffer_size=128):
         return self._eval_datasets(
             directory, 'dev', batch_size, buffer_size, prefetch_buffer_size)
 
     def test_datasets(self,
-                      directory, 
+                      directory,
                       batch_size,
-                      buffer_size=1024 * 1024, 
+                      buffer_size=1024 * 1024,
                       prefetch_buffer_size=128):
         return self._eval_datasets(
             directory, 'test', batch_size, buffer_size, prefetch_buffer_size)
@@ -158,30 +139,25 @@ class _ConvELoader(Loader):
                        buffer_size=1024 * 1024, 
                        prefetch_buffer_size=128):
         parser, filenames = self.create_tf_record_files(directory, buffer_size)
-        dataset = tf.data.TFRecordDataset(filenames[dataset_type])\
-            .map(parser)\
-            .map(lambda sample: {
+        def map_fn(sample):
+            sample = parser(sample)
+            e2_multi1 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi1'], self.num_ent))
+            e2_multi2 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi2'], self.num_ent))
+            return {
                 'e1': sample['e1'][None],
                 'e2': sample['e2'][None],
                 'rel': sample['rel'][None],
                 'rel_eval': sample['rel_eval'][None],
-                'e2_multi1': sample['e2_multi1'],
-                'e2_multi2': sample['e2_multi2'], 
-                'e2_struct': sample['e2_multi1'] # TODO: Fix dummy.
-            })\
+                'e2_multi1': e2_multi1,
+                'e2_multi2': e2_multi2, 
+                'e2_struct': e2_multi1 # TODO: Fix dummy.
+            }
+        dataset = tf.data.TFRecordDataset(filenames[dataset_type])\
+            .map(map_fn)\
             .batch(batch_size)\
             .prefetch(prefetch_buffer_size)
         dataset_reverse = tf.data.TFRecordDataset(filenames[dataset_type])\
-            .map(parser)\
-            .map(lambda sample: {
-                'e1': sample['e1'][None],
-                'e2': sample['e2'][None],
-                'rel': sample['rel'][None],
-                'rel_eval': sample['rel_eval'][None],
-                'e2_multi1': sample['e2_multi1'],
-                'e2_multi2': sample['e2_multi2'], 
-                'e2_struct': sample['e2_multi1'] # TODO: Fix dummy.
-            })\
+            .map(map_fn)\
             .batch(batch_size)\
             .prefetch(prefetch_buffer_size)
         return dataset, dataset_reverse
@@ -239,8 +215,8 @@ class _ConvELoader(Loader):
                 'e2': tf.FixedLenFeature([], tf.int64),
                 'rel': tf.FixedLenFeature([], tf.int64),
                 'rel_eval': tf.FixedLenFeature([], tf.int64),
-                'e2_multi1': tf.FixedLenFeature([self.num_ent], tf.float32),
-                'e2_multi2': tf.FixedLenFeature([self.num_ent], tf.float32)}
+                'e2_multi1': tf.VarLenFeature(tf.int64),
+                'e2_multi2': tf.VarLenFeature(tf.int64)}
             return tf.parse_single_example(record, features=features)
 
         return tf_record_parser, tf_record_filenames
@@ -403,30 +379,24 @@ class _ConvELoader(Loader):
         e2 = entity_ids[sample['e2']]
         rel = relation_ids[sample['rel']]
         rel_eval = relation_ids[sample['rel_eval']]
-        e2_multi1 = [entity_ids[e] for e in sample['e2_multi1'].split(' ')]
-        e2_multi2 = [entity_ids[e] for e in sample['e2_multi2'].split(' ')]
-        e2_multi1 = np.array(e2_multi1)
-        e2_multi2 = np.array(e2_multi2)
-        e2_multi1_dense = np.zeros((self.num_ent,), np.float32)
-        e2_multi2_dense = np.zeros((self.num_ent,), np.float32)
-        e2_multi1_dense[e2_multi1] = 1
-        e2_multi2_dense[e2_multi2] = 1
+        e2_multi1 = [entity_ids[e]
+                     for e in sample['e2_multi1'].split(' ')
+                     if e != 'None']
+        e2_multi2 = [entity_ids[e]
+                     for e in sample['e2_multi2'].split(' ')
+                     if e != 'None']
 
         def _int64(values):
             return tf.train.Feature(
                 int64_list=tf.train.Int64List(value=values))
-
-        def _float32(values):
-            return tf.train.Feature(
-                float_list=tf.train.FloatList(value=values))
 
         features = tf.train.Features(feature={
             'e1': _int64([e1]),
             'e2': _int64([e2]),
             'rel': _int64([rel]),
             'rel_eval': _int64([rel_eval]),
-            'e2_multi1': _float32(e2_multi1_dense.tolist()),
-            'e2_multi2': _float32(e2_multi2_dense.tolist())
+            'e2_multi1': _int64(e2_multi1),
+            'e2_multi2': _int64(e2_multi2)
         })
 
         return tf.train.Example(features=features)
