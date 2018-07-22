@@ -11,7 +11,9 @@ import requests
 
 from tqdm import tqdm
 
-__all__ = ['Loader', 'KinshipLoader', 'WN18RRLoader']
+__all__ = [
+    'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader', 
+    'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader']
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +149,18 @@ class _ConvELoader(Loader):
                         handle.write(json.dumps(sample)  + '\n')
 
 
+class NationsLoader(_ConvELoader):
+    def __init__(self):
+        dataset_name = 'nations'
+        super(NationsLoader, self).__init__(dataset_name)
+
+
+class UMLSLoader(_ConvELoader):
+    def __init__(self):
+        dataset_name = 'umls'
+        super(UMLSLoader, self).__init__(dataset_name)
+
+
 class KinshipLoader(_ConvELoader):
     def __init__(self):
         dataset_name = 'kinship'
@@ -157,3 +171,15 @@ class WN18RRLoader(_ConvELoader):
     def __init__(self):
         dataset_name = 'WN18RR'
         super(WN18RRLoader, self).__init__(dataset_name)
+
+
+class YAGO310Loader(_ConvELoader):
+    def __init__(self):
+        dataset_name = 'YAGO3-10'
+        super(YAGO310Loader, self).__init__(dataset_name)
+
+
+class FB15k237Loader(_ConvELoader):
+    def __init__(self):
+        dataset_name = 'FB15k-237'
+        super(FB15k237Loader, self).__init__(dataset_name)
