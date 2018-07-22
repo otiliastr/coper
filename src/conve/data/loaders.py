@@ -84,7 +84,7 @@ class _ConvELoader(Loader):
                       buffer_size=1024 * 1024, 
                       prefetch_buffer_size=128):
         parser, filenames = self.create_tf_record_files(directory, buffer_size)
-        adj_matrix = tf.constant(adj_matrix, tf.float32)
+        adj_matrix = adj_matrix.astype(np.float32)
         return tf.data.TFRecordDataset(filenames['train'])\
             .map(parser)\
             .map(lambda sample: {
@@ -96,7 +96,10 @@ class _ConvELoader(Loader):
                     ((1.0 - label_smoothing_epsilon) * sample['e2_multi1']) +
                     (1.0 / sample['e2_multi1'].shape[0].value)),
                 'e2_multi2': sample['e2_multi2'],
-                'e2_struct': tf.gather(adj_matrix, sample['e1'])
+                # TODO: Avoid this hack.
+                'e2_struct': tf.py_func(
+                    lambda x: adj_matrix[x], [sample['e1']],
+                    Tout=tf.float32, stateful=False)
             })\
             .repeat()\
             .batch(batch_size)\
@@ -111,7 +114,7 @@ class _ConvELoader(Loader):
         return self._eval_datasets(
             directory, 'dev', batch_size, buffer_size, prefetch_buffer_size)
 
-    def test_datasets(self, 
+    def test_datasets(self,
                       directory, 
                       batch_size,
                       buffer_size=1024 * 1024, 
