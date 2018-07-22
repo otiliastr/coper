@@ -109,11 +109,11 @@ class _ConvELoader(Loader):
         return files.apply(tf.contrib.data.parallel_interleave(
             tf.data.TFRecordDataset, cycle_length=num_parallel_readers))\
             .repeat()\
+            .shuffle(buffer_size=1000)\
             .apply(tf.contrib.data.map_and_batch(
                 map_func=map_fn, 
                 batch_size=batch_size, 
                 num_parallel_batches=num_parallel_batches))\
-            .shuffle(buffer_size=1000)\
             .prefetch(prefetch_buffer_size)
 
     def dev_datasets(self,
@@ -149,7 +149,7 @@ class _ConvELoader(Loader):
                 'rel': sample['rel'][None],
                 'rel_eval': sample['rel_eval'][None],
                 'e2_multi1': e2_multi1,
-                'e2_multi2': e2_multi2, 
+                'e2_multi2': e2_multi2,
                 'e2_struct': e2_multi1 # TODO: Fix dummy.
             }
         dataset = tf.data.TFRecordDataset(filenames[dataset_type])\
@@ -162,9 +162,9 @@ class _ConvELoader(Loader):
             .prefetch(prefetch_buffer_size)
         return dataset, dataset_reverse
 
-    def create_tf_record_files(self, 
-                               directory, 
-                               max_records_per_file=10000, 
+    def create_tf_record_files(self,
+                               directory,
+                               max_records_per_file=10000,
                                buffer_size=1024 * 1024):
         logger.info(
             'Creating TF record files for the \'%s\' dataset.',
