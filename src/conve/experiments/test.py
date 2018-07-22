@@ -6,7 +6,7 @@ import os
 import numpy as np
 import tensorflow as tf
 
-from ..data.loaders import KinshipLoader
+from ..data.loaders import WN18RRLoader
 from ..evaluation.metrics import ranking_and_hits
 from ..models.conve_struc_merged import ConvE
 from ..utilities.structure import load_adjacency_matrix, prune_adjacency_matrix
@@ -17,9 +17,9 @@ DEVICE = '/CPU:0'
 MODEL_NAME = 'conve_equal_merge_opt_bl_params_test_2'
 MAX_STEPS = 10000
 LOG_STEPS = 100
-SUMMARY_STEPS = 100
-CKPT_STEPS = 100
-EVAL_STEPS = 100
+SUMMARY_STEPS = 1000
+CKPT_STEPS = 1000
+EVAL_STEPS = 1000
 
 EMB_SIZE = 200
 INPUT_DROPOUT = 0.0
@@ -36,7 +36,7 @@ CKPT_PATH = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'model_weights.ckpt'
 EVAL_PATH = os.path.join(WORKING_DIR, 'evaluation', MODEL_NAME)
 
 # TODO: Standardize this.
-STRUCTURE_WALKS_PATH = '/Users/anthony/Development/GitHub/qa_types/src/temp/data/kinship/random_walks.txt'
+STRUCTURE_WALKS_PATH = '/Users/anthony/Development/GitHub/qa_types/src/temp/data/WN18RR/random_walks.txt'
 
 ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
@@ -44,7 +44,7 @@ ADD_TENSOR_SUMMARIES = False
 
 
 def main():
-    loader = KinshipLoader()
+    loader = WN18RRLoader()
     loader.create_tf_record_files(DATA_DIR)
 
     # Load the adjacency matrix of nodes with similar structure.
@@ -70,18 +70,18 @@ def main():
                 'add_variable_summaries': ADD_VARIABLE_SUMMARIES,
                 'add_tensor_summaries': ADD_TENSOR_SUMMARIES})
 
-            # Create dataset iterator initializers.
-            train_dataset = loader.train_dataset(
-                DATA_DIR, BATCH_SIZE, adj_matrix, LABEL_SMOOTHING_EPSILON)
-            dev_datasets = loader.dev_datasets(DATA_DIR, BATCH_SIZE)
-            test_datasets = loader.test_datasets(DATA_DIR, BATCH_SIZE)
+    # Create dataset iterator initializers.
+    train_dataset = loader.train_dataset(
+        DATA_DIR, BATCH_SIZE, adj_matrix, LABEL_SMOOTHING_EPSILON)
+    dev_datasets = loader.dev_datasets(DATA_DIR, BATCH_SIZE)
+    test_datasets = loader.test_datasets(DATA_DIR, BATCH_SIZE)
 
-            train_iterator = train_dataset.make_one_shot_iterator()
-            dev_iterators = [d.make_initializable_iterator() for d in dev_datasets]
-            test_iterators = [d.make_initializable_iterator() for d in test_datasets]
+    train_iterator = train_dataset.make_one_shot_iterator()
+    dev_iterators = [d.make_initializable_iterator() for d in dev_datasets]
+    test_iterators = [d.make_initializable_iterator() for d in test_datasets]
 
-            dev_iterators_init = tf.group([d.initializer for d in dev_iterators])
-            test_iterators_init = tf.group([d.initializer for d in test_iterators])
+    dev_iterators_init = tf.group([d.initializer for d in dev_iterators])
+    test_iterators_init = tf.group([d.initializer for d in test_iterators])
 
     # Log some information.
     LOGGER.info('Number of entities: %d', loader.num_ent)
@@ -132,7 +132,7 @@ def main():
             summary_writer.add_summary(summaries, step)
 
         # Evaluate, if necessary.
-        if step % EVAL_STEPS == 0:
+        if step % EVAL_STEPS == 0 and step > 0:
             LOGGER.info('Running dev evaluation.')
             session.run(dev_iterators_init)
             ranking_and_hits(
@@ -144,7 +144,7 @@ def main():
                 model, EVAL_PATH, test_iterator_handles,
                 'test_evaluation', session)
 
-        if step % CKPT_STEPS == 0:
+        if step % CKPT_STEPS == 0 and step > 0:
             LOGGER.info('Saving checkpoint at %s.', CKPT_PATH)
             saver.save(session, CKPT_PATH)
 
