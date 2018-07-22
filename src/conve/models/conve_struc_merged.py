@@ -40,23 +40,31 @@ class ConvE(object):
         optimizer = AMSGradOptimizer(learning_rate)
 
         # Build the graph.
-        self.input_iterator = tf.data.Iterator.from_structure(
+        self.input_iterator_handle = tf.placeholder(tf.string, shape=[])
+        self.input_iterator = tf.data.Iterator.from_string_handle(
+            self.input_iterator_handle,
             output_types={
                 'e1': tf.int64,
+                'e2': tf.int64,
                 'rel': tf.int64,
-                'e2_multi': tf.float32,
+                'rel_eval': tf.int64,
+                'e2_multi1': tf.float32,
+                'e2_multi2': tf.float32,
                 'e2_struct': tf.float32},
             output_shapes={
                 'e1': [None, 1],
+                'e2': [None, 1],
                 'rel': [None, 1],
-                'e2_multi': [None, self.num_ent],
+                'rel_eval': [None, 1],
+                'e2_multi1': [None, self.num_ent],
+                'e2_multi2': [None, self.num_ent],
                 'e2_struct': [None, self.num_ent]})
-        next_sample = self.input_iterator.get_next()
+        self.next_sample = self.input_iterator.get_next()
 
-        e1 = next_sample['e1']
-        rel = next_sample['rel']
-        e2_multi = next_sample['e2_multi']
-        e2_struct = next_sample['e2_struct']
+        self.e1 = self.next_sample['e1']
+        self.rel = self.next_sample['rel']
+        self.e2_multi = self.next_sample['e2_multi1']
+        self.e2_struct = self.next_sample['e2_struct']
 
         self.input_dropout = tf.placeholder(tf.float32)
         self.hidden_dropout = tf.placeholder(tf.float32)
@@ -68,11 +76,11 @@ class ConvE(object):
 
         ent_emb = self.variables['ent_emb']
         rel_emb = self.variables['rel_emb']
-        e1_emb = tf.nn.embedding_lookup(ent_emb, e1, name='e1_emb')
-        rel_emb = tf.nn.embedding_lookup(rel_emb, rel, name='rel_emb')
+        e1_emb = tf.nn.embedding_lookup(ent_emb, self.e1, name='e1_emb')
+        rel_emb = tf.nn.embedding_lookup(rel_emb, self.rel, name='rel_emb')
         self.predictions = self._create_predictions(e1_emb, rel_emb)
-        semant_loss = self._create_semant_loss(self.predictions, e2_multi)
-        struct_loss = self._create_struct_loss(e1_emb, e2_struct)
+        semant_loss = self._create_semant_loss(self.predictions, self.e2_multi)
+        struct_loss = self._create_struct_loss(e1_emb, self.e2_struct)
 
         # Combine the two losses according to the provided weights.
         self.loss = (

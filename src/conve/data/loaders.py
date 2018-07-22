@@ -14,7 +14,7 @@ import tensorflow as tf
 from tqdm import tqdm
 
 __all__ = [
-    'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader', 
+    'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader',
     'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader']
 
 logger = logging.getLogger(__name__)
@@ -89,16 +89,70 @@ class _ConvELoader(Loader):
             .map(parser)\
             .map(lambda sample: {
                 'e1': sample['e1'][None],
+                'e2': sample['e2'][None],
                 'rel': sample['rel'][None],
-                'e2_multi': (
+                'rel_eval': sample['rel_eval'][None],
+                'e2_multi1': (
                     ((1.0 - label_smoothing_epsilon) * sample['e2_multi1']) +
                     (1.0 / sample['e2_multi1'].shape[0].value)),
+                'e2_multi2': sample['e2_multi2'],
                 'e2_struct': tf.gather(adj_matrix, sample['e1'])
             })\
             .repeat()\
             .batch(batch_size)\
             .shuffle(buffer_size=1000)\
             .prefetch(prefetch_buffer_size)
+
+    def dev_datasets(self, 
+                      directory, 
+                      batch_size,
+                      buffer_size=1024 * 1024, 
+                      prefetch_buffer_size=128):
+        return self._eval_datasets(
+            directory, 'dev', batch_size, buffer_size, prefetch_buffer_size)
+
+    def test_datasets(self, 
+                      directory, 
+                      batch_size,
+                      buffer_size=1024 * 1024, 
+                      prefetch_buffer_size=128):
+        return self._eval_datasets(
+            directory, 'test', batch_size, buffer_size, prefetch_buffer_size)
+
+    def _eval_datasets(self,
+                       directory, 
+                       dataset_type,
+                       batch_size,
+                       buffer_size=1024 * 1024, 
+                       prefetch_buffer_size=128):
+        parser, filenames = self.create_tf_record_files(directory, buffer_size)
+        dataset = tf.data.TFRecordDataset(filenames[dataset_type])\
+            .map(parser)\
+            .map(lambda sample: {
+                'e1': sample['e1'][None],
+                'e2': sample['e2'][None],
+                'rel': sample['rel'][None],
+                'rel_eval': sample['rel_eval'][None],
+                'e2_multi1': sample['e2_multi1'],
+                'e2_multi2': sample['e2_multi2'], 
+                'e2_struct': sample['e2_multi1'] # TODO: Fix dummy.
+            })\
+            .batch(batch_size)\
+            .prefetch(prefetch_buffer_size)
+        dataset_reverse = tf.data.TFRecordDataset(filenames[dataset_type])\
+            .map(parser)\
+            .map(lambda sample: {
+                'e1': sample['e1'][None],
+                'e2': sample['e2'][None],
+                'rel': sample['rel'][None],
+                'rel_eval': sample['rel_eval'][None],
+                'e2_multi1': sample['e2_multi1'],
+                'e2_multi2': sample['e2_multi2'], 
+                'e2_struct': sample['e2_multi1'] # TODO: Fix dummy.
+            })\
+            .batch(batch_size)\
+            .prefetch(prefetch_buffer_size)
+        return dataset, dataset_reverse
 
     def create_tf_record_files(self, directory, buffer_size=1024 * 1024):
         logger.info(

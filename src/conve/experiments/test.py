@@ -33,6 +33,7 @@ WORKING_DIR = os.path.join(os.getcwd(), 'temp')
 DATA_DIR = os.path.join(WORKING_DIR, 'data')
 LOG_DIR = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'logs')
 CKPT_PATH = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'model_weights.ckpt')
+EVAL_PATH = os.path.join(WORKING_DIR, 'evaluation', MODEL_NAME)
 
 # TODO: Standardize this.
 STRUCTURE_WALKS_PATH = '/Users/anthony/Development/GitHub/qa_types/src/temp/data/kinship/random_walks.txt'
@@ -72,7 +73,15 @@ def main():
             # Create dataset iterator initializers.
             train_dataset = loader.train_dataset(
                 DATA_DIR, BATCH_SIZE, adj_matrix, LABEL_SMOOTHING_EPSILON)
-            train_init_op = model.input_iterator.make_initializer(train_dataset)
+            dev_datasets = loader.dev_datasets(DATA_DIR, BATCH_SIZE)
+            test_datasets = loader.test_datasets(DATA_DIR, BATCH_SIZE)
+
+            train_iterator = train_dataset.make_one_shot_iterator()
+            dev_iterators = [d.make_initializable_iterator() for d in dev_datasets]
+            test_iterators = [d.make_initializable_iterator() for d in test_datasets]
+
+            dev_iterators_init = tf.group([d.initializer for d in dev_iterators])
+            test_iterators_init = tf.group([d.initializer for d in test_iterators])
 
     # Log some information.
     LOGGER.info('Number of entities: %d', loader.num_ent)
@@ -86,7 +95,11 @@ def main():
 
     # Initialize the values of all variables and the train dataset iterator.
     session.run(tf.global_variables_initializer())
-    session.run(train_init_op)
+
+    # Obtain the dataset iterator handles.
+    train_iterator_handle = session.run(train_iterator.string_handle())
+    dev_iterator_handles = session.run([d.string_handle() for d in dev_iterators])
+    test_iterator_handles = session.run([d.string_handle() for d in test_iterators])
 
     # Initalize the loss term weights.
     semant_loss_weight = 1.0
@@ -94,6 +107,7 @@ def main():
 
     for step in range(MAX_STEPS):
         feed_dict = {
+            model.input_iterator_handle: train_iterator_handle,
             model.input_dropout: INPUT_DROPOUT,
             model.hidden_dropout: FEATURE_MAP_DROPOUT,
             model.output_dropout: OUTPUT_DROPOUT,
@@ -117,19 +131,21 @@ def main():
         if summaries is not None:
             summary_writer.add_summary(summaries, step)
 
-        # # Evaluate, if necessary.
-        # if step % EVAL_STEPS == 0:
-        #     LOGGER.info('Running dev evaluation.')
-        #     ranking_and_hits(
-        #         model, MODEL_NAME, dev_batcher,
-        #         vocab, 'dev_evaluation', session)
-        #     LOGGER.info('Running test evaluation.')
-        #     ranking_and_hits(
-        #         model, MODEL_NAME, test_batcher,
-        #         vocab, 'test_evaluation', session)
+        # Evaluate, if necessary.
+        if step % EVAL_STEPS == 0:
+            LOGGER.info('Running dev evaluation.')
+            session.run(dev_iterators_init)
+            ranking_and_hits(
+                model, EVAL_PATH, dev_iterator_handles,
+                'dev_evaluation', session)
+            LOGGER.info('Running test evaluation.')
+            session.run(test_iterators_init)
+            ranking_and_hits(
+                model, EVAL_PATH, test_iterator_handles,
+                'test_evaluation', session)
 
         if step % CKPT_STEPS == 0:
-            LOGGER.info('Saving checkpoint at %s.' % CKPT_PATH)
+            LOGGER.info('Saving checkpoint at %s.', CKPT_PATH)
             saver.save(session, CKPT_PATH)
 
 
