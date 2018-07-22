@@ -34,7 +34,8 @@ def preprocess_dataset(dataset_name, input_keys, delete_data=False):
         dataset_name, delete_data, keys=input_keys, skip_transformation=True)
     pipeline.add_sent_processor(ToLower())
     pipeline.add_sent_processor(
-        CustomTokenizer(lambda x: x.split(' ')),keys=['e2_multi1', 'e2_multi2'])
+        CustomTokenizer(lambda x: x.split(' ')),
+        keys=['e2_multi1', 'e2_multi2'])
     pipeline.add_token_processor(AddToVocab())
     pipeline.execute(streamer)
     pipeline.save_vocabs()

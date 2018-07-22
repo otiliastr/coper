@@ -71,6 +71,77 @@ class _ConvELoader(Loader):
         self.dataset_name = dataset_name
         url = 'https://github.com/TimDettmers/ConvE/raw/master'
         super(_ConvELoader, self).__init__(url, [dataset_name + '.tar.gz'])
+        
+        # TODO: This is a bad way of "leaking" this information because it may be incomplete when querried.
+        self.num_ent = None
+        self.num_rel = None
+
+    def train_dataset(self, 
+                      directory, 
+                      batch_size,
+                      adj_matrix,
+                      label_smoothing_epsilon,
+                      buffer_size=1024 * 1024, 
+                      prefetch_buffer_size=128):
+        parser, filenames = self.create_tf_record_files(directory, buffer_size)
+        adj_matrix = tf.constant(adj_matrix, tf.float32)
+        return tf.data.TFRecordDataset(filenames['train'])\
+            .map(parser)\
+            .map(lambda sample: {
+                'e1': sample['e1'][None],
+                'rel': sample['rel'][None],
+                'e2_multi': (
+                    ((1.0 - label_smoothing_epsilon) * sample['e2_multi1']) +
+                    (1.0 / sample['e2_multi1'].shape[0].value)),
+                'e2_struct': tf.gather(adj_matrix, sample['e1'])
+            })\
+            .repeat()\
+            .batch(batch_size)\
+            .shuffle(buffer_size=1000)\
+            .prefetch(prefetch_buffer_size)
+
+    def create_tf_record_files(self, directory, buffer_size=1024 * 1024):
+        logger.info(
+            'Creating TF record files for the \'%s\' dataset.',
+            self.dataset_name)
+
+        json_files = self.load_and_preprocess(directory, buffer_size)
+
+        # We first load the entity and relation ID maps and handle missing 
+        # entries using -1 as their index.
+        entity_ids, relation_ids = self._assign_ids(json_files)
+        entity_ids['None'] = -1
+        relation_ids['None'] = -1
+        self.num_ent = len(entity_ids) - 1
+        self.num_rel = len(relation_ids) - 1
+
+        directory = os.path.dirname(json_files['full'])
+        tf_record_filenames = {}
+
+        for filetype in ['train', 'dev', 'test']:
+            filename = os.path.join(directory, '{0}.tfrecords'.format(filetype))
+            tf_record_filenames[filetype] = filename
+            if not os.path.exists(filename):
+                tf_records_writer = tf.python_io.TFRecordWriter(filename)
+                with open(json_files[filetype], 'r') as handle:
+                    for line in handle:
+                        sample = json.loads(line)
+                        record = self._encode_sample_as_tf_record(
+                            sample, entity_ids, relation_ids)
+                        tf_records_writer.write(record.SerializeToString())
+                tf_records_writer.close()
+
+        def tf_record_parser(record):
+            features = {
+                'e1': tf.FixedLenFeature([], tf.int64),
+                'e2': tf.FixedLenFeature([], tf.int64),
+                'rel': tf.FixedLenFeature([], tf.int64),
+                'rel_eval': tf.FixedLenFeature([], tf.int64),
+                'e2_multi1': tf.FixedLenFeature([self.num_ent], tf.float32),
+                'e2_multi2': tf.FixedLenFeature([self.num_ent], tf.float32)}
+            return tf.parse_single_example(record, features=features)
+
+        return tf_record_parser, tf_record_filenames
 
     def load_and_preprocess(self, directory, buffer_size=1024 * 1024):
         logger.info(
@@ -157,38 +228,6 @@ class _ConvELoader(Loader):
                             'e2_multi2': e2_multi2}
                         handle.write(json.dumps(sample)  + '\n')
 
-    def create_tf_record_files(self, directory, buffer_size=1024 * 1024):
-        logger.info(
-            'Creating TF record files for the \'%s\' dataset.',
-            self.dataset_name)
-
-        json_files = self.load_and_preprocess(directory, buffer_size)
-
-        # We first load the entity and relation ID maps and handle missing 
-        # entries using -1 as their index.
-        entity_ids, relation_ids = self._assign_ids(json_files)
-        entity_ids['None'] = -1
-        relation_ids['None'] = -1
-        num_ent = len(entity_ids) - 1
-
-        directory = os.path.dirname(json_files['full'])
-        tf_record_filenames = {}
-
-        for filetype in ['train', 'dev', 'test']:
-            filename = os.path.join(directory, '{0}.tfrecords'.format(filetype))
-            tf_record_filenames[filetype] = filename
-            if not os.path.exists(filename):
-                tf_records_writer = tf.python_io.TFRecordWriter(filename)
-                with open(json_files[filetype], 'r') as handle:
-                    for line in handle:
-                        sample = json.loads(line)
-                        record = self._encode_sample_as_tf_record(
-                            sample, entity_ids, relation_ids, num_ent)
-                        tf_records_writer.write(record.SerializeToString())
-                tf_records_writer.close()
-
-        return tf_record_filenames
-
     def _assign_ids(self, json_files):
         directory = os.path.dirname(json_files['full'])
         entities_file = os.path.join(directory, 'entities.txt')
@@ -255,10 +294,9 @@ class _ConvELoader(Loader):
                 for relation_id in range(num_rel):
                     handle.write(relation_names[relation_id] + '\n')
 
-        return (entity_ids, relation_ids)
+        return entity_ids, relation_ids
 
-    def _encode_sample_as_tf_record(
-        self, sample, entity_ids, relation_ids, num_ent):
+    def _encode_sample_as_tf_record(self, sample, entity_ids, relation_ids):
         e1 = entity_ids[sample['e1']]
         e2 = entity_ids[sample['e2']]
         rel = relation_ids[sample['rel']]
@@ -267,8 +305,8 @@ class _ConvELoader(Loader):
         e2_multi2 = [entity_ids[e] for e in sample['e2_multi2'].split(' ')]
         e2_multi1 = np.array(e2_multi1)
         e2_multi2 = np.array(e2_multi2)
-        e2_multi1_dense = np.zeros((num_ent,), np.int64)
-        e2_multi2_dense = np.zeros((num_ent,), np.int64)
+        e2_multi1_dense = np.zeros((self.num_ent,), np.float32)
+        e2_multi2_dense = np.zeros((self.num_ent,), np.float32)
         e2_multi1_dense[e2_multi1] = 1
         e2_multi2_dense[e2_multi2] = 1
 
@@ -276,13 +314,17 @@ class _ConvELoader(Loader):
             return tf.train.Feature(
                 int64_list=tf.train.Int64List(value=values))
 
+        def _float32(values):
+            return tf.train.Feature(
+                float_list=tf.train.FloatList(value=values))
+
         features = tf.train.Features(feature={
             'e1': _int64([e1]),
             'e2': _int64([e2]),
             'rel': _int64([rel]),
             'rel_eval': _int64([rel_eval]),
-            'e2_multi1': _int64(e2_multi1_dense.tolist()),
-            'e2_multi2': _int64(e2_multi2_dense.tolist())
+            'e2_multi1': _float32(e2_multi1_dense.tolist()),
+            'e2_multi2': _float32(e2_multi2_dense.tolist())
         })
 
         return tf.train.Example(features=features)

@@ -5,14 +5,23 @@ import os
 import yaml
 
 from . import data
+from . import evaluation
 from . import experiments
+from . import models
+from . import utilities
 
 from .data import *
+from .evaluation import *
 from .experiments import *
+from .models import *
+from .utilities import *
 
-__all__ = ['data', 'experiments']
+__all__ = ['data', 'evaluation', 'experiments', 'models', 'utilities']
 __all__.extend(data.__all__)
+__all__.extend(evaluation.__all__)
 __all__.extend(experiments.__all__)
+__all__.extend(models.__all__)
+__all__.extend(utilities.__all__)
 
 __logging_config_path = os.path.join(os.path.dirname(__file__), 'logging.yaml')
 if os.path.exists(__logging_config_path):
