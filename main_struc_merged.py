@@ -139,6 +139,7 @@ def main():
         # struct_loss_weight /= total_weight
 
         new_epoch = True
+        num_steps_per_epoch = 0
 
         for str2var in train_batcher:
             # Apply label smoothing.
@@ -176,8 +177,11 @@ def main():
                 summary_writer.add_summary(summaries, iteration)
 
             iteration += 1
+            num_steps_per_epoch += 1
 
         new_epoch = False
+
+        print('Number of steps per epoch: %d' % num_steps_per_epoch)
 
         # Evaluate, if necessary.
         if epoch % EVAL_EPOCHS == 0:
