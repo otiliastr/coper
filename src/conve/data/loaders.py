@@ -94,6 +94,7 @@ class _ConvELoader(Loader):
             e2_multi1 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi1'], self.num_ent))
             e2_multi2 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi2'], self.num_ent))
             return {
+                # [None] creates a new dimension at axis 0. So sommething originally (1, 3) will be (1, 1, 3) after [None]
                 'e1': sample['e1'][None],
                 'e2': sample['e2'][None],
                 'rel': sample['rel'][None],

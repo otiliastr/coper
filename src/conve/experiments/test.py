@@ -12,18 +12,18 @@ from ..utilities.structure import load_adjacency_matrix, prune_adjacency_matrix
 
 LOGGER = logging.getLogger(__name__)
 
-DEVICE = '/CPU:0'
-MODEL_NAME = 'conve_equal_merge_opt_bl_params_test_2'
-MAX_STEPS = 10000
+DEVICE = '/GPU:0'
+MODEL_NAME = 'conve_baseline_opt_params'
+MAX_STEPS = 10000000
 LOG_STEPS = 100
 SUMMARY_STEPS = 1000
-CKPT_STEPS = 1000
-EVAL_STEPS = 1000
+CKPT_STEPS = 5000
+EVAL_STEPS = 5000
 
 EMB_SIZE = 200
-INPUT_DROPOUT = 0.0
-FEATURE_MAP_DROPOUT = 0.0
-OUTPUT_DROPOUT = 0.0
+INPUT_DROPOUT = 0.2
+FEATURE_MAP_DROPOUT = 0.3
+OUTPUT_DROPOUT = 0.2
 LEARNING_RATE = 1e-3
 BATCH_SIZE = 128
 LABEL_SMOOTHING_EPSILON = 0.1
@@ -35,7 +35,8 @@ CKPT_PATH = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'model_weights.ckpt'
 EVAL_PATH = os.path.join(WORKING_DIR, 'evaluation', MODEL_NAME)
 
 # TODO: Standardize this.
-STRUCTURE_WALKS_PATH = '/Users/anthony/Development/GitHub/qa_types/temp/data/kinship/random_walks.txt'
+# STRUCTURE_WALKS_PATH = '/Users/anthony/Development/GitHub/qa_types/temp/data/kinship/random_walks.txt'
+STRUCTURE_WALKS_PATH = '/usr0/home/ostretcu/code/george/models/prelim_tests/struc2vec/src/dataset_walks/kinship/random_walks.txt'
 
 ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
