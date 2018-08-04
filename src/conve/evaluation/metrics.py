@@ -61,16 +61,15 @@ def ranking_and_hits(model, results_dir, data_iterator_handles, name, session=No
                 fetches=model.predictions, 
                 feed_dict={
                     model.input_iterator_handle: data_iterator_handles[1],
-                    model.input_dropout: 0,
-                    model.hidden_dropout: 0,
-                    model.output_dropout: 0})
+                    model.input_dropout: 0.0,
+                    model.hidden_dropout: 0.0,
+                    model.output_dropout: 0.0})
 
-            for i in range(len(e2_multi1)):
+            for i in range(len(e1)):
                 # these filters contain ALL labels
                 filter1 = np.int32(e2_multi1[i])
                 filter2 = np.int32(e2_multi2[i])
 
-                num = e1[i, 0]
                 # save the prediction that is relevant
                 target_value1 = pred1[i, e2[i, 0]]
                 target_value2 = pred2[i, e1[i, 0]]
@@ -83,14 +82,10 @@ def ranking_and_hits(model, results_dir, data_iterator_handles, name, session=No
                 pred2[i][e1[i]] = target_value2
 
             # sort and rank
-            # pred1_tensor = torch.from_numpy(pred1)
-            # pred2_tensor = torch.from_numpy(pred2)
             argsort1 = np.argsort(pred1, 1)[:, ::-1]
             argsort2 = np.argsort(pred2, 1)[:, ::-1]
 
-            # argsort1 = argsort1.cpu().numpyi()
-            # argsort2 = argsort2.cpu().numpy()
-            for i in range(len(e2_multi1)):
+            for i in range(len(e1)):
                 # find the rank of the target entities
                 rank1 = np.where(argsort1[i] == e2[i, 0])[0]
                 rank2 = np.where(argsort2[i] == e1[i, 0])[0]

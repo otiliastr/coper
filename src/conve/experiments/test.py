@@ -3,10 +3,9 @@ from __future__ import absolute_import, division, print_function
 import logging
 import os
 
-import numpy as np
 import tensorflow as tf
 
-from ..data.loaders import WN18RRLoader
+from ..data.loaders import KinshipLoader
 from ..evaluation.metrics import ranking_and_hits
 from ..models.conve_struc_merged import ConvE
 from ..utilities.structure import load_adjacency_matrix, prune_adjacency_matrix
@@ -36,7 +35,7 @@ CKPT_PATH = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'model_weights.ckpt'
 EVAL_PATH = os.path.join(WORKING_DIR, 'evaluation', MODEL_NAME)
 
 # TODO: Standardize this.
-STRUCTURE_WALKS_PATH = '/Users/anthony/Development/GitHub/qa_types/src/temp/data/WN18RR/random_walks.txt'
+STRUCTURE_WALKS_PATH = '/Users/anthony/Development/GitHub/qa_types/temp/data/kinship/random_walks.txt'
 
 ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
@@ -44,7 +43,7 @@ ADD_TENSOR_SUMMARIES = False
 
 
 def main():
-    loader = WN18RRLoader()
+    loader = KinshipLoader()
     loader.create_tf_record_files(DATA_DIR)
 
     # Load the adjacency matrix of nodes with similar structure.
@@ -103,7 +102,7 @@ def main():
 
     # Initalize the loss term weights.
     semant_loss_weight = 1.0
-    struct_loss_weight = 1.0
+    struct_loss_weight = 0.0
 
     for step in range(MAX_STEPS):
         feed_dict = {

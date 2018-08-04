@@ -88,6 +88,7 @@ class _ConvELoader(Loader):
         parser, filenames = self.create_tf_record_files(directory, buffer_size)
         adj_matrix = adj_matrix.astype(np.float32)
         files = tf.data.Dataset.from_tensor_slices(filenames['train'])
+
         def map_fn(sample):
             sample = parser(sample)
             e2_multi1 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi1'], self.num_ent))
@@ -98,7 +99,7 @@ class _ConvELoader(Loader):
                 'rel': sample['rel'][None],
                 'rel_eval': sample['rel_eval'][None],
                 'e2_multi1': (
-                    ((1.0 - label_smoothing_epsilon) * e2_multi1) + 
+                    ((1.0 - label_smoothing_epsilon) * e2_multi1) +
                     (1.0 / self.num_ent)),
                 'e2_multi2': e2_multi2,
                 # TODO: Avoid this hack.
@@ -106,6 +107,7 @@ class _ConvELoader(Loader):
                     lambda x: adj_matrix[x], [sample['e1']],
                     Tout=tf.float32, stateful=False)
             }
+
         return files.apply(tf.contrib.data.parallel_interleave(
             tf.data.TFRecordDataset, cycle_length=num_parallel_readers, 
             block_length=batch_size, sloppy=True))\
@@ -139,25 +141,38 @@ class _ConvELoader(Loader):
                        buffer_size=1024 * 1024, 
                        prefetch_buffer_size=128):
         parser, filenames = self.create_tf_record_files(directory, buffer_size)
-        def map_fn(sample):
+
+        def map_fn(sample, reverse=False):
             sample = parser(sample)
             e2_multi1 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi1'], self.num_ent))
             e2_multi2 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi2'], self.num_ent))
-            return {
-                'e1': sample['e1'][None],
-                'e2': sample['e2'][None],
-                'rel': sample['rel'][None],
-                'rel_eval': sample['rel_eval'][None],
-                'e2_multi1': e2_multi1,
-                'e2_multi2': e2_multi2,
-                'e2_struct': e2_multi1 # TODO: Fix dummy.
-            }
+            if reverse:
+                return {
+                    'e1': sample['e2'][None],
+                    'e2': sample['e1'][None],
+                    'rel': sample['rel_eval'][None],
+                    'rel_eval': sample['rel'][None],
+                    'e2_multi1': e2_multi1,
+                    'e2_multi2': e2_multi2,
+                    'e2_struct': e2_multi1  # TODO: Fix dummy.
+                }
+            else:
+                return {
+                    'e1': sample['e1'][None],
+                    'e2': sample['e2'][None],
+                    'rel': sample['rel'][None],
+                    'rel_eval': sample['rel_eval'][None],
+                    'e2_multi1': e2_multi1,
+                    'e2_multi2': e2_multi2,
+                    'e2_struct': e2_multi1  # TODO: Fix dummy.
+                }
+
         dataset = tf.data.TFRecordDataset(filenames[dataset_type])\
-            .map(map_fn)\
+            .map(lambda s: map_fn(s, reverse=False))\
             .batch(batch_size)\
             .prefetch(prefetch_buffer_size)
         dataset_reverse = tf.data.TFRecordDataset(filenames[dataset_type])\
-            .map(map_fn)\
+            .map(lambda s: map_fn(s, reverse=True))\
             .batch(batch_size)\
             .prefetch(prefetch_buffer_size)
         return dataset, dataset_reverse
@@ -289,14 +304,14 @@ class _ConvELoader(Loader):
                         'rel_eval': 'None',
                         'e2_multi1': ' '.join(list(value)),
                         'e2_multi2': 'None'}
-                    handle.write(json.dumps(sample)  + '\n')
+                    handle.write(json.dumps(sample) + '\n')
                 elif not key[1].endswith('_reverse'):
                     e1, rel = key
                     rel_reverse = rel + '_reverse'
-                    e2_multi1 = ' '.join(list(graph[key]))
+                    e2_multi1 = ' '.join(list(labels[key]))
                     for e2 in value:
                         key_reverse = (e2, rel_reverse)
-                        e2_multi2 = ' '.join(list(graph[key_reverse]))
+                        e2_multi2 = ' '.join(list(labels[key_reverse]))
                         sample = {
                             'e1': e1,
                             'e2': e2,
@@ -304,7 +319,7 @@ class _ConvELoader(Loader):
                             'rel_eval': rel_reverse,
                             'e2_multi1': e2_multi1,
                             'e2_multi2': e2_multi2}
-                        handle.write(json.dumps(sample)  + '\n')
+                        handle.write(json.dumps(sample) + '\n')
 
     def _assign_ids(self, json_files):
         directory = os.path.dirname(json_files['full'])

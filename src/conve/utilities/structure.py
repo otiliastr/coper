@@ -25,6 +25,6 @@ def prune_adjacency_matrix(adj_matrix):
     # TODO: Make sure streambatcher bugs don't mess this up.
     avg_num_edges = np.mean(adj_matrix, axis=-1)
     avg_num_edges[avg_num_edges <= 0] = 0
-    adj_matrix.fill(0)
+    adj_matrix[adj_matrix < avg_num_edges[:, None]] = 0
     adj_matrix[adj_matrix >= avg_num_edges[:, None]] = 1
     return adj_matrix
