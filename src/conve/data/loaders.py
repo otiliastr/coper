@@ -264,6 +264,8 @@ class _ConvELoader(Loader):
         # We first load the entity and relation ID maps and handle missing 
         # entries using -1 as their index.
         json_files, entity_ids, relation_ids = self.generate_json_files_and_ids(directory, buffer_size)
+        directory = os.path.dirname(json_files['full'])
+
         # Check whether or not to include structure.
         if struc2vec_args is not None:
             # Create edgelist
@@ -275,7 +277,6 @@ class _ConvELoader(Loader):
         else:
             filetypes = ['train', 'dev', 'test']
 
-        directory = os.path.dirname(json_files['full'])
         tf_record_filenames = {}
 
         for filetype in filetypes:
