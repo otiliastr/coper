@@ -44,12 +44,12 @@ def ranking_and_hits(model, results_dir, data_iterator_handles, name, session=No
             e1, e2, rel, rel_reverse, e2_multi1, e2_multi2, pred1 = \
             session.run(
                 fetches=(
-                    model.next_sample['e1'],
-                    model.next_sample['e2'],
-                    model.next_sample['rel'],
-                    model.next_sample['rel_eval'],
-                    model.next_sample['e2_multi1'],
-                    model.next_sample['e2_multi2'],
+                    model.next_input_sample['e1'],
+                    model.next_input_sample['e2'],
+                    model.next_input_sample['rel'],
+                    model.next_input_sample['rel_eval'],
+                    model.next_input_sample['e2_multi1'],
+                    model.next_input_sample['e2_multi2'],
                     model.predictions),
                 feed_dict={
                     model.input_iterator_handle: data_iterator_handles[0],
