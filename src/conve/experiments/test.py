@@ -113,9 +113,6 @@ def main():
             model.is_train: True,
             model.input_iterator_handle: train_iterator_handle,
             model.struc_iterator_handle: struc_iterator_handle,
-            model.input_dropout: INPUT_DROPOUT,
-            model.hidden_dropout: FEATURE_MAP_DROPOUT,
-            model.output_dropout: OUTPUT_DROPOUT,
             model.semant_loss_weight: semant_loss_weight,
             model.struct_loss_weight: struct_loss_weight}
 
