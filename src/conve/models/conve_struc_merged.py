@@ -96,7 +96,7 @@ class ConvE(object):
 
         # Combine the two losses according to the provided weights.
         self.loss = (
-            (semant_loss * self.semant_loss_weight) +
+            (semant_loss * self.semant_loss_weight) + 
             (struct_loss * self.struct_loss_weight))
 
         self.train_op = optimizer.minimize(self.loss)
@@ -165,15 +165,14 @@ class ConvE(object):
         return variables
 
     def _create_predictions(self, e1_emb, rel_emb):
-        leaky_relu = lambda x: tf.maximum(x, 0.1 * x)
-
         e1_emb = tf.reshape(e1_emb, [-1, 10, 20, 1])
         rel_emb = tf.reshape(rel_emb, [-1, 10, 20, 1])
 
         stacked_emb = tf.concat([e1_emb, rel_emb], 1)
-        stacked_emb = tf.layers.batch_normalization(stacked_emb, training=self.is_train, fused=True, name='StackedEmbBN')
+        # stacked_emb = tf.layers.batch_normalization(stacked_emb, training=self.is_train, fused=True, name='StackedEmbBN')
         # stacked_emb = tf.layers.batch_normalization(stacked_emb, momentum=0.1, reuse=tf.AUTO_REUSE, training=self.is_train, fused=True, name='StackedEmbBN')
         # stacked_emb = tf.layers.batch_normalization(stacked_emb, training=self.is_train)
+        stacked_emb = tf.contrib.layers.batch_norm(stacked_emb)
         stacked_emb = tf.nn.dropout(stacked_emb, 1 - self.input_dropout)
 
         with tf.name_scope('conv1'):
@@ -183,11 +182,12 @@ class ConvE(object):
                 input=stacked_emb, filter=weights,
                 strides=[1, 1, 1, 1], padding='VALID')
             conv1_plus_bias = conv1 + bias
-            conv1_bn = tf.layers.batch_normalization(conv1_plus_bias, training=self.is_train, fused=True, name='Conv1BN')
+            # conv1_bn = tf.layers.batch_normalization(conv1_plus_bias, training=self.is_train, fused=True, name='Conv1BN')
             # conv1_bn = tf.layers.batch_normalization(conv1_plus_bias, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE, training=self.is_train, fused=True, name='Conv1BN')
             # conv1_bn = tf.layers.batch_normalization(conv1_plus_bias, training=self.is_train)
-            conv1_relu = leaky_relu(conv1_bn)
-            conv1_dropout = tf.nn.dropout(conv1_relu, 1-self.hidden_dropout)
+            conv1_bn = tf.contrib.layers.batch_norm(conv1_plus_bias)
+            conv1_relu = tf.nn.relu(conv1_bn)
+            conv1_dropout = tf.nn.dropout(conv1_relu, 1 - self.hidden_dropout)
 
             if self._tensor_summaries:
                 _create_summaries('conv1', conv1)
@@ -203,10 +203,11 @@ class ConvE(object):
             fc_input = tf.reshape(conv1_dropout, [batch_size, -1])
             fc = tf.matmul(fc_input, weights) + bias
             fc_dropout = tf.nn.dropout(fc, 1 - self.output_dropout)
-            fc_bn = tf.layers.batch_normalization(fc_dropout, training=self.is_train, fused=True, name='FCBN')
+            # fc_bn = tf.layers.batch_normalization(fc_dropout, training=self.is_train, fused=True, name='FCBN')
             # fc_bn = tf.layers.batch_normalization(fc_dropout, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE, training=self.is_train, fused=True, name='FCBN')
             # fc_bn = tf.layers.batch_normalization(fc_dropout, training=self.is_train)
-            fc_relu = leaky_relu(fc_bn)
+            fc_bn = tf.contrib.layers.batch_norm(fc_dropout)
+            fc_relu = fc_bn  # tf.nn.relu(fc_bn)
 
             if self._tensor_summaries:
                 _create_summaries('fc_result', fc)
