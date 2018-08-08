@@ -5,11 +5,13 @@ import os
 
 import tensorflow as tf
 
-from ..data.loaders import KinshipLoader
+from ..data.loaders import *
 from ..evaluation.metrics import ranking_and_hits
 from ..models.conve_struc_merged import ConvE
 
 LOGGER = logging.getLogger(__name__)
+
+DATA_LOADER = FB15k237Loader()
 
 DEVICE = '/GPU:0'
 MODEL_NAME = 'conve_baseline_opt_params'
@@ -50,8 +52,7 @@ STRUC2VEC_ARGS = {'walk_length': 80,
 
 
 def main():
-    loader = KinshipLoader()
-    loader.create_tf_record_files(DATA_DIR, STRUC2VEC_ARGS)
+    DATA_LOADER.create_tf_record_files(DATA_DIR, STRUC2VEC_ARGS)
 
     # Create the model.
     with tf.device(DEVICE):
@@ -61,8 +62,8 @@ def main():
         with tf.variable_scope('variables', use_resource=True):
             model = ConvE(model_descriptors={
                 'label_smoothing_epsilon': LABEL_SMOOTHING_EPSILON,
-                'num_ent': loader.num_ent,
-                'num_rel': loader.num_rel,
+                'num_ent': DATA_LOADER.num_ent,
+                'num_rel': DATA_LOADER.num_rel,
                 'emb_size': EMB_SIZE,
                 'input_dropout': INPUT_DROPOUT,
                 'hidden_dropout': FEATURE_MAP_DROPOUT,
@@ -74,11 +75,13 @@ def main():
                 'add_tensor_summaries': ADD_TENSOR_SUMMARIES})
 
     # Create dataset iterator initializers.
-    train_dataset, struc_dataset = loader.train_dataset(
+    train_dataset, struc_dataset = DATA_LOADER.train_dataset(
         DATA_DIR, BATCH_SIZE, STRUC2VEC_ARGS, include_inv_relations=True)
 
-    dev_dataset = loader.dev_dataset(DATA_DIR, BATCH_SIZE, include_inv_relations=False)
-    test_dataset = loader.test_dataset(DATA_DIR, BATCH_SIZE, include_inv_relations=False)
+    dev_dataset = DATA_LOADER.dev_dataset(
+        DATA_DIR, BATCH_SIZE, include_inv_relations=False)
+    test_dataset = DATA_LOADER.test_dataset(
+        DATA_DIR, BATCH_SIZE, include_inv_relations=False)
 
     train_iterator = train_dataset.make_one_shot_iterator()
     struc_iterator = struc_dataset.make_one_shot_iterator()
@@ -86,8 +89,8 @@ def main():
     test_iterator = test_dataset.make_initializable_iterator()
 
     # Log some information.
-    LOGGER.info('Number of entities: %d', loader.num_ent)
-    LOGGER.info('Number of relations: %d', loader.num_rel)
+    LOGGER.info('Number of entities: %d', DATA_LOADER.num_ent)
+    LOGGER.info('Number of relations: %d', DATA_LOADER.num_rel)
     model.log_parameters_info()
 
     # Create a TensorFlow session and start training.
