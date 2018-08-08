@@ -217,7 +217,8 @@ class _ConvELoader(Loader):
         return json_files, entity_ids, relation_ids
 
     # create the structure edgelist
-    def create_struc_edgelist(self, directory, full_graph_file, entity_ids):
+    @staticmethod
+    def create_struc_edgelist(directory, full_graph_file, entity_ids):
         # create and write edgelist
         struc_filename = os.path.join(directory, 'edgelist.txt')
         with open(struc_filename, 'a+') as edgelist_file:
@@ -225,8 +226,8 @@ class _ConvELoader(Loader):
                 for line in input_file:
                     sample = json.loads(line)
                     # make sure no reverse relationships exist
-                    if '_reverse' not in sample['rel']:
-                        e2_multi1 = sample['e2_multi1'].strip().split(" ")
+                    if not sample['rel'].endswith('_reverse'):
+                        e2_multi1 = sample['e2_multi1'].strip().split(' ')
                         e1 = entity_ids[sample['e1']]
                         for e2_name in e2_multi1:
                             e2 = entity_ids[e2_name]
@@ -234,7 +235,8 @@ class _ConvELoader(Loader):
                             edgelist_file.write(edgelist_addition)
         return struc_filename
 
-    def run_struc2vec(self, directory, edgelist_filename, struc2vec_args):
+    @staticmethod
+    def run_struc2vec(directory, edgelist_filename, struc2vec_args):
         struc2vec_args['input'] = edgelist_filename
         # TODO: Hack to change the working directory because the struc2vec code
         # is pretty bad and requires us to hardcode paths.
@@ -255,7 +257,7 @@ class _ConvELoader(Loader):
                                directory,
                                struc2vec_args,
                                max_records_per_file=10000,
-                               buffer_size=1024 * 1024):
+                               buffer_size=1024*1024):
         logger.info(
             'Creating TF record files for the \'%s\' dataset.',
             self.dataset_name)
@@ -293,7 +295,7 @@ class _ConvELoader(Loader):
                             record = self._encode_sample_as_tf_record(
                                 sample, entity_ids, relation_ids)
                         else:
-                            e1, e2 = line.strip().split(" ")
+                            e1, e2 = line.strip().split(' ')
                             sample = {'e1': int(e1), 'e2': int(e2)}
                             record = self._encode_struc_sample_as_tf_record(sample)
                         tf_records_writer.write(record.SerializeToString())
@@ -326,7 +328,7 @@ class _ConvELoader(Loader):
 
         return conve_tf_record_parser, struc_tf_record_parser, tf_record_filenames
 
-    def load_and_preprocess(self, directory, buffer_size=1024 * 1024):
+    def load_and_preprocess(self, directory, buffer_size=1024*1024):
         logger.info(
             'Loading and preprocessing the \'%s\' dataset.', self.dataset_name)
 
@@ -338,8 +340,8 @@ class _ConvELoader(Loader):
         directory = os.path.join(directory, self.dataset_name)
 
         # Load and preprocess the data.
-        full_graph = {} # Maps from (e1, rel) to set of e2 values.
-        graphs = {}     # Maps from filename to dictionaries like labels.
+        full_graph = {}  # Maps from (e1, rel) to set of e2 values.
+        graphs = {}      # Maps from filename to dictionaries like labels.
         files = ['train.txt', 'valid.txt', 'test.txt']
         for f in files:
             graphs[f] = {}
@@ -383,7 +385,8 @@ class _ConvELoader(Loader):
             'test': e1rel_to_e2_test, 
             'full': e1rel_to_e2_full}
 
-    def _write_graph(self, filename, graph, labels=None):
+    @staticmethod
+    def _write_graph(filename, graph, labels=None):
         with open(filename, 'w') as handle:
             for key, value in six.iteritems(graph):
                 if labels is None:
@@ -404,7 +407,8 @@ class _ConvELoader(Loader):
                             'e2_multi1': e2_multi1}
                         handle.write(json.dumps(sample) + '\n')
 
-    def _assign_ids(self, json_files):
+    @staticmethod
+    def _assign_ids(json_files):
         directory = os.path.dirname(json_files['full'])
         entities_file = os.path.join(directory, 'entities.txt')
         relations_file = os.path.join(directory, 'relations.txt')
@@ -471,7 +475,8 @@ class _ConvELoader(Loader):
 
         return entity_ids, relation_ids
 
-    def _encode_sample_as_tf_record(self, sample, entity_ids, relation_ids):
+    @staticmethod
+    def _encode_sample_as_tf_record(sample, entity_ids, relation_ids):
         e1 = entity_ids[sample['e1']]
         e2 = entity_ids[sample['e2']]
         rel = relation_ids[sample['rel']]
@@ -492,7 +497,8 @@ class _ConvELoader(Loader):
 
         return tf.train.Example(features=features)
 
-    def _encode_struc_sample_as_tf_record(self, sample):
+    @staticmethod
+    def _encode_struc_sample_as_tf_record(sample):
         e1 = sample['e1']
         e2 = sample['e2']
 
