@@ -3,4 +3,5 @@ numpy
 pyyaml
 requests
 six
+tensorflow
 tqdm

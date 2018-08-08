@@ -107,7 +107,7 @@ class _ConvELoader(Loader):
                 'rel_eval': sample['rel_eval'][None],
                 'e2_multi1': (
                     ((1.0 - label_smoothing_epsilon) * e2_multi1) +
-                    (1.0 / self.num_ent)),
+                    (1.0 / self.num_ent) * (1 - e2_multi1)),
                 'e2_multi2': e2_multi2}
 
         def struc_map_fn(sample):

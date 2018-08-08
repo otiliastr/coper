@@ -174,7 +174,7 @@ class ConvE(object):
 
         stacked_emb = tf.concat([e1_emb, rel_emb], 1)
         stacked_emb = tf.contrib.layers.batch_norm(stacked_emb)
-        stacked_emb = tf.nn.dropout(stacked_emb, 1-self.input_dropout)
+        stacked_emb = tf.nn.dropout(stacked_emb, 1 - self.input_dropout)
 
         with tf.name_scope('conv1'):
             weights = self.variables['conv1_weights']
