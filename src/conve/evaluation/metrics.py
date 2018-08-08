@@ -51,7 +51,7 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
                         model.output_dropout: 0.0})
 
             target_values = pred1[np.arange(0, len(pred1)), e2[:, 0]]
-            pred1[np.int32(e2_multi1)] = -np.inf
+            pred1[e2_multi1 == 1] = -np.inf
             pred1[np.arange(0, len(pred1)), e2[:, 0]] = target_values
 
             sorted_pred_ids = np.argsort(-pred1, 1)
