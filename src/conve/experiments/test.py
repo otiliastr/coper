@@ -60,6 +60,7 @@ def main():
         # better utilize GPUs while training.
         with tf.variable_scope('variables', use_resource=True):
             model = ConvE(model_descriptors={
+                'label_smoothing_epsilon': LABEL_SMOOTHING_EPSILON,
                 'num_ent': loader.num_ent,
                 'num_rel': loader.num_rel,
                 'emb_size': EMB_SIZE,
@@ -74,18 +75,15 @@ def main():
 
     # Create dataset iterator initializers.
     train_dataset, struc_dataset = loader.train_dataset(
-        DATA_DIR, BATCH_SIZE, STRUC2VEC_ARGS, LABEL_SMOOTHING_EPSILON)
+        DATA_DIR, BATCH_SIZE, STRUC2VEC_ARGS, include_inv_relations=True)
 
-    dev_datasets = loader.dev_datasets(DATA_DIR, BATCH_SIZE)
-    test_datasets = loader.test_datasets(DATA_DIR, BATCH_SIZE)
+    dev_dataset = loader.dev_dataset(DATA_DIR, BATCH_SIZE, include_inv_relations=False)
+    test_dataset = loader.test_dataset(DATA_DIR, BATCH_SIZE, include_inv_relations=False)
 
     train_iterator = train_dataset.make_one_shot_iterator()
     struc_iterator = struc_dataset.make_one_shot_iterator()
-    dev_iterators = [d.make_initializable_iterator() for d in dev_datasets]
-    test_iterators = [d.make_initializable_iterator() for d in test_datasets]
-
-    dev_iterators_init = tf.group([d.initializer for d in dev_iterators])
-    test_iterators_init = tf.group([d.initializer for d in test_iterators])
+    dev_iterator = dev_dataset.make_initializable_iterator()
+    test_iterator = test_dataset.make_initializable_iterator()
 
     # Log some information.
     LOGGER.info('Number of entities: %d', loader.num_ent)
@@ -103,8 +101,8 @@ def main():
     # Obtain the dataset iterator handles.
     train_iterator_handle = session.run(train_iterator.string_handle())
     struc_iterator_handle = session.run(struc_iterator.string_handle())
-    dev_iterator_handles = session.run([d.string_handle() for d in dev_iterators])
-    test_iterator_handles = session.run([d.string_handle() for d in test_iterators])
+    dev_iterator_handle = session.run(dev_iterator.string_handle())
+    test_iterator_handle = session.run(test_iterator.string_handle())
 
     # Initalize the loss term weights.
     semant_loss_weight = 1.0
@@ -112,6 +110,7 @@ def main():
 
     for step in range(MAX_STEPS):
         feed_dict = {
+            model.is_train: True,
             model.input_iterator_handle: train_iterator_handle,
             model.struc_iterator_handle: struc_iterator_handle,
             model.input_dropout: INPUT_DROPOUT,
@@ -140,14 +139,14 @@ def main():
         # Evaluate, if necessary.
         if step % EVAL_STEPS == 0 and step > 0:
             LOGGER.info('Running dev evaluation.')
-            session.run(dev_iterators_init)
+            session.run(dev_iterator.initializer)
             ranking_and_hits(
-                model, EVAL_PATH, dev_iterator_handles,
+                model, EVAL_PATH, dev_iterator_handle,
                 'dev_evaluation', session)
             LOGGER.info('Running test evaluation.')
-            session.run(test_iterators_init)
+            session.run(test_iterator.initializer)
             ranking_and_hits(
-                model, EVAL_PATH, test_iterator_handles,
+                model, EVAL_PATH, test_iterator_handle,
                 'test_evaluation', session)
 
         if step % CKPT_STEPS == 0 and step > 0:

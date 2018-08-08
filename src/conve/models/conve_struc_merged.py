@@ -28,6 +28,8 @@ def _create_summaries(name, tensor):
 
 class ConvE(object):
     def __init__(self, model_descriptors):
+        self.label_smoothing_epsilon = model_descriptors['label_smoothing_epsilon']
+
         self.num_ent = model_descriptors['num_ent']
         self.num_rel = model_descriptors['num_rel']
         self.emb_size = model_descriptors['emb_size']
@@ -47,16 +49,12 @@ class ConvE(object):
                 'e1': tf.int64,
                 'e2': tf.int64,
                 'rel': tf.int64,
-                'rel_eval': tf.int64,
-                'e2_multi1': tf.float32,
-                'e2_multi2': tf.float32},
+                'e2_multi1': tf.float32},
             output_shapes={
                 'e1': [None, 1],
                 'e2': [None, 1],
                 'rel': [None, 1],
-                'rel_eval': [None, 1],
-                'e2_multi1': [None, self.num_ent],
-                'e2_multi2': [None, self.num_ent]})
+                'e2_multi1': [None, self.num_ent]})
 
         self.struc_iterator_handle = tf.placeholder_with_default("", shape=[])
         self.struc_iterator = tf.data.Iterator.from_string_handle(
@@ -71,6 +69,7 @@ class ConvE(object):
         self.next_input_sample = self.input_iterator.get_next()
         self.next_struc_sample = self.struc_iterator.get_next()
 
+        self.is_train = tf.placeholder_with_default(False, shape=[])
         self.e1 = self.next_input_sample['e1']
         self.rel = self.next_input_sample['rel']
         self.e2_multi = self.next_input_sample['e2_multi1']
@@ -150,8 +149,7 @@ class ConvE(object):
             'fc_bias': fc_bias,
             'output_bias': output_bias,
             'structure_weights': structure_weights,
-            'structure_bias': structure_bias
-        }
+            'structure_bias': structure_bias}
 
         if self._variable_summaries:
             _create_summaries('emb/ent', ent_emb)
@@ -173,7 +171,9 @@ class ConvE(object):
         rel_emb = tf.reshape(rel_emb, [-1, 10, 20, 1])
 
         stacked_emb = tf.concat([e1_emb, rel_emb], 1)
-        stacked_emb = tf.contrib.layers.batch_norm(stacked_emb)
+        stacked_emb = tf.layers.batch_normalization(stacked_emb, training=self.is_train, fused=True, name='StackedEmbBN')
+        # stacked_emb = tf.layers.batch_normalization(stacked_emb, momentum=0.1, reuse=tf.AUTO_REUSE, training=self.is_train, fused=True, name='StackedEmbBN')
+        # stacked_emb = tf.layers.batch_normalization(stacked_emb, training=self.is_train)
         stacked_emb = tf.nn.dropout(stacked_emb, 1 - self.input_dropout)
 
         with tf.name_scope('conv1'):
@@ -183,7 +183,9 @@ class ConvE(object):
                 input=stacked_emb, filter=weights,
                 strides=[1, 1, 1, 1], padding='VALID')
             conv1_plus_bias = conv1 + bias
-            conv1_bn = tf.contrib.layers.batch_norm(conv1_plus_bias)
+            conv1_bn = tf.layers.batch_normalization(conv1_plus_bias, training=self.is_train, fused=True, name='Conv1BN')
+            # conv1_bn = tf.layers.batch_normalization(conv1_plus_bias, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE, training=self.is_train, fused=True, name='Conv1BN')
+            # conv1_bn = tf.layers.batch_normalization(conv1_plus_bias, training=self.is_train)
             conv1_relu = leaky_relu(conv1_bn)
             conv1_dropout = tf.nn.dropout(conv1_relu, 1-self.hidden_dropout)
 
@@ -201,7 +203,9 @@ class ConvE(object):
             fc_input = tf.reshape(conv1_dropout, [batch_size, -1])
             fc = tf.matmul(fc_input, weights) + bias
             fc_dropout = tf.nn.dropout(fc, 1 - self.output_dropout)
-            fc_bn = tf.contrib.layers.batch_norm(fc_dropout)
+            fc_bn = tf.layers.batch_normalization(fc_dropout, training=self.is_train, fused=True, name='FCBN')
+            # fc_bn = tf.layers.batch_normalization(fc_dropout, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE, training=self.is_train, fused=True, name='FCBN')
+            # fc_bn = tf.layers.batch_normalization(fc_dropout, training=self.is_train)
             fc_relu = leaky_relu(fc_bn)
 
             if self._tensor_summaries:
@@ -225,7 +229,9 @@ class ConvE(object):
     def _create_semant_loss(self, predictions, targets):
         with tf.name_scope('semant_loss'):
             semant_loss = tf.reduce_sum(
-                tf.losses.sigmoid_cross_entropy(targets, predictions))
+                tf.losses.sigmoid_cross_entropy(
+                    targets, predictions,
+                    label_smoothing=self.label_smoothing_epsilon))
 
             if self._loss_summaries:
                 tf.summary.scalar('loss', semant_loss)

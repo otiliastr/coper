@@ -79,10 +79,10 @@ class _ConvELoader(Loader):
         self.num_rel = None
 
     def train_dataset(self,
-                      directory, 
+                      directory,
                       batch_size,
                       struc2vec_args,
-                      label_smoothing_epsilon,
+                      include_inv_relations=True,
                       num_parallel_readers=32,
                       num_parallel_batches=32,
                       buffer_size=1024 * 1024, 
@@ -97,18 +97,23 @@ class _ConvELoader(Loader):
             sample = conve_parser(sample)
             e2_multi1 = tf.to_float(tf.sparse_to_indicator(
                 sample['e2_multi1'], self.num_ent))
-            e2_multi2 = tf.to_float(tf.sparse_to_indicator(
-                sample['e2_multi2'], self.num_ent))
             return {
                 # [None] creates a new dimension at axis 0. So sommething originally (1, 3) will be (1, 1, 3) after [None]
                 'e1': sample['e1'][None],
                 'e2': sample['e2'][None],
                 'rel': sample['rel'][None],
-                'rel_eval': sample['rel_eval'][None],
-                'e2_multi1': (
-                    ((1.0 - label_smoothing_epsilon) * e2_multi1) +
-                    (1.0 / self.num_ent) * (1 - e2_multi1)),
-                'e2_multi2': e2_multi2}
+                'e2_multi1': e2_multi1,
+                'is_inverse': tf.cast(sample['is_inverse'], tf.bool)}
+
+        def filter_inv_relations(sample):
+            return tf.logical_not(sample['is_inverse'])
+
+        def remove_is_inverse(sample):
+            return {
+                'e1': sample['e1'],
+                'e2': sample['e2'],
+                'rel': sample['rel'],
+                'e2_multi1': sample['e2_multi1']}
 
         def struc_map_fn(sample):
             sample = struc_parser(sample)
@@ -118,11 +123,15 @@ class _ConvELoader(Loader):
         conve_data = conve_files.apply(tf.contrib.data.parallel_interleave(
             tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
             block_length=batch_size, sloppy=True))\
+            .map(map_fn, num_parallel_calls=num_parallel_batches)
+
+        if not include_inv_relations:
+            conve_data = conve_data.filter(filter_inv_relations)
+
+        conve_data = conve_data\
+            .map(remove_is_inverse)\
             .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))\
-            .apply(tf.contrib.data.map_and_batch(
-            map_func=map_fn,
-            batch_size=batch_size,
-            num_parallel_batches=num_parallel_batches))\
+            .batch(batch_size)\
             .prefetch(prefetch_buffer_size)
 
         struc_data = struc_files.apply(tf.contrib.data.parallel_interleave(
@@ -137,61 +146,66 @@ class _ConvELoader(Loader):
 
         return conve_data, struc_data
 
-    def dev_datasets(self,
+    def dev_dataset(self,
+                    directory,
+                    batch_size,
+                    include_inv_relations=True,
+                    buffer_size=1024 * 1024,
+                    prefetch_buffer_size=128):
+        return self._eval_dataset(
+            directory, 'dev', batch_size, include_inv_relations,
+            buffer_size, prefetch_buffer_size)
+
+    def test_dataset(self,
                      directory,
                      batch_size,
+                     include_inv_relations=True,
                      buffer_size=1024 * 1024,
                      prefetch_buffer_size=128):
-        return self._eval_datasets(
-            directory, 'dev', batch_size, buffer_size, prefetch_buffer_size)
+        return self._eval_dataset(
+            directory, 'test', batch_size, include_inv_relations,
+            buffer_size, prefetch_buffer_size)
 
-    def test_datasets(self,
+    def _eval_dataset(self,
                       directory,
+                      dataset_type,
                       batch_size,
+                      include_inv_relations=True,
                       buffer_size=1024 * 1024,
                       prefetch_buffer_size=128):
-        return self._eval_datasets(
-            directory, 'test', batch_size, buffer_size, prefetch_buffer_size)
-
-    def _eval_datasets(self,
-                       directory,
-                       dataset_type,
-                       batch_size,
-                       buffer_size=1024 * 1024, 
-                       prefetch_buffer_size=128):
         parser, _, filenames = self.create_tf_record_files(
             directory, struc2vec_args=None, buffer_size=buffer_size)
 
-        def map_fn(sample, reverse=False):
+        def map_fn(sample):
             sample = parser(sample)
             e2_multi1 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi1'], self.num_ent))
-            e2_multi2 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi2'], self.num_ent))
-            if reverse:
-                return {
-                    'e1': sample['e2'][None],
-                    'e2': sample['e1'][None],
-                    'rel': sample['rel_eval'][None],
-                    'rel_eval': sample['rel'][None],
-                    'e2_multi1': e2_multi1,
-                    'e2_multi2': e2_multi2}
-            else:
-                return {
-                    'e1': sample['e1'][None],
-                    'e2': sample['e2'][None],
-                    'rel': sample['rel'][None],
-                    'rel_eval': sample['rel_eval'][None],
-                    'e2_multi1': e2_multi1,
-                    'e2_multi2': e2_multi2}
+            return {
+                'e1': sample['e1'][None],
+                'e2': sample['e2'][None],
+                'rel': sample['rel'][None],
+                'e2_multi1': e2_multi1,
+                'is_inverse': tf.cast(sample['is_inverse'], tf.bool)}
 
-        dataset = tf.data.TFRecordDataset(filenames[dataset_type])\
-            .map(lambda s: map_fn(s, reverse=False))\
+        def filter_inv_relations(sample):
+            return tf.logical_not(sample['is_inverse'])
+
+        def remove_is_inverse(sample):
+            return {
+                'e1': sample['e1'],
+                'e2': sample['e2'],
+                'rel': sample['rel'],
+                'e2_multi1': sample['e2_multi1']}
+
+        data = tf.data.TFRecordDataset(filenames[dataset_type])\
+            .map(lambda s: map_fn(s))
+
+        if not include_inv_relations:
+            data = data.filter(filter_inv_relations)
+
+        return data\
+            .map(remove_is_inverse)\
             .batch(batch_size)\
             .prefetch(prefetch_buffer_size)
-        dataset_reverse = tf.data.TFRecordDataset(filenames[dataset_type])\
-            .map(lambda s: map_fn(s, reverse=True))\
-            .batch(batch_size)\
-            .prefetch(prefetch_buffer_size)
-        return dataset, dataset_reverse
 
     # generate json files and ids
     def generate_json_files_and_ids(self, directory, buffer_size=1024*1024):
@@ -300,9 +314,8 @@ class _ConvELoader(Loader):
                 'e1': tf.FixedLenFeature([], tf.int64),
                 'e2': tf.FixedLenFeature([], tf.int64),
                 'rel': tf.FixedLenFeature([], tf.int64),
-                'rel_eval': tf.FixedLenFeature([], tf.int64),
                 'e2_multi1': tf.VarLenFeature(tf.int64),
-                'e2_multi2': tf.VarLenFeature(tf.int64)}
+                'is_inverse': tf.FixedLenFeature([], tf.int64)}
             return tf.parse_single_example(r, features=features)
 
         def struc_tf_record_parser(r):
@@ -362,7 +375,7 @@ class _ConvELoader(Loader):
         self._write_graph(e1rel_to_e2_train, graphs['train.txt'])
         self._write_graph(e1rel_to_e2_dev, graphs['valid.txt'], full_graph)
         self._write_graph(e1rel_to_e2_test, graphs['test.txt'], full_graph)
-        self._write_graph(e1rel_to_e2_full, full_graph)
+        self._write_graph(e1rel_to_e2_full, full_graph, full_graph)
 
         return {
             'train': e1rel_to_e2_train, 
@@ -378,24 +391,17 @@ class _ConvELoader(Loader):
                         'e1': key[0],
                         'e2': 'None',
                         'rel': key[1],
-                        'rel_eval': 'None',
-                        'e2_multi1': ' '.join(list(value)),
-                        'e2_multi2': 'None'}
+                        'e2_multi1': ' '.join(list(value))}
                     handle.write(json.dumps(sample) + '\n')
-                elif not key[1].endswith('_reverse'):
+                else:
                     e1, rel = key
-                    rel_reverse = rel + '_reverse'
                     e2_multi1 = ' '.join(list(labels[key]))
                     for e2 in value:
-                        key_reverse = (e2, rel_reverse)
-                        e2_multi2 = ' '.join(list(labels[key_reverse]))
                         sample = {
                             'e1': e1,
                             'e2': e2,
                             'rel': rel,
-                            'rel_eval': rel_reverse,
-                            'e2_multi1': e2_multi1,
-                            'e2_multi2': e2_multi2}
+                            'e2_multi1': e2_multi1}
                         handle.write(json.dumps(sample) + '\n')
 
     def _assign_ids(self, json_files):
@@ -439,19 +445,18 @@ class _ConvELoader(Loader):
                     entities.add(sample['e1'])
                     entities.add(sample['e2'])
                     entities.update(sample['e2_multi1'].split(' '))
-                    entities.update(sample['e2_multi2'].split(' '))
                     for entity in entities:
                         if entity != 'None' and entity not in entity_ids:
                             entity_names[num_ent] = entity
                             entity_ids[entity] = num_ent
                             num_ent += 1
                 if not relations_exist:
-                    for relation in [sample['rel'], sample['rel_eval']]:
-                        if relation != 'None' and \
-                           relation not in relation_ids:
-                            relation_names[num_rel] = relation
-                            relation_ids[relation] = num_rel
-                            num_rel += 1
+                    relation = sample['rel']
+                    if relation != 'None' and \
+                       relation not in relation_ids:
+                        relation_names[num_rel] = relation
+                        relation_ids[relation] = num_rel
+                        num_rel += 1
 
         # Store the index maps in text files, if needed.
         # TODO: Can be done more efficiently using ordered dictionaries.
@@ -470,12 +475,8 @@ class _ConvELoader(Loader):
         e1 = entity_ids[sample['e1']]
         e2 = entity_ids[sample['e2']]
         rel = relation_ids[sample['rel']]
-        rel_eval = relation_ids[sample['rel_eval']]
         e2_multi1 = [entity_ids[e]
                      for e in sample['e2_multi1'].split(' ')
-                     if e != 'None']
-        e2_multi2 = [entity_ids[e]
-                     for e in sample['e2_multi2'].split(' ')
                      if e != 'None']
 
         def _int64(values):
@@ -486,10 +487,8 @@ class _ConvELoader(Loader):
             'e1': _int64([e1]),
             'e2': _int64([e2]),
             'rel': _int64([rel]),
-            'rel_eval': _int64([rel_eval]),
             'e2_multi1': _int64(e2_multi1),
-            'e2_multi2': _int64(e2_multi2)
-        })
+            'is_inverse': _int64([sample['rel'].endswith('_reverse')])})
 
         return tf.train.Example(features=features)
 
@@ -503,8 +502,7 @@ class _ConvELoader(Loader):
 
         features = tf.train.Features(feature={
             'e1': _int64([e1]),
-            'e2': _int64([e2])
-        })
+            'e2': _int64([e2])})
 
         return tf.train.Example(features=features)
 
