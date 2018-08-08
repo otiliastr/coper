@@ -50,14 +50,14 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
                         model.hidden_dropout: 0.0,
                         model.output_dropout: 0.0})
 
-            target_values = pred1[np.arange(0, len(pred1)), e2[:, 0]]
+            target_values = pred1[np.arange(0, len(pred1)), e2]
             pred1[e2_multi1 == 1] = -np.inf
-            pred1[np.arange(0, len(pred1)), e2[:, 0]] = target_values
+            pred1[np.arange(0, len(pred1)), e2] = target_values
 
             sorted_pred_ids = np.argsort(-pred1, 1)
 
             for i in range(len(e1)):
-                rank = int(np.where(sorted_pred_ids[i] == e2[i, 0])[0])
+                rank = int(np.where(sorted_pred_ids[i] == e2[i])[0])
                 ranks.append(rank + 1)
                 for hits_level in range(10):
                     if rank <= hits_level:

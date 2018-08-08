@@ -51,9 +51,9 @@ class ConvE(object):
                 'rel': tf.int64,
                 'e2_multi1': tf.float32},
             output_shapes={
-                'e1': [None, 1],
-                'e2': [None, 1],
-                'rel': [None, 1],
+                'e1': [None],
+                'e2': [None],
+                'rel': [None],
                 'e2_multi1': [None, self.num_ent]})
 
         self.struc_iterator_handle = tf.placeholder_with_default("", shape=[])
@@ -63,8 +63,8 @@ class ConvE(object):
                 'e1': tf.int64,
                 'e2': tf.int64},
             output_shapes={
-                'e1': [None, 1],
-                'e2': [None, 1]})
+                'e1': [None],
+                'e2': [None]})
 
         self.next_input_sample = self.input_iterator.get_next()
         self.next_struc_sample = self.struc_iterator.get_next()
@@ -165,6 +165,8 @@ class ConvE(object):
         return variables
 
     def _create_predictions(self, e1_emb, rel_emb):
+        leaky_relu = lambda x: tf.maximum(x, 0.1 * x)
+
         e1_emb = tf.reshape(e1_emb, [-1, 10, 20, 1])
         rel_emb = tf.reshape(rel_emb, [-1, 10, 20, 1])
 
@@ -186,7 +188,7 @@ class ConvE(object):
             # conv1_bn = tf.layers.batch_normalization(conv1_plus_bias, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE, training=self.is_train, fused=True, name='Conv1BN')
             # conv1_bn = tf.layers.batch_normalization(conv1_plus_bias, training=self.is_train)
             conv1_bn = tf.contrib.layers.batch_norm(conv1_plus_bias)
-            conv1_relu = tf.nn.relu(conv1_bn)
+            conv1_relu = leaky_relu(conv1_bn)
             conv1_dropout = tf.nn.dropout(conv1_relu, 1 - self.hidden_dropout)
 
             if self._tensor_summaries:
@@ -207,7 +209,7 @@ class ConvE(object):
             # fc_bn = tf.layers.batch_normalization(fc_dropout, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE, training=self.is_train, fused=True, name='FCBN')
             # fc_bn = tf.layers.batch_normalization(fc_dropout, training=self.is_train)
             fc_bn = tf.contrib.layers.batch_norm(fc_dropout)
-            fc_relu = fc_bn  # tf.nn.relu(fc_bn)
+            fc_relu = fc_bn  # leaky_relu(fc_bn)
 
             if self._tensor_summaries:
                 _create_summaries('fc_result', fc)
@@ -240,17 +242,9 @@ class ConvE(object):
 
     def _create_struct_loss(self, e1_emb, e2_emb):
         with tf.name_scope('struct_loss'):
-            e1_emb = tf.reshape(e1_emb, (-1, self.emb_size))
-            e2_emb = tf.reshape(e2_emb, (-1, self.emb_size))
-
-            e1_emb_norm = tf.reshape(tf.norm(e1_emb, axis=1), (-1, 1))
-            e2_emb_norm = tf.reshape(tf.norm(e2_emb, axis=1), (-1, 1))
-
-            dot_product = tf.reduce_sum(e1_emb * e2_emb, axis=1)
-            dot_product = tf.reshape(dot_product, (-1, 1))
-            norm_product = tf.multiply(e1_emb_norm, e2_emb_norm)
-            inverse_cosine_similarity = tf.divide(norm_product, dot_product)
-            struct_loss = tf.reduce_sum(inverse_cosine_similarity)
+            e1_emb = tf.nn.l2_normalize(e1_emb, axis=1)
+            e2_emb = tf.nn.l2_normalize(e2_emb, axis=1)
+            struct_loss = tf.losses.cosine_distance(e1_emb, e2_emb, axis=1)
 
             if self._loss_summaries:
                 tf.summary.scalar('loss', struct_loss)

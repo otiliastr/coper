@@ -28,10 +28,10 @@ class Loader(six.with_metaclass(abc.ABCMeta, object)):
         self.filenames = filenames
 
     @abc.abstractmethod
-    def load_and_preprocess(self, directory, buffer_size=1024 * 1024):
+    def load_and_preprocess(self, directory, buffer_size=1024*1024):
         pass
 
-    def maybe_extract(self, directory, buffer_size=1024 * 1024):
+    def maybe_extract(self, directory, buffer_size=1024*1024):
         """Downloads the required dataset files, if needed, and extracts all 
         '.tar.gz' files that may have been downloaded, if needed.
 
@@ -85,7 +85,7 @@ class _ConvELoader(Loader):
                       include_inv_relations=True,
                       num_parallel_readers=32,
                       num_parallel_batches=32,
-                      buffer_size=1024 * 1024, 
+                      buffer_size=1024*1024,
                       prefetch_buffer_size=128):
         conve_parser, struc_parser, filenames = self.create_tf_record_files(
             directory, struc2vec_args, buffer_size=buffer_size)
@@ -98,10 +98,9 @@ class _ConvELoader(Loader):
             e2_multi1 = tf.to_float(tf.sparse_to_indicator(
                 sample['e2_multi1'], self.num_ent))
             return {
-                # [None] creates a new dimension at axis 0. So sommething originally (1, 3) will be (1, 1, 3) after [None]
-                'e1': sample['e1'][None],
-                'e2': sample['e2'][None],
-                'rel': sample['rel'][None],
+                'e1': sample['e1'],
+                'e2': sample['e2'],
+                'rel': sample['rel'],
                 'e2_multi1': e2_multi1,
                 'is_inverse': tf.cast(sample['is_inverse'], tf.bool)}
 
@@ -117,8 +116,8 @@ class _ConvELoader(Loader):
 
         def struc_map_fn(sample):
             sample = struc_parser(sample)
-            return {'e1': sample['e1'][None],
-                    'e2': sample['e2'][None]}
+            return {'e1': sample['e1'],
+                    'e2': sample['e2']}
 
         conve_data = conve_files.apply(tf.contrib.data.parallel_interleave(
             tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
@@ -150,7 +149,7 @@ class _ConvELoader(Loader):
                     directory,
                     batch_size,
                     include_inv_relations=True,
-                    buffer_size=1024 * 1024,
+                    buffer_size=1024*1024,
                     prefetch_buffer_size=128):
         return self._eval_dataset(
             directory, 'dev', batch_size, include_inv_relations,
@@ -160,7 +159,7 @@ class _ConvELoader(Loader):
                      directory,
                      batch_size,
                      include_inv_relations=True,
-                     buffer_size=1024 * 1024,
+                     buffer_size=1024*1024,
                      prefetch_buffer_size=128):
         return self._eval_dataset(
             directory, 'test', batch_size, include_inv_relations,
@@ -171,7 +170,7 @@ class _ConvELoader(Loader):
                       dataset_type,
                       batch_size,
                       include_inv_relations=True,
-                      buffer_size=1024 * 1024,
+                      buffer_size=1024*1024,
                       prefetch_buffer_size=128):
         parser, _, filenames = self.create_tf_record_files(
             directory, struc2vec_args=None, buffer_size=buffer_size)
@@ -180,9 +179,9 @@ class _ConvELoader(Loader):
             sample = parser(sample)
             e2_multi1 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi1'], self.num_ent))
             return {
-                'e1': sample['e1'][None],
-                'e2': sample['e2'][None],
-                'rel': sample['rel'][None],
+                'e1': sample['e1'],
+                'e2': sample['e2'],
+                'rel': sample['rel'],
                 'e2_multi1': e2_multi1,
                 'is_inverse': tf.cast(sample['is_inverse'], tf.bool)}
 
