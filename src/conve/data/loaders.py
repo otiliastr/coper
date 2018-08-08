@@ -10,7 +10,7 @@ import six
 import requests
 import tensorflow as tf
 
-from struc2vec.main import exec_struc2vec
+from struc2vec.struc2vec import exec_struc2vec
 from tqdm import tqdm
 
 from ..utilities.structure import *

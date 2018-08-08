@@ -1,4 +1,6 @@
 fastdtw
-requests
-tqdm
+numpy
 pyyaml
+requests
+six
+tqdm
