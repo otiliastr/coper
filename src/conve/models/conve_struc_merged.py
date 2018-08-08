@@ -167,6 +167,8 @@ class ConvE(object):
         return variables
 
     def _create_predictions(self, e1_emb, rel_emb):
+        leaky_relu = lambda x: tf.maximum(x, 0.1 * x)
+
         e1_emb = tf.reshape(e1_emb, [-1, 10, 20, 1])
         rel_emb = tf.reshape(rel_emb, [-1, 10, 20, 1])
 
@@ -182,7 +184,7 @@ class ConvE(object):
                 strides=[1, 1, 1, 1], padding='VALID')
             conv1_plus_bias = conv1 + bias
             conv1_bn = tf.contrib.layers.batch_norm(conv1_plus_bias)
-            conv1_relu = tf.nn.relu(conv1_bn)
+            conv1_relu = leaky_relu(conv1_bn)
             conv1_dropout = tf.nn.dropout(conv1_relu, 1-self.hidden_dropout)
 
             if self._tensor_summaries:
@@ -200,7 +202,7 @@ class ConvE(object):
             fc = tf.matmul(fc_input, weights) + bias
             fc_dropout = tf.nn.dropout(fc, 1 - self.output_dropout)
             fc_bn = tf.contrib.layers.batch_norm(fc_dropout)
-            fc_relu = fc_bn # tf.nn.relu(fc_bn)
+            fc_relu = leaky_relu(fc_bn)
 
             if self._tensor_summaries:
                 _create_summaries('fc_result', fc)

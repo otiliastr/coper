@@ -173,8 +173,7 @@ class _ConvELoader(Loader):
                     'rel': sample['rel_eval'][None],
                     'rel_eval': sample['rel'][None],
                     'e2_multi1': e2_multi1,
-                    'e2_multi2': e2_multi2
-                }
+                    'e2_multi2': e2_multi2}
             else:
                 return {
                     'e1': sample['e1'][None],
@@ -182,8 +181,7 @@ class _ConvELoader(Loader):
                     'rel': sample['rel'][None],
                     'rel_eval': sample['rel_eval'][None],
                     'e2_multi1': e2_multi1,
-                    'e2_multi2': e2_multi2
-                }
+                    'e2_multi2': e2_multi2}
 
         dataset = tf.data.TFRecordDataset(filenames[dataset_type])\
             .map(lambda s: map_fn(s, reverse=False))\
