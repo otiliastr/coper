@@ -45,10 +45,7 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
                         model.next_input_sample['e2_multi1'],
                         model.predictions),
                     feed_dict={
-                        model.input_iterator_handle: data_iterator_handle,
-                        model.input_dropout: 0.0,
-                        model.hidden_dropout: 0.0,
-                        model.output_dropout: 0.0})
+                        model.input_iterator_handle: data_iterator_handle})
 
             target_values = pred1[np.arange(0, len(pred1)), e2]
             pred1[e2_multi1 == 1] = -np.inf
