@@ -6,19 +6,14 @@ import logging
 import os
 import tarfile
 import six
-import sys
-# add path to struc2vec to import exec_struc2vec
-sys.path.insert(0, '/usr0/home/ostretcu/code/qa_types/src/struc2vec/src')
-# import exec_struc2vec to generate random walks
-from main import exec_struc2vec
 
-from ..utilities.structure import load_adjacency_matrix, prune_adjacency_matrix, generate_structure_train_file
-
-import numpy as np
 import requests
 import tensorflow as tf
 
+from struc2vec.main import exec_struc2vec
 from tqdm import tqdm
+
+from ..utilities.structure import *
 
 __all__ = [
     'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader',
@@ -92,22 +87,18 @@ class _ConvELoader(Loader):
                       num_parallel_batches=32,
                       buffer_size=1024 * 1024, 
                       prefetch_buffer_size=128):
+        conve_parser, struc_parser, filenames = self.create_tf_record_files(
+            directory, struc2vec_args, buffer_size=buffer_size)
 
-
-        # edgelist_filename = self.create_edgelist(directory)
-        parser, struc_parser, filenames = self.create_tf_record_files(directory, struc2vec_args, buffer_size = buffer_size)
-        # compute random structure walks 
-        # adj_matrix = adj_matrix.astype(np.float32)
-        #struc2vec_args['input'] = edgelist_filename
-
-        #exec_struc2vec(struc2vec_args)
-        files = tf.data.Dataset.from_tensor_slices(filenames['train'])
+        conve_files = tf.data.Dataset.from_tensor_slices(filenames['train'])
         struc_files = tf.data.Dataset.from_tensor_slices(filenames['struc'])
-        
+
         def map_fn(sample):
-            sample = parser(sample)
-            e2_multi1 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi1'], self.num_ent))
-            e2_multi2 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi2'], self.num_ent))
+            sample = conve_parser(sample)
+            e2_multi1 = tf.to_float(tf.sparse_to_indicator(
+                sample['e2_multi1'], self.num_ent))
+            e2_multi2 = tf.to_float(tf.sparse_to_indicator(
+                sample['e2_multi2'], self.num_ent))
             return {
                 # [None] creates a new dimension at axis 0. So sommething originally (1, 3) will be (1, 1, 3) after [None]
                 'e1': sample['e1'][None],
@@ -117,40 +108,35 @@ class _ConvELoader(Loader):
                 'e2_multi1': (
                     ((1.0 - label_smoothing_epsilon) * e2_multi1) +
                     (1.0 / self.num_ent)),
-                'e2_multi2': e2_multi2# ,
-                # # TODO: Avoid this hack.
-                # 'e2_struct': tf.py_func(
-                #     lambda x: adj_matrix[x], [sample['e1']],
-                #     Tout=tf.float32, stateful=False)
-            }
+                'e2_multi2': e2_multi2}
 
         def struc_map_fn(sample):
             sample = struc_parser(sample)
             return {'e1': sample['e1'][None],
                     'e2': sample['e2'][None]}
-        # TODO: return tuple/zip of KB training data and Structure training data
-        #return files
-        conve_data =  files.apply(tf.contrib.data.parallel_interleave(
-                        tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
-                        block_length=batch_size, sloppy=True))\
-                        .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))\
-                        .apply(tf.contrib.data.map_and_batch(
-                            map_func=map_fn,
-                            batch_size=batch_size,
-                            num_parallel_batches=num_parallel_batches))\
-                        .prefetch(prefetch_buffer_size)
+
+        conve_data = conve_files.apply(tf.contrib.data.parallel_interleave(
+            tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
+            block_length=batch_size, sloppy=True))\
+            .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))\
+            .apply(tf.contrib.data.map_and_batch(
+            map_func=map_fn,
+            batch_size=batch_size,
+            num_parallel_batches=num_parallel_batches))\
+            .prefetch(prefetch_buffer_size)
 
         struc_data = struc_files.apply(tf.contrib.data.parallel_interleave(
-                        tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
-                        block_length=batch_size, sloppy=True))\
-                        .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))\
-                        .apply(tf.contrib.data.map_and_batch(
-                            map_func=struc_map_fn,
-                            batch_size=batch_size,
-                            num_parallel_batches=num_parallel_batches))\
-                        .prefetch(prefetch_buffer_size)
+            tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
+            block_length=batch_size, sloppy=True))\
+            .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))\
+            .apply(tf.contrib.data.map_and_batch(
+            map_func=struc_map_fn,
+            batch_size=batch_size,
+            num_parallel_batches=num_parallel_batches))\
+            .prefetch(prefetch_buffer_size)
+
         return conve_data, struc_data
-	
+
     def dev_datasets(self,
                      directory,
                      batch_size,
@@ -173,10 +159,8 @@ class _ConvELoader(Loader):
                        batch_size,
                        buffer_size=1024 * 1024, 
                        prefetch_buffer_size=128):
-        parser, _, filenames = self.create_tf_record_files(directory,
-                                                           struc2vec_args = None,
-                                                           buffer_size = buffer_size,
-                                                          include_structure = False)
+        parser, _, filenames = self.create_tf_record_files(
+            directory, struc2vec_args=None, buffer_size=buffer_size)
 
         def map_fn(sample, reverse=False):
             sample = parser(sample)
@@ -241,60 +225,48 @@ class _ConvELoader(Loader):
                             edgelist_file.write(edgelist_addition)
         return struc_filename
 
-    def run_struc2vec(self, edgelist_filename, struc2vec_args):
+    def run_struc2vec(self, directory, edgelist_filename, struc2vec_args):
         struc2vec_args['input'] = edgelist_filename
+        # TODO: Hack to change the working directory because the struc2vec code
+        # is pretty bad and requires us to hardcode paths.
+        old_cwd = os.getcwd()
+        os.chdir(directory)
         exec_struc2vec(struc2vec_args)
+        os.chdir(old_cwd)
 
     def decode_random_walks(self, directory):
-        #random_walks_path = os.path.join(directory, 'random_walks.txt')
-        random_walks_path = os.path.join('/usr0/home/ostretcu/code/qa_types/src', 'random_walks.txt')
+        random_walks_path = os.path.join(directory, 'random_walks.txt')
         adj_matrix = load_adjacency_matrix(random_walks_path, self.num_ent)
         adj_matrix = prune_adjacency_matrix(adj_matrix)
         return generate_structure_train_file(adj_matrix,
                                              directory=directory,
                                              output_filename='struc_train.txt')
 
-
-
     def create_tf_record_files(self,
                                directory,
                                struc2vec_args,
                                max_records_per_file=10000,
-                               buffer_size=1024 * 1024,
-                               include_structure = True):
+                               buffer_size=1024 * 1024):
         logger.info(
             'Creating TF record files for the \'%s\' dataset.',
             self.dataset_name)
 
-        # json_files = self.load_and_preprocess(directory, buffer_size)
-
         # We first load the entity and relation ID maps and handle missing 
         # entries using -1 as their index.
-        # entity_ids, relation_ids = self._assign_ids(json_files)
-        # entity_ids['None'] = -1
-        # relation_ids['None'] = -1
-        # self.num_ent = len(entity_ids) - 1
-        # self.num_rel = len(relation_ids) - 1
-        # get json files, and ids
         json_files, entity_ids, relation_ids = self.generate_json_files_and_ids(directory, buffer_size)
-        # whether or not to include structure
-        if include_structure:
-            # create edgelist
+        # Check whether or not to include structure.
+        if struc2vec_args is not None:
+            # Create edgelist
             edgelist_filename = self.create_struc_edgelist(directory, json_files['full'], entity_ids)
-            # generate random walks for structure regularization
-            self.run_struc2vec(edgelist_filename, struc2vec_args)
+            # Generate random walks for structure regularization
+            self.run_struc2vec(directory, edgelist_filename, struc2vec_args)
             json_files['struc'] = self.decode_random_walks(directory)
             filetypes = ['train', 'dev', 'test', 'struc']
         else:
             filetypes = ['train', 'dev', 'test']
 
-
-
-
-
         directory = os.path.dirname(json_files['full'])
         tf_record_filenames = {}
-
 
         for filetype in filetypes:
             count = 0
@@ -312,7 +284,6 @@ class _ConvELoader(Loader):
                                 sample, entity_ids, relation_ids)
                         else:
                             e1, e2 = line.strip().split(" ")
-                            # TODO: Find replacement for int32 casting -> int64 casting
                             sample = {'e1': int(e1), 'e2': int(e2)}
                             record = self._encode_struc_sample_as_tf_record(sample)
                         tf_records_writer.write(record.SerializeToString())
@@ -327,12 +298,8 @@ class _ConvELoader(Loader):
                             tf_record_filenames[filetype].append(filename)
                             tf_records_writer = tf.python_io.TFRecordWriter(filename)
                 tf_records_writer.close()
-        
-                    
-                    
 
-
-        def tf_conve_record_parser(record):
+        def conve_tf_record_parser(r):
             features = {
                 'e1': tf.FixedLenFeature([], tf.int64),
                 'e2': tf.FixedLenFeature([], tf.int64),
@@ -340,16 +307,15 @@ class _ConvELoader(Loader):
                 'rel_eval': tf.FixedLenFeature([], tf.int64),
                 'e2_multi1': tf.VarLenFeature(tf.int64),
                 'e2_multi2': tf.VarLenFeature(tf.int64)}
-            return tf.parse_single_example(record, features=features)
+            return tf.parse_single_example(r, features=features)
 
-        def tf_struc_record_parser(record):
+        def struc_tf_record_parser(r):
             features = {
                 'e1': tf.FixedLenFeature([], tf.int64),
-                'e2': tf.FixedLenFeature([], tf.int64)
-            }
-            return tf.parse_single_example(record, features=features)
+                'e2': tf.FixedLenFeature([], tf.int64)}
+            return tf.parse_single_example(r, features=features)
 
-        return tf_conve_record_parser, tf_struc_record_parser, tf_record_filenames# , struc_filename
+        return conve_tf_record_parser, struc_tf_record_parser, tf_record_filenames
 
     def load_and_preprocess(self, directory, buffer_size=1024 * 1024):
         logger.info(
@@ -539,7 +505,7 @@ class _ConvELoader(Loader):
             return tf.train.Feature(
                 int64_list=tf.train.Int64List(value=values))
 
-        features = tf.train.Features(feature = {
+        features = tf.train.Features(feature={
             'e1': _int64([e1]),
             'e2': _int64([e2])
         })
@@ -581,4 +547,3 @@ class FB15k237Loader(_ConvELoader):
     def __init__(self):
         dataset_name = 'FB15k-237'
         super(FB15k237Loader, self).__init__(dataset_name)
-

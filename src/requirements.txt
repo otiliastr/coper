@@ -1,3 +1,4 @@
+fastdtw
 requests
 tqdm
-yaml
+pyyaml

@@ -8,7 +8,6 @@ import tensorflow as tf
 from ..data.loaders import KinshipLoader
 from ..evaluation.metrics import ranking_and_hits
 from ..models.conve_struc_merged import ConvE
-from ..utilities.structure import load_adjacency_matrix, prune_adjacency_matrix
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,10 +33,6 @@ LOG_DIR = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'logs')
 CKPT_PATH = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'model_weights.ckpt')
 EVAL_PATH = os.path.join(WORKING_DIR, 'evaluation', MODEL_NAME)
 
-# TODO: Standardize this.
-# STRUCTURE_WALKS_PATH = '/Users/anthony/Development/GitHub/qa_types/temp/data/kinship/random_walks.txt'
-#STRUCTURE_WALKS_PATH = '/usr0/home/ostretcu/code/george/models/prelim_tests/struc2vec/src/dataset_walks/kinship/random_walks.txt'
-
 ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
 ADD_TENSOR_SUMMARIES = False
@@ -53,13 +48,10 @@ STRUC2VEC_ARGS = {'walk_length': 80,
                   'OPT2': False,
                   'OPT3': False}
 
+
 def main():
     loader = KinshipLoader()
     loader.create_tf_record_files(DATA_DIR, STRUC2VEC_ARGS)
-
-    # Load the adjacency matrix of nodes with similar structure.
-    # adj_matrix = load_adjacency_matrix(STRUCTURE_WALKS_PATH, loader.num_ent)
-    # adj_matrix = prune_adjacency_matrix(adj_matrix)
 
     # Create the model.
     with tf.device(DEVICE):
@@ -83,12 +75,9 @@ def main():
     # Create dataset iterator initializers.
     train_dataset, struc_dataset = loader.train_dataset(
         DATA_DIR, BATCH_SIZE, STRUC2VEC_ARGS, LABEL_SMOOTHING_EPSILON)
-    #print(train_dataset)
-    
+
     dev_datasets = loader.dev_datasets(DATA_DIR, BATCH_SIZE)
     test_datasets = loader.test_datasets(DATA_DIR, BATCH_SIZE)
-    
-   
 
     train_iterator = train_dataset.make_one_shot_iterator()
     struc_iterator = struc_dataset.make_one_shot_iterator()
@@ -122,7 +111,6 @@ def main():
     struct_loss_weight = 0.0
 
     for step in range(MAX_STEPS):
-        print("The current step is {}".format(step))
         feed_dict = {
             model.input_iterator_handle: train_iterator_handle,
             model.struc_iterator_handle: struc_iterator_handle,
@@ -131,25 +119,6 @@ def main():
             model.output_dropout: OUTPUT_DROPOUT,
             model.semant_loss_weight: semant_loss_weight,
             model.struct_loss_weight: struct_loss_weight}
-        print("training model...")
-        #print("get input next sample")
-        #feed_dict = {model.input_iterator_handle: train_iterator_handle}
-        #input_next = session.run(model.next_sample, feed_dict = feed_dict)
-        #print("have next input sample, getting next struc sample...")
-        #feed_dict = {model.struc_iterator_handle: struc_iterator_handle}
-        #input_next = session.run(model.struc_iterator, feed_dict = feed_dict)
-        #tmp = tf.data.Iterator.from_string_handle(
-         #   struc_iterator_handle,
-          #  output_types={
-           #     'e1': tf.int64,
-            #    'e2': tf.int64},
-            #output_shapes={
-             #   'e1': [None, 1],
-              #  'e2': [None, 1]})
-        
-        
-        #print("have next struc sample")
-        
 
         if model.summaries is not None and \
             SUMMARY_STEPS is not None and \
@@ -159,7 +128,7 @@ def main():
         else:
             summaries = None
             loss, _ = session.run((model.loss, model.train_op), feed_dict)
-        print("training passed")
+
         # Log the loss, if necessary.
         if step % LOG_STEPS == 0:
             LOGGER.info('Step %6d | Loss: %10.4f', step, loss)

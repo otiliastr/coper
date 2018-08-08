@@ -38,10 +38,8 @@ class ConvE(object):
 
         learning_rate = model_descriptors['learning_rate']
         optimizer = AMSGradOptimizer(learning_rate)
-       
-        print("building graph...")
+
         # Build the graph.
-        print("building input iterator...")
         self.input_iterator_handle = tf.placeholder(tf.string, shape=[])
         self.input_iterator = tf.data.Iterator.from_string_handle(
             self.input_iterator_handle,
@@ -52,19 +50,15 @@ class ConvE(object):
                 'rel_eval': tf.int64,
                 'e2_multi1': tf.float32,
                 'e2_multi2': tf.float32},
-                # 'e2_struct': tf.float32},
             output_shapes={
                 'e1': [None, 1],
                 'e2': [None, 1],
                 'rel': [None, 1],
                 'rel_eval': [None, 1],
                 'e2_multi1': [None, self.num_ent],
-                'e2_multi2': [None, self.num_ent]})#,
+                'e2_multi2': [None, self.num_ent]})
 
-                # 'e2_struct': [None, self.num_ent]})
-
-        print("building structure iterator...")
-        self.struc_iterator_handle = tf.placeholder(tf.string, shape =[])
+        self.struc_iterator_handle = tf.placeholder_with_default("", shape=[])
         self.struc_iterator = tf.data.Iterator.from_string_handle(
             self.struc_iterator_handle,
             output_types={
@@ -74,15 +68,12 @@ class ConvE(object):
                 'e1': [None, 1],
                 'e2': [None, 1]})
 
-        print("getting next samples...")
-        self.next_sample = self.input_iterator.get_next()
+        self.next_input_sample = self.input_iterator.get_next()
         self.next_struc_sample = self.struc_iterator.get_next()
 
-        self.e1 = self.next_sample['e1']
-        self.rel = self.next_sample['rel']
-        self.e2_multi = self.next_sample['e2_multi1']
-        # self.e2_struct = self.next_sample['e2_struct']
-
+        self.e1 = self.next_input_sample['e1']
+        self.rel = self.next_input_sample['rel']
+        self.e2_multi = self.next_input_sample['e2_multi1']
         self.e1_struc = self.next_struc_sample['e1']
         self.e2_struc = self.next_struc_sample['e2']
 
@@ -93,12 +84,12 @@ class ConvE(object):
         self.struct_loss_weight = tf.placeholder(tf.float32)
 
         self.variables = self._create_variables()
-        print("running graph...")
+
         ent_emb = self.variables['ent_emb']
         rel_emb = self.variables['rel_emb']
         e1_emb = tf.nn.embedding_lookup(ent_emb, self.e1, name='e1_emb')
-        e1_struc_emb = tf.nn.embedding_lookup(ent_emb, self.e1_struc, name = 'e1_struc_emb')
-        e2_struc_emb = tf.nn.embedding_lookup(ent_emb, self.e2_struc, name = 'e2_struc_emb')
+        e1_struc_emb = tf.nn.embedding_lookup(ent_emb, self.e1_struc, name='e1_struc_emb')
+        e2_struc_emb = tf.nn.embedding_lookup(ent_emb, self.e2_struc, name='e2_struc_emb')
         rel_emb = tf.nn.embedding_lookup(rel_emb, self.rel, name='rel_emb')
         self.predictions = self._create_predictions(e1_emb, rel_emb)
         semant_loss = self._create_semant_loss(self.predictions, self.e2_multi)
@@ -240,32 +231,21 @@ class ConvE(object):
 
     def _create_struct_loss(self, e1_emb, e2_emb):
         with tf.name_scope('struct_loss'):
-            # weights = self.variables['structure_weights']
-            # bias = self.variables['structure_bias']
-
             e1_emb = tf.reshape(e1_emb, (-1, self.emb_size))
-            e2_emb = tf.reshape(e1_emb, (-1, self.emb_size))
+            e2_emb = tf.reshape(e2_emb, (-1, self.emb_size))
 
-            e1_emb_norm = tf.reshape(tf.norm(e1_emb, axis = 1), (-1, 1))
-            e2_emb_norm = tf.reshape(tf.norm(e2_emb, axis = 1), (-1, 1))
+            e1_emb_norm = tf.reshape(tf.norm(e1_emb, axis=1), (-1, 1))
+            e2_emb_norm = tf.reshape(tf.norm(e2_emb, axis=1), (-1, 1))
 
-            dot_product = tf.reshape(tf.reduce_sum(tf.multiply(e1_emb, e2_emb), axis = 1), (-1, 1))
+            dot_product = tf.reduce_sum(e1_emb * e2_emb, axis=1)
+            dot_product = tf.reshape(dot_product, (-1, 1))
             norm_product = tf.multiply(e1_emb_norm, e2_emb_norm)
             inverse_cosine_similarity = tf.divide(norm_product, dot_product)
-            loss = tf.reduce_sum(inverse_cosine_similarity)
-
-            # e1_sim = tf.matmul(e1_emb, weights, transpose_b=True)
-            # e1_sim = e1_sim + tf.expand_dims(bias, 0)
-            #
-            # if self._tensor_summaries:
-            #     _create_summaries('e1_struct_sim', e1_sim)
-
-            # struct_loss = tf.reduce_sum(
-            #     tf.losses.sigmoid_cross_entropy(ent_similarities, e1_sim))
+            struct_loss = tf.reduce_sum(inverse_cosine_similarity)
 
             if self._loss_summaries:
-                tf.summary.scalar('loss', loss)
-        return loss
+                tf.summary.scalar('loss', struct_loss)
+        return struct_loss
 
     def log_parameters_info(self):
         """Logs the trainable parameters of this model,
@@ -278,4 +258,3 @@ class ConvE(object):
             LOGGER.info('\t%s %s' % (variable.name, variable.shape))
             num_parameters += variable.shape.num_elements()
         LOGGER.info('Number of trainable parameters: %d' % num_parameters)
-
