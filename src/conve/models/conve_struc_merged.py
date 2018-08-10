@@ -90,10 +90,9 @@ class ConvE(object):
         ent_emb = self.variables['ent_emb']
         rel_emb = self.variables['rel_emb']
         conve_e1_emb = tf.nn.embedding_lookup(ent_emb, self.e1, name='e1_emb')
-        #print("The shape of rel_emb is {}".format(rel_emb.get_shape().as_list()))
+        conve_rel_emb = tf.nn.embedding_lookup(rel_emb, self.rel, name='rel_emb')
         source_struc_emb = tf.nn.embedding_lookup(rel_emb, self.source_struc, name='source_struc_emb')
         target_struc_emb = tf.nn.embedding_lookup(rel_emb, self.target_struc, name='target_struc_emb')
-        conve_rel_emb = tf.nn.embedding_lookup(rel_emb, self.rel, name='rel_emb')
         self.predictions = self._create_predictions(conve_e1_emb, conve_rel_emb)
         semant_loss = self._create_semant_loss(self.predictions, self.e2_multi)
         struct_loss = self._create_struct_loss(source_struc_emb, target_struc_emb)
@@ -269,4 +268,3 @@ class ConvE(object):
             LOGGER.info('\t%s %s' % (variable.name, variable.shape))
             num_parameters += variable.shape.num_elements()
         LOGGER.info('Number of trainable parameters: %d' % num_parameters)
-

@@ -305,7 +305,6 @@ class _ConvELoader(Loader):
         # Check whether or not to include structure.
         if struc2vec_args is not None:
             # Create edgelist
-            #edgelist_filename = self.create_struc_edgelist(directory, json_files['full'], entity_ids)
             ent_rel_map, rel_ent_map = self.get_mappings(json_files['full'], entity_ids, relation_ids)
             edgelist_filename = self.generate_relation_train_file_from_mappings(directory, ent_rel_map, rel_ent_map)
             # Generate random walks for structure regularization
