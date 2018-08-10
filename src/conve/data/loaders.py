@@ -332,8 +332,8 @@ class _ConvELoader(Loader):
                             record = self._encode_sample_as_tf_record(
                                 sample, entity_ids, relation_ids)
                         else:
-                            source, target = line.strip().split(' ')
-                            sample = {'source': int(source), 'target': int(target)}
+                            source, target, weight = line.strip().split(' ')
+                            sample = {'source': int(source), 'target': int(target), 'weight': float(weight)}
                             record = self._encode_struc_sample_as_tf_record(sample)
                         tf_records_writer.write(record.SerializeToString())
                         count += 1
@@ -361,7 +361,7 @@ class _ConvELoader(Loader):
             features = {
                 'source': tf.FixedLenFeature([], tf.int64),
                 'target': tf.FixedLenFeature([], tf.int64),
-                'weight': tf.FixedLenFeature([], tf.float64)}
+                'weight': tf.FixedLenFeature([], tf.float32)}
             return tf.parse_single_example(r, features=features)
 
         return conve_tf_record_parser, struc_tf_record_parser, tf_record_filenames
@@ -547,7 +547,7 @@ class _ConvELoader(Loader):
 
         def _float(values):
             return tf.train.Feature(
-                int64_list=tf.train.FloatList(value=values))
+                float_list=tf.train.FloatList(value=values))
 
         features = tf.train.Features(feature={
             'source': _int64([source]),

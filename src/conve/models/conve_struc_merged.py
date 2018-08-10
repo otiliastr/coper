@@ -65,7 +65,7 @@ class ConvE(object):
             output_types={
                 'source': tf.int64,
                 'target': tf.int64,
-                'weight': tf.float64},
+                'weight': tf.float32},
             output_shapes={
                 'source': [None],
                 'target': [None],
