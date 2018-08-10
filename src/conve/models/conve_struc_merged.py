@@ -64,10 +64,12 @@ class ConvE(object):
             self.struc_iterator_handle,
             output_types={
                 'source': tf.int64,
-                'target': tf.int64},
+                'target': tf.int64,
+                'weight': tf.float64},
             output_shapes={
                 'source': [None],
-                'target': [None]})
+                'target': [None],
+                'weight': [None]})
 
         self.next_input_sample = self.input_iterator.get_next()
         self.next_struc_sample = self.struc_iterator.get_next()
@@ -78,6 +80,7 @@ class ConvE(object):
         self.e2_multi = self.next_input_sample['e2_multi1']
         self.source_struc = self.next_struc_sample['source']
         self.target_struc = self.next_struc_sample['target']
+        self.weight_struc = self.next_struc_sample['weight']
 
         self.semant_loss_weight = tf.placeholder(tf.float32)
         self.struct_loss_weight = tf.placeholder(tf.float32)
@@ -249,7 +252,7 @@ class ConvE(object):
         with tf.name_scope('struct_loss'):
             source_emb = tf.nn.l2_normalize(source_emb, axis=1)
             target_emb = tf.nn.l2_normalize(target_emb, axis=1)
-            struct_loss = tf.losses.cosine_distance(source_emb, target_emb, axis=1)
+            struct_loss = tf.losses.cosine_distance(source_emb, target_emb, weights=self.weight_struc[:, None], axis=1)
 
             if self._loss_summaries:
                 tf.summary.scalar('loss', struct_loss)

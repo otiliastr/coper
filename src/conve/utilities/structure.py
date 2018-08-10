@@ -37,6 +37,8 @@ def generate_structure_train_file(adj_matrix, directory, output_filename):
     print('Generating the structure train file.')
     os.makedirs(directory, exist_ok=True)
     output_file = os.path.join(directory, output_filename)
+    # Transform the count so they are in [0, 1].
+    adj_matrix = adj_matrix / np.max(adj_matrix)
     with open(output_file, 'w+') as file:
         for src in range(len(adj_matrix)):
             for tgt in range(len(adj_matrix)):
