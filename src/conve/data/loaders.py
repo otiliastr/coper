@@ -116,8 +116,8 @@ class _ConvELoader(Loader):
 
         def struc_map_fn(sample):
             sample = struc_parser(sample)
-            return {'e1': sample['e1'],
-                    'e2': sample['e2']}
+            return {'source': sample['source'],
+                    'target': sample['target']}
 
         conve_data = conve_files.apply(tf.contrib.data.parallel_interleave(
             tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
@@ -214,6 +214,9 @@ class _ConvELoader(Loader):
         relation_ids['None'] = -1
         self.num_ent = len(entity_ids) - 1
         self.num_rel = len(relation_ids) - 1
+        #print("THE NUMBER OF RELATIONS IS {}".format(self.num_rel))
+        #print("__________________________________________________")
+        #BUG
         return json_files, entity_ids, relation_ids
 
     # create the structure edgelist
@@ -247,11 +250,47 @@ class _ConvELoader(Loader):
 
     def decode_random_walks(self, directory):
         random_walks_path = os.path.join(directory, 'random_walks.txt')
-        adj_matrix = load_adjacency_matrix(random_walks_path, self.num_ent)
+        adj_matrix = load_adjacency_matrix(random_walks_path, self.num_rel)
         adj_matrix = prune_adjacency_matrix(adj_matrix)
         return generate_structure_train_file(adj_matrix,
                                              directory=directory,
                                              output_filename='struc_train.txt')
+
+    @staticmethod
+    def get_mappings(json_file, entity_ids, relation_ids):
+        ent_rel_map = {}
+        rel_ent_map = {}
+        with open(json_file, 'r') as handle:
+            for line in handle:
+                sample = json.loads(line)
+                if '_reverse' not in sample['rel']:
+                    e1 = entity_ids[sample['e1'].strip()]
+                    rel = relation_ids[sample['rel'].strip()]
+                    e2_multi = list(map(lambda e2: entity_ids[e2], sample['e2_multi1'].strip().split(" ")))
+                    ent_rel_map[e1] = ent_rel_map.get(e1, []) + [rel]
+                    rel_ent_map[rel] = rel_ent_map.get(rel, []) + e2_multi
+        return ent_rel_map, rel_ent_map
+
+    @staticmethod
+    def generate_relation_train_file_from_mappings(directory, ent_rel_map, rel_ent_map):
+        struc_filename = os.path.join(directory, 'edgelist.txt')
+        rel_rel_set = set()
+        for rel in rel_ent_map.keys():
+            entities = rel_ent_map[rel]
+            for ent in entities:
+                if ent not in ent_rel_map.keys():
+                    continue
+                target_relations = ent_rel_map[ent]
+                for target_relation in target_relations:
+                    if target_relation != rel:
+                        rel_rel = (rel, target_relation)
+                        rel_rel_set.add(rel_rel)
+
+        with open(struc_filename, 'w+') as file:
+            for rel_rel in rel_rel_set:
+                file.write("{0} {1}\n".format(rel_rel[0], rel_rel[1]))
+
+        return struc_filename
 
     def create_tf_record_files(self,
                                directory,
@@ -270,7 +309,9 @@ class _ConvELoader(Loader):
         # Check whether or not to include structure.
         if struc2vec_args is not None:
             # Create edgelist
-            edgelist_filename = self.create_struc_edgelist(directory, json_files['full'], entity_ids)
+            #edgelist_filename = self.create_struc_edgelist(directory, json_files['full'], entity_ids)
+            ent_rel_map, rel_ent_map = self.get_mappings(json_files['full'], entity_ids, relation_ids)
+            edgelist_filename = self.generate_relation_train_file_from_mappings(directory, ent_rel_map, rel_ent_map)
             # Generate random walks for structure regularization
             self.run_struc2vec(directory, edgelist_filename, struc2vec_args)
             json_files['struc'] = self.decode_random_walks(directory)
@@ -295,8 +336,8 @@ class _ConvELoader(Loader):
                             record = self._encode_sample_as_tf_record(
                                 sample, entity_ids, relation_ids)
                         else:
-                            e1, e2 = line.strip().split(' ')
-                            sample = {'e1': int(e1), 'e2': int(e2)}
+                            source, target = line.strip().split(' ')
+                            sample = {'source': int(source), 'target': int(target)}
                             record = self._encode_struc_sample_as_tf_record(sample)
                         tf_records_writer.write(record.SerializeToString())
                         count += 1
@@ -322,8 +363,8 @@ class _ConvELoader(Loader):
 
         def struc_tf_record_parser(r):
             features = {
-                'e1': tf.FixedLenFeature([], tf.int64),
-                'e2': tf.FixedLenFeature([], tf.int64)}
+                'source': tf.FixedLenFeature([], tf.int64),
+                'target': tf.FixedLenFeature([], tf.int64)}
             return tf.parse_single_example(r, features=features)
 
         return conve_tf_record_parser, struc_tf_record_parser, tf_record_filenames
@@ -499,16 +540,16 @@ class _ConvELoader(Loader):
 
     @staticmethod
     def _encode_struc_sample_as_tf_record(sample):
-        e1 = sample['e1']
-        e2 = sample['e2']
+        source = sample['source']
+        target = sample['target']
 
         def _int64(values):
             return tf.train.Feature(
                 int64_list=tf.train.Int64List(value=values))
 
         features = tf.train.Features(feature={
-            'e1': _int64([e1]),
-            'e2': _int64([e2])})
+            'source': _int64([source]),
+            'target': _int64([target])})
 
         return tf.train.Example(features=features)
 
@@ -547,3 +588,4 @@ class FB15k237Loader(_ConvELoader):
     def __init__(self):
         dataset_name = 'FB15k-237'
         super(FB15k237Loader, self).__init__(dataset_name)
+

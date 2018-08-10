@@ -4,17 +4,19 @@ import logging
 import os
 
 import tensorflow as tf
+import numpy as np
 
 from ..data.loaders import *
 from ..evaluation.metrics import ranking_and_hits
-from ..models.conve_struc_merged import ConvE
+#from ..models.conve_struc_merged import ConvE
+from ..models.conve_autoencoder import ConvE
 
 LOGGER = logging.getLogger(__name__)
 
 DATA_LOADER = FB15k237Loader()
 
-DEVICE = '/GPU:0'
-MODEL_NAME = 'conve_baseline_opt_params'
+DEVICE = '/GPU:3'
+MODEL_NAME = 'conve_auto_fb15k237_1'
 MAX_STEPS = 10000000
 LOG_STEPS = 100
 SUMMARY_STEPS = 1000
@@ -34,6 +36,7 @@ DATA_DIR = os.path.join(WORKING_DIR, 'data')
 LOG_DIR = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'logs')
 CKPT_PATH = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'model_weights.ckpt')
 EVAL_PATH = os.path.join(WORKING_DIR, 'evaluation', MODEL_NAME)
+REL_EMBEDDING_PATH = os.path.join(EVAL_PATH, 'rel_emb.txt')
 
 ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
@@ -109,7 +112,9 @@ def main():
 
     # Initalize the loss term weights.
     semant_loss_weight = 1.0
-    struct_loss_weight = 0.0
+    struct_loss_weight = 1.0
+    entity_loss_weight = 1.0
+    relation_loss_weight = 1.0
 
     for step in range(MAX_STEPS):
         feed_dict = {
@@ -117,7 +122,9 @@ def main():
             model.input_iterator_handle: train_iterator_handle,
             model.struc_iterator_handle: struc_iterator_handle,
             model.semant_loss_weight: semant_loss_weight,
-            model.struct_loss_weight: struct_loss_weight}
+            model.struct_loss_weight: struct_loss_weight,
+            model.entity_loss_weight: entity_loss_weight,
+            model.relation_loss_weight: relation_loss_weight}
 
         if model.summaries is not None and \
             SUMMARY_STEPS is not None and \
@@ -127,7 +134,17 @@ def main():
         else:
             summaries = None
             loss, _ = session.run((model.loss, model.train_op), feed_dict)
+        #if step > 0 and step % 1000== 0:
+         #   rel_emb = session.run(model.variables['rel_emb'])
+            #print("THE SHAPE OF REL_EMB IS {}".format(rel_emb.shape))
+            #BUG
+            #with open(REL_EMBEDDING_PATH, 'w+') as handle:
+             #   for line in rel_emb:
+              #     write_line = " ".join(line)
+               #    handle.write(write_line + "\n")
 
+          #  np.savetxt(REL_EMBEDDING_PATH, rel_emb, delimiter = " ")
+            
         # Log the loss, if necessary.
         if step % LOG_STEPS == 0:
             LOGGER.info('Step %6d | Loss: %10.4f', step, loss)

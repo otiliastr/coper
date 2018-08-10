@@ -70,17 +70,19 @@ class ConvE(object):
                 'target': [None]})
 
         self.next_input_sample = self.input_iterator.get_next()
-        self.next_struc_sample = self.struc_iterator.get_next()
+        # self.next_struc_sample = self.struc_iterator.get_next()
 
         self.is_train = tf.placeholder_with_default(False, shape=[])
         self.e1 = self.next_input_sample['e1']
         self.rel = self.next_input_sample['rel']
         self.e2_multi = self.next_input_sample['e2_multi1']
-        self.source_struc = self.next_struc_sample['source']
-        self.target_struc = self.next_struc_sample['target']
+        # self.source_struc = self.next_struc_sample['source']
+        # self.target_struc = self.next_struc_sample['target']
 
         self.semant_loss_weight = tf.placeholder(tf.float32)
         self.struct_loss_weight = tf.placeholder(tf.float32)
+        self.entity_loss_weight = tf.placeholder(tf.float32)
+        self.relation_loss_weight = tf.placeholder(tf.float32)
 
         self.variables = self._create_variables()
 
@@ -88,17 +90,21 @@ class ConvE(object):
         rel_emb = self.variables['rel_emb']
         conve_e1_emb = tf.nn.embedding_lookup(ent_emb, self.e1, name='e1_emb')
         #print("The shape of rel_emb is {}".format(rel_emb.get_shape().as_list()))
-        source_struc_emb = tf.nn.embedding_lookup(rel_emb, self.source_struc, name='source_struc_emb')
-        target_struc_emb = tf.nn.embedding_lookup(rel_emb, self.target_struc, name='target_struc_emb')
+        # source_struc_emb = tf.nn.embedding_lookup(rel_emb, self.source_struc, name='source_struc_emb')
+        # target_struc_emb = tf.nn.embedding_lookup(rel_emb, self.target_struc, name='target_struc_emb')
         conve_rel_emb = tf.nn.embedding_lookup(rel_emb, self.rel, name='rel_emb')
-        self.predictions = self._create_predictions(conve_e1_emb, conve_rel_emb)
+        self.predictions, self.prediction_ents, self.prediction_rels = self._create_predictions(conve_e1_emb, conve_rel_emb)
         semant_loss = self._create_semant_loss(self.predictions, self.e2_multi)
-        struct_loss = self._create_struct_loss(source_struc_emb, target_struc_emb)
+        entity_loss = self._create_entity_loss(self.prediction_ents, conve_e1_emb)
+        relation_loss = self._create_relation_loss(self.prediction_rels, conve_rel_emb)
+        # struct_loss = self._create_struct_loss(source_struc_emb, target_struc_emb)
 
         # Combine the two losses according to the provided weights.
         self.loss = (
-            (semant_loss * self.semant_loss_weight) + 
-            (struct_loss * self.struct_loss_weight))
+            (semant_loss * self.semant_loss_weight) +
+            (entity_loss * self.entity_loss_weight) + 
+            (relation_loss * self.relation_loss_weight))
+            # (struct_loss * self.struct_loss_weight))
 
         # The following control dependency is needed in order for batch
         # normalization to work correctly.
@@ -144,6 +150,24 @@ class ConvE(object):
         structure_bias = tf.get_variable(
             name='structure_bias', dtype=tf.float32,
             shape=[self.num_ent], initializer=tf.zeros_initializer())
+
+        entity_weights = tf.get_variable(
+            name = 'entity_weights', dtype=tf.float32,
+            shape = [10368, self.emb_size],
+            initializer=tf.contrib.layers.xavier_initializer())
+
+        relation_weights = tf.get_variable(
+            name = 'relation_weights', dtype=tf.float32,
+            shape = [10368, self.emb_size],
+            initializer=tf.contrib.layers.xavier_initializer())
+
+        entity_bias = tf.get_variable(
+            name='entity_bias', dtype=tf.float32,
+            shape=[self.emb_size], initializer=tf.zeros_initializer())
+
+        relation_bias = tf.get_variable(
+            name='relation_bias', dtype=tf.float32,
+            shape=[self.emb_size], initializer=tf.zeros_initializer())
         
         variables = {
             'ent_emb': ent_emb,
@@ -154,7 +178,11 @@ class ConvE(object):
             'fc_bias': fc_bias,
             'output_bias': output_bias,
             'structure_weights': structure_weights,
-            'structure_bias': structure_bias}
+            'structure_bias': structure_bias,
+            'entity_weights': entity_weights,
+            'relation_weights': relation_weights,
+            'entity_bias': entity_bias,
+            'relation_bias': relation_bias}
 
         if self._variable_summaries:
             _create_summaries('emb/ent', ent_emb)
@@ -165,8 +193,11 @@ class ConvE(object):
             _create_summaries('predictions/fc_bias', fc_bias)
             _create_summaries('predictions/output_bias', output_bias)
             _create_summaries('structure/weights', structure_weights)
-            _create_summaries('structure/bias', structure_bias)
-        
+            _create_summaries('structure/bias', structure_bias),
+            _create_summaries('structure/entity_weights', entity_weights)
+            _create_summaries('structure/relation_weights', relation_weights)
+            _create_summaries('predictions/entity_bias', fc_bias)
+            _create_summaries('predictions/relation_bias', fc_bias)
         return variables
 
     def _create_predictions(self, e1_emb, rel_emb):
@@ -232,7 +263,17 @@ class ConvE(object):
             if self._tensor_summaries:
                 _create_summaries('predictions', predictions)
 
-        return predictions
+        with tf.name_scope('entity_layer'):
+            weights = self.variables['entity_weights']
+            bias = self.variables['entity_bias']
+            prediction_ents = tf.matmul(fc_input, weights) + bias
+
+        with tf.name_scope('relation_layer'):
+            weights = self.variables['relation_weights']
+            bias = self.variables['relation_bias']
+            prediction_rels = tf.matmul(fc_input, weights) + bias
+
+        return predictions, prediction_ents, prediction_rels
 
     def _create_semant_loss(self, predictions, targets):
         with tf.name_scope('semant_loss'):
@@ -244,6 +285,26 @@ class ConvE(object):
             if self._loss_summaries:
                 tf.summary.scalar('loss', semant_loss)
         return semant_loss
+
+    def _create_entity_loss(self, prediction_ents, conve_e1_emb):
+        with tf.name_scope('entity_loss'):
+            source_emb = tf.nn.l2_normalize(prediction_ents, axis=1)
+            target_emb = tf.nn.l2_normalize(conve_e1_emb, axis=1)
+            loss = tf.losses.cosine_distance(source_emb, target_emb, axis=1)
+
+            if self._loss_summaries:
+                tf.summary.scalar('loss', loss)
+        return loss
+
+    def _create_relation_loss(self, prediction_rels, conve_rel_emb):
+        with tf.name_scope('relation_loss'):
+            source_emb = tf.nn.l2_normalize(prediction_rels, axis=1)
+            target_emb = tf.nn.l2_normalize(conve_rel_emb, axis=1)
+            loss = tf.losses.cosine_distance(source_emb, target_emb, axis=1)
+
+            if self._loss_summaries:
+                tf.summary.scalar('loss', loss)
+        return loss
 
     def _create_struct_loss(self, source_emb, target_emb):
         with tf.name_scope('struct_loss'):
