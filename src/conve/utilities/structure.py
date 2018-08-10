@@ -38,10 +38,8 @@ def generate_structure_train_file(adj_matrix, directory, output_filename):
     os.makedirs(directory, exist_ok=True)
     output_file = os.path.join(directory, output_filename)
     with open(output_file, 'w+') as file:
-        for source_entity in range(len(adj_matrix)):
-            comparison_row = adj_matrix[source_entity]
-            similar_entities = np.where(comparison_row == 1)[0]
-            for entity in similar_entities:
-                train_line = '{0} {1}\n'.format(source_entity, entity)
+        for src in range(len(adj_matrix)):
+            for tgt in range(len(adj_matrix)):
+                train_line = '{0} {1} {2}\n'.format(src, tgt, adj_matrix[src, tgt])
                 file.write(train_line)
     return output_file

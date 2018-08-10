@@ -117,7 +117,8 @@ class _ConvELoader(Loader):
         def struc_map_fn(sample):
             sample = struc_parser(sample)
             return {'source': sample['source'],
-                    'target': sample['target']}
+                    'target': sample['target'],
+                    'weight': sample['weight']}
 
         conve_data = conve_files.apply(tf.contrib.data.parallel_interleave(
             tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
@@ -214,21 +215,16 @@ class _ConvELoader(Loader):
         relation_ids['None'] = -1
         self.num_ent = len(entity_ids) - 1
         self.num_rel = len(relation_ids) - 1
-        #print("THE NUMBER OF RELATIONS IS {}".format(self.num_rel))
-        #print("__________________________________________________")
-        #BUG
         return json_files, entity_ids, relation_ids
 
     # create the structure edgelist
     @staticmethod
     def create_struc_edgelist(directory, full_graph_file, entity_ids):
-        # create and write edgelist
         struc_filename = os.path.join(directory, 'edgelist.txt')
         with open(struc_filename, 'a+') as edgelist_file:
             with open(full_graph_file, 'r') as input_file:
                 for line in input_file:
                     sample = json.loads(line)
-                    # make sure no reverse relationships exist
                     if not sample['rel'].endswith('_reverse'):
                         e2_multi1 = sample['e2_multi1'].strip().split(' ')
                         e1 = entity_ids[sample['e1']]
@@ -364,7 +360,8 @@ class _ConvELoader(Loader):
         def struc_tf_record_parser(r):
             features = {
                 'source': tf.FixedLenFeature([], tf.int64),
-                'target': tf.FixedLenFeature([], tf.int64)}
+                'target': tf.FixedLenFeature([], tf.int64),
+                'weight': tf.FixedLenFeature([], tf.float64)}
             return tf.parse_single_example(r, features=features)
 
         return conve_tf_record_parser, struc_tf_record_parser, tf_record_filenames
@@ -542,14 +539,20 @@ class _ConvELoader(Loader):
     def _encode_struc_sample_as_tf_record(sample):
         source = sample['source']
         target = sample['target']
+        weight = sample['weight']
 
         def _int64(values):
             return tf.train.Feature(
                 int64_list=tf.train.Int64List(value=values))
 
+        def _float(values):
+            return tf.train.Feature(
+                int64_list=tf.train.FloatList(value=values))
+
         features = tf.train.Features(feature={
             'source': _int64([source]),
-            'target': _int64([target])})
+            'target': _int64([target]),
+            'weight': _float([weight])})
 
         return tf.train.Example(features=features)
 
@@ -588,4 +591,3 @@ class FB15k237Loader(_ConvELoader):
     def __init__(self):
         dataset_name = 'FB15k-237'
         super(FB15k237Loader, self).__init__(dataset_name)
-
