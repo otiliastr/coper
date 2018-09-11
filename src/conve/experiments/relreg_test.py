@@ -6,7 +6,7 @@ import os
 import tensorflow as tf
 import numpy as np
 
-from ..data.loaders import *
+from ..data.dataloaders import *
 from ..evaluation.metrics import ranking_and_hits
 #from ..models.conve_struc_merged import ConvE
 from ..models.conve_initial_baseline import ConvE
@@ -117,9 +117,7 @@ def main():
     # Initalize the loss term weights.
     baseline_weight = 1.0
     reg_weight = 0.0
-    #entity_loss_weight = 1.0
-    #relation_loss_weight = 1.0
-
+    
     for step in range(MAX_STEPS):
         feed_dict = {
             model.is_train: True,
@@ -127,8 +125,7 @@ def main():
             model.relreg_iterator_handle: relreg_iterator_handle,
             model.baseline_weight: baseline_weight,
             model.reg_weight: reg_weight}
-            #model.entity_loss_weight: entity_loss_weight,
-            #model.relation_loss_weight: relation_loss_weight}
+
 
         if model.summaries is not None and \
             SUMMARY_STEPS is not None and \
