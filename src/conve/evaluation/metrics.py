@@ -43,7 +43,7 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
                         model.next_input_sample['e2'],
                         model.next_input_sample['rel'],
                         model.next_input_sample['e2_multi1'],
-                        model.predictions),
+                        model.distmult_raw_pred),
                     feed_dict={
                         model.input_iterator_handle: data_iterator_handle})
 
