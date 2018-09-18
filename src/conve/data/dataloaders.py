@@ -13,7 +13,7 @@ import tensorflow as tf
 
 from tqdm import tqdm
 
-from ..utilities.structure import *
+#from ..utilities.structure import *
 
 __all__ = [
     'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader',
@@ -114,19 +114,16 @@ class _DataLoader(Loader):
                 'rel': sample['rel'],
                 'e2_multi1': sample['e2_multi1']}
 
-        # def struc_map_fn(sample):
-        #     sample = struc_parser(sample)
-        #     return {'source': sample['source'],
-        #             'target': sample['target'],
-        #             'weight': sample['weight']}
-
         def relreg_map_fn(sample):
             sample = relreg_parser(sample)
-            return {'seq': sample['seq'],
-                    'seq_multi': sample['seq_multi'],
-                    'seq_len': sample['seq_len'],
-                    'seq_mask': sample['seq_mask']
-                    }
+            seq = tf.to_int64(sample['seq'])
+            seq_mask = tf.to_int64(sample['seq_mask'])
+            print("Seq mask is {}".format(seq_mask))
+            return {'rel': sample['rel'],
+                    'seq': seq, # sample['seq'],
+                    'sim': sample['sim'],
+                    'seq_mask': seq_mask}
+
 
         conve_data = conve_files.apply(tf.contrib.data.parallel_interleave(
             tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
@@ -225,102 +222,40 @@ class _DataLoader(Loader):
         self.num_rel = len(relation_ids) - 1
         return json_files, entity_ids, relation_ids
 
-    # create the structure edgelist
-    # @staticmethod
-    # def create_struc_edgelist(directory, full_graph_file, entity_ids):
-    #     struc_filename = os.path.join(directory, 'edgelist.txt')
-    #     with open(struc_filename, 'a+') as edgelist_file:
-    #         with open(full_graph_file, 'r') as input_file:
-    #             for line in input_file:
-    #                 sample = json.loads(line)
-    #                 if not sample['rel'].endswith('_reverse'):
-    #                     e2_multi1 = sample['e2_multi1'].strip().split(' ')
-    #                     e1 = entity_ids[sample['e1']]
-    #                     for e2_name in e2_multi1:
-    #                         e2 = entity_ids[e2_name]
-    #                         edgelist_addition = '{0} {1}\n'.format(e1, e2)
-    #                         edgelist_file.write(edgelist_addition)
-    #     return struc_filename
-
-    # @staticmethod
-    # def run_struc2vec(directory, edgelist_filename, struc2vec_args):
-    #     struc2vec_args['input'] = edgelist_filename
-    #     # TODO: Hack to change the working directory because the struc2vec code
-    #     # is pretty bad and requires us to hardcode paths.
-    #     old_cwd = os.getcwd()
-    #     os.chdir(directory)
-    #     exec_struc2vec(struc2vec_args)
-    #     os.chdir(old_cwd)
-    #
-    # def decode_random_walks(self, directory):
-    #     random_walks_path = os.path.join(directory, 'random_walks.txt')
-    #     adj_matrix = load_adjacency_matrix(random_walks_path, self.num_rel)
-    #     adj_matrix = prune_adjacency_matrix(adj_matrix)
-    #     return generate_structure_train_file(adj_matrix,
-    #                                          directory=directory,
-    #                                          output_filename='struc_train.txt')
-
-    @staticmethod
-    def get_mappings(json_file, entity_ids, relation_ids):
-        ent_rel_map = {}
-        rel_ent_map = {}
-        with open(json_file, 'r') as handle:
-            for line in handle:
-                sample = json.loads(line)
-                if '_reverse' not in sample['rel']:
-                    e1 = entity_ids[sample['e1'].strip()]
-                    rel = relation_ids[sample['rel'].strip()]
-                    e2_multi = list(map(lambda e2: entity_ids[e2], sample['e2_multi1'].strip().split(" ")))
-                    if e1 not in ent_rel_map.keys():
-                        ent_rel_map[e1] = set()
-                    if rel not in rel_ent_map.keys():
-                        rel_ent_map[rel] = set()
-
-                    ent_rel_map[e1].add(rel)
-                    rel_ent_map[rel] = rel_ent_map.get(rel, []) + e2_multi
-        return ent_rel_map, rel_ent_map
-
-    @staticmethod
-    def generate_relation_train_file_from_mappings(directory, ent_rel_map, rel_ent_map):
-        struc_filename = os.path.join(directory, 'edgelist.txt')
-        rel_rel_set = set()
-        for rel in rel_ent_map.keys():
-            entities = rel_ent_map[rel]
-            for ent in entities:
-                if ent not in ent_rel_map.keys():
-                    continue
-                target_relations = ent_rel_map[ent]
-                for target_relation in target_relations:
-                    if target_relation != rel:
-                        rel_rel = (rel, target_relation)
-                        rel_rel_set.add(rel_rel)
-
-        with open(struc_filename, 'w+') as file:
-            for rel_rel in rel_rel_set:
-                file.write("{0} {1}\n".format(rel_rel[0], rel_rel[1]))
-
-        return struc_filename
 
     @staticmethod
     def get_neighbors_and_hashmap(json_file, entity_ids, relation_ids):
         neighbors_dict = {}
         hashmap = {}
+        def print_dict(d):
+            sorted_d = sorted(d.keys())
+            for key in sorted_d:
+                values = d[key]
+                print("{}: {}".format(key, values))
+        # print_dict(entity_ids)
         with open(json_file, 'r') as handle:
             for line in handle:
                 sample = json.loads(line)
                 e1 = entity_ids[sample['e1'].strip()]
-                rel = relation_ids[sample['e1'].strip()]
-                e2_multi = set(map(lambda e2: entity_ids[e2], sample['e2_multi'].strip().split(" ")))
-
-                if e1 not in neighbors_dict.keys():
-                    neighbors_dict[e1] = set()
-                neighbors_dict[e1].union(e2_multi)
-                # possible that multiple relations from same entity map to same target entity
-                for e2 in e2_multi:
-                    if (e1, e2) not in hashmap.keys():
-                        hashmap[(e1, e2)] = set()
-                    hashmap[(e1, e2)].add(rel)
+                rel = relation_ids[sample['rel'].strip()]
+                e2_multi = set(map(lambda e2: entity_ids[e2], sample['e2_multi1'].strip().split(" ")))
+                if '_reverse' not in sample['rel'].strip():
+                    if e1 not in neighbors_dict.keys():
+                        neighbors_dict[e1] = set()
+                    neighbors_dict[e1] = neighbors_dict[e1].union(e2_multi)
+                    # possible that multiple relations from same entity map to same target entity
+                    for e2 in e2_multi:
+                        if (e1, e2) not in hashmap.keys():
+                            hashmap[(e1, e2)] = set()
+                        hashmap[(e1, e2)].add(rel)
         return neighbors_dict, hashmap
+
+    @staticmethod
+    def print_dict(d):
+        sorted_d = sorted(d.keys())
+        for key in sorted_d:
+            values = d[key]
+            print("{}: {}".format(key, values))
 
     # Using neighbors and relations, compute all possible sequences of length up to 3 from each e1. Store this information
     # into three dictionaries. The first comprises of all e1 that each sequences originates from. The second is all
@@ -330,6 +265,8 @@ class _DataLoader(Loader):
     #   3. {e1: set(sequence_1, sequence_2, ...), ...}
     @staticmethod
     def compute_sequence_eval_sets(neighbors_dict, hashmap):
+        # print(neighbors_dict)
+        # print(hashmap)
         seq_e1_sets = {}
         seq_e1_pair_sets = {}
         e1_seq_set = {}
@@ -461,25 +398,21 @@ class _DataLoader(Loader):
 
         return sequence_similarities
 
-    @staticmethod
-    def gen_lookup_tables(seq_similarity):
-        seqrel_weights = dict()
-        for rel, sequences in seq_similarity.items():
-            for sequence, weight in sequences.items():
-                if sequence not in seqrel_weights.keys():
-                    seqrel_weights[sequence] = dict()
-                seqrel_weights[sequence][rel] = weight
+    def parse_rel_seq_sim(self, sequence_similarities):
+        rel_siq_sim = {}
+        # TODO: Remove this hardcoded max path length
+        seq_max_len = 3
+        for rel, sequences in sequence_similarities.items():
+            for sequence, similarity in sequences.items():
+                padded_seq = tuple(list(sequence) + [0]* (seq_max_len-len(sequence)))
+                seq_idx = len(sequence)-1
+                seq_mask = [0] * seq_max_len
+                seq_mask[seq_idx] = 1
+                triple = (rel, padded_seq, tuple(seq_mask))
 
-        seqrelweight_map = dict()
-        list_len = len(seq_similarity.keys())
-        for sequence in seqrel_weights.keys():
-            rels_and_weights = seqrel_weights[sequence]
-            # print_dict(rels_and_weights)
-            seqrelweight_map[sequence] = [0] * list_len
-            for rel, weight in rels_and_weights.items():
-                rel_id = rel[0]
-                seqrelweight_map[sequence][rel_id] = weight
-        return seqrelweight_map
+                rel_siq_sim[triple] = similarity
+        return rel_siq_sim
+
 
     def create_tf_record_files(self,
                                directory,
@@ -495,46 +428,58 @@ class _DataLoader(Loader):
         json_files, entity_ids, relation_ids = self.generate_json_files_and_ids(directory, buffer_size)
         directory = os.path.dirname(json_files['full'])
 
+
         # Check whether or not to include structure.
-        if relreg_args is not None:
+        save_directory = directory
+        save_path = os.path.join(save_directory, 'seq_multi.json')
+        print("The path is: {}".format(save_path))
+        print("The directory is {}".format(directory))
+        if relreg_args is not None and not os.path.exists(save_path):
             # Create edgelist
             # edgelist_filename = self.create_struc_edgelist(directory, json_files['full'], entity_ids)
-            e1_neighbors, e1e2_rel_map = self.get_mappings(json_files['full'], entity_ids, relation_ids)
+            e1_neighbors, e1e2_rel_map = self.get_neighbors_and_hashmap(json_files['full'], entity_ids, relation_ids)
             seq_e1_sets, seq_e1_pair_sets, _ = self.compute_sequence_eval_sets(e1_neighbors, e1e2_rel_map)
             sequence_similarities = self.get_rel_seq_sims(seq_e1_sets,
                                                           seq_e1_pair_sets,
                                                           relreg_args['seq_threshold'],
                                                           relreg_args['seq_lengths'])
-
-            seq_multi = self.gen_lookup_tables(sequence_similarities)
-            seq_multi_path = os.path.join(directory, 'seq_multi.json')
-            self._write_graph(seq_multi_path, seq_multi, 'relreg')
+            rel_seq_sim = self.parse_rel_seq_sim(sequence_similarities)
+            rel_seq_path = os.path.join(directory, 'seq_multi.json')
+            self._write_graph(rel_seq_path, rel_seq_sim, 'relreg')
             # Generate random walks for structure regularization
             # self.run_struc2vec(directory, edgelist_filename, struc2vec_args)
-            json_files['relreg'] = seq_multi_path
+            json_files['relreg'] = rel_seq_path
+         
+        if relreg_args is not None:
             filetypes = ['train', 'dev', 'test', 'relreg']
         else:
             filetypes = ['train', 'dev', 'test']
 
         tf_record_filenames = {}
-
+        print("The filetypes are: {}".format(filetypes))
         for filetype in filetypes:
+            print("Filetype is: {}".format(filetype))
             count = 0
             file_index = 0
             filename = os.path.join(
                 directory, '{0}-{1}.tfrecords'.format(filetype, file_index))
             tf_record_filenames[filetype] = [filename]
+            print("filename: {}".format(filename))
             if not os.path.exists(filename):
                 tf_records_writer = tf.python_io.TFRecordWriter(filename)
                 with open(json_files[filetype], 'r') as handle:
                     for line in handle:
+                        #print("the current filetype is: {}".format(filetype))
                         if filetype != 'relreg':
                             sample = json.loads(line)
                             record = self._encode_sample_as_tf_record(
                                 sample, entity_ids, relation_ids)
                         else:
+                            #print("Here")
                             sample = json.loads(line)
                             record = self._encode_relreg_sample_as_tf_record(sample, relation_ids)
+                            #print("The record is {}".format(record))
+                            #BUG
                             # source, target, weight = line.strip().split(' ')
                             # sample = {'source': int(source), 'target': int(target), 'weight': float(weight)}
                             # record = self._encode_struc_sample_as_tf_record(sample)
@@ -562,19 +507,12 @@ class _DataLoader(Loader):
 
         def relreg_tf_record_parser(r):
             features = {
-                'seq': tf.FixedLenFeature([], tf.int64),
-                'seq_multi': tf.FixedLenFeature([], tf.float32),
-                'seq_len': tf.FixedLenFeature([], tf.int32),
-                'seq_mask': tf.FixedLenFeature([], tf.float32)
+                'rel': tf.FixedLenFeature([], tf.int64),
+                'seq': tf.FixedLenFeature([3], tf.int64),
+                'sim': tf.FixedLenFeature([], tf.float32),
+                'seq_mask':tf.FixedLenFeature([3], tf.int64)
             }
             return tf.parse_single_example(r, features=features)
-
-        # def struc_tf_record_parser(r):
-        #     features = {
-        #         'source': tf.FixedLenFeature([], tf.int64),
-        #         'target': tf.FixedLenFeature([], tf.int64),
-        #         'weight': tf.FixedLenFeature([], tf.float32)}
-        #     return tf.parse_single_example(r, features=features)
 
         return conve_tf_record_parser, relreg_tf_record_parser, tf_record_filenames
 
@@ -625,9 +563,9 @@ class _DataLoader(Loader):
         e1rel_to_e2_test = os.path.join(directory, 'e1rel_to_e2_test.json')
         e1rel_to_e2_full = os.path.join(directory, 'e1rel_to_e2_full.json')
         self._write_graph(e1rel_to_e2_train, graphs['train.txt'])
-        self._write_graph(e1rel_to_e2_dev, graphs['valid.txt'], 'full_graph')
-        self._write_graph(e1rel_to_e2_test, graphs['test.txt'], 'full_graph')
-        self._write_graph(e1rel_to_e2_full, full_graph, 'full_graph')
+        self._write_graph(e1rel_to_e2_dev, graphs['valid.txt'], full_graph)
+        self._write_graph(e1rel_to_e2_test, graphs['test.txt'], full_graph)
+        self._write_graph(e1rel_to_e2_full, full_graph, full_graph)
 
         return {
             'train': e1rel_to_e2_train,
@@ -648,22 +586,16 @@ class _DataLoader(Loader):
                         'e2_multi1': ' '.join(list(value))}
                     handle.write(json.dumps(sample) + '\n')
                 elif labels == 'relreg':
-                    def pad_seq(seq):
-                        seq_list = list(seq)
-                        # TODO: Remove hardcoded 3 from here
-                        seq_list += [0] * (3 - len(seq_list))
-                        return seq_list
-
-                    seq_len = len(key)
-                    seq_mask = np.zeros((3,))
-                    seq_mask[seq_len-1] = 1.
-                    padded_seq = pad_seq(key)
+                    rel = key[0]
+                    seq = key[1]
+                    seq_mask = key[2]
+                    sim = value
 
                     sample = {
-                        'seq': ' '.join(padded_seq),
-                        'seq_multi': ' '.join(list(value)),
-                        'seq_len': seq_len,
-                        'seq_mask': seq_mask
+                        'rel': rel,
+                        'seq': ' '.join(list(map(lambda elem: str(elem), seq))),
+                        'sim': sim,
+                        'seq_mask': ' '.join(list(map(lambda elem: str(elem), seq_mask)))
                     }
                     handle.write(json.dumps(sample) + '\n')
                 else:
@@ -769,10 +701,17 @@ class _DataLoader(Loader):
 
     @staticmethod
     def _encode_relreg_sample_as_tf_record(sample, relation_ids):
-        seq = [relation_ids[rel] for rel in sample['seq'].split(' ') if rel != None]
-        seq_multi = [weight for weight in sample['seq_multi'].split(' ')]
-        seq_len = sample['seq_len']
-        seq_mask = sample['seq_mask']
+        #print('seq is {}'.format(sample['seq']))
+        #print("sim is {}".format(sample['sim']))
+        #print('rel is {}'.format(sample['rel']))
+        #print('seq_mask is {}'.format(sample['seq_mask']))
+        
+        # dtypes:
+        # rel: [rel_id], seq: 'rel_1_id, rel_2_id, rel_3_id', sim: .7777, seq_mask: 'bool, bool, bool'
+        rel = list(map(lambda elem: int(elem), sample['rel']))
+        seq = [int(rel) for rel in sample['seq'].split(' ') if rel != None]
+        sim = sample['sim']
+        seq_mask = [int(bool_val) for bool_val in sample['seq_mask'].split(' ')]
 
         def _int64(values):
             return tf.train.Feature(
@@ -782,36 +721,14 @@ class _DataLoader(Loader):
             return tf.train.Feature(
                     float_list=tf.train.FloatList(value=values))
 
-        features = tf.train.Feature(feature={
+        features = tf.train.Features(feature={
+            'rel': _int64(rel),
             'seq': _int64(seq),
-            'seq_multi': _float(seq_multi),
-            'seq_len': _int64(seq_len),
-            'seq_mask': _float(seq_mask)
+            'sim': _float([sim]),
+            'seq_mask': _int64(seq_mask)
         })
 
         return tf.train.Example(features=features)
-
-    # @staticmethod
-    # def _encode_struc_sample_as_tf_record(sample):
-    #     source = sample['source']
-    #     target = sample['target']
-    #     weight = sample['weight']
-    #
-    #     def _int64(values):
-    #         return tf.train.Feature(
-    #             int64_list=tf.train.Int64List(value=values))
-    #
-    #     def _float(values):
-    #         return tf.train.Feature(
-    #             float_list=tf.train.FloatList(value=values))
-    #
-    #     features = tf.train.Features(feature={
-    #         'source': _int64([source]),
-    #         'target': _int64([target]),
-    #         'weight': _float([weight])})
-    #
-    #     return tf.train.Example(features=features)
-
 
 class NationsLoader(_DataLoader):
     def __init__(self):
@@ -847,3 +764,4 @@ class FB15k237Loader(_DataLoader):
     def __init__(self):
         dataset_name = 'FB15k-237'
         super(FB15k237Loader, self).__init__(dataset_name)
+
