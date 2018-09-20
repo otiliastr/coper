@@ -25,7 +25,7 @@ class DistMultReg(object):
         self.lr = Config['lr']
         self.batch_size = Config['batch_size']
         self.max_seq_len = Config['max_seq_len']
-
+        self.summaries = None
         self.weights = self.get_weights()
 
         self.reg_weight = tf.placeholder(tf.float32)
@@ -56,12 +56,12 @@ class DistMultReg(object):
             },
             output_shapes={
                 'seq': [self.batch_size, self.max_seq_len],
-                'seq_multi': [self.batch_size],
+                'seq_multi': [self.batch_size, self.num_rel],
                 'seq_len': [self.batch_size],
                 'seq_mask': [self.batch_size, self.max_seq_len]})
 
         self.next_input_sample = self.distmult_iterator.get_next()
-        self.next_relreg_sample = self.relreg_iterator_handle.get_next()
+        self.next_relreg_sample = self.relreg_iterator.get_next()
 
         self.is_train = tf.placeholder_with_default(False, shape=[])
         self.e1 = self.next_input_sample['e1']
