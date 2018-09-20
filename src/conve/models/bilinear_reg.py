@@ -5,7 +5,6 @@ import sys
 import pickle
 import math
 
-from eunn import EUNNCell
 
 def variable_summaries(var):
     # Attach a lot of summaries to a tensor (for TensorBoard visualizations).
@@ -29,11 +28,11 @@ class BiLinearReg(object):
         self.summaries = None
         self.batch_size = 128
         self.weights = self.get_weights()
-
         self.reg_weight = tf.placeholder(tf.float32)
         self.baseline_weight = tf.placeholder(tf.float32)
    
         self.sim_threshold = tf.placeholder(tf.float32)
+
         self.input_iterator_handle = tf.placeholder(tf.string, shape=[])
         self.input_iterator = tf.data.Iterator.from_string_handle(
             self.input_iterator_handle,
@@ -109,7 +108,6 @@ class BiLinearReg(object):
         self.sim_transform = -tf.tanh(self.pos_sim_shift)
         self.not_sim_transform = -tf.tanh(self.neg_sim_shift)
         self.reg_loss_weight = tf.minimum(self.sim_transform, self.not_sim_transform)
-
 
         self.e1_emb = tf.nn.embedding_lookup(self.weights['ent_emb'], self.e1)
         self.rel_emb = tf.nn.embedding_lookup(self.weights['rel_emb'], self.rel)

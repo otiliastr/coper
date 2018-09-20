@@ -11,21 +11,22 @@ from ..evaluation.metrics import ranking_and_hits
 #from ..models.conve_struc_merged import ConvE
 from ..models.conve_initial_baseline import ConvE
 #from ..models.conve_autoencoder import ConvE
-from ..models.DistMultRelReg import DistMultReg
+#from ..models.DistMultRelReg import DistMultReg
+from ..models.bilinear_reg import BiLinearReg
 
 LOGGER = logging.getLogger(__name__)
 
 DATA_LOADER = KinshipLoader()
 
 DEVICE = '/GPU:0'
-MODEL_NAME = 'distmult_Kinship'
+MODEL_NAME = 'bilinear_Kinship_bl'
 MAX_STEPS = 10000000
 LOG_STEPS = 100
 SUMMARY_STEPS = None
 CKPT_STEPS = 1000
 EVAL_STEPS = 1000
 
-EMB_SIZE = 200
+EMB_SIZE = 16
 INPUT_DROPOUT = 0.2
 FEATURE_MAP_DROPOUT = 0.3
 OUTPUT_DROPOUT = 0.2
@@ -44,7 +45,7 @@ ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
 ADD_TENSOR_SUMMARIES = False
 RELREG_ARGS = {'seq_threshold': 0.0,
-               'seq_lengths': [1, 2, 3]}
+               'seq_lengths': [2]}
 
 
 def main():
@@ -71,7 +72,7 @@ def main():
             #     'add_tensor_summaries': ADD_TENSOR_SUMMARIES,
             #     'embedding_dim': 200})
 
-            model = DistMultReg(Config = {
+            model = BiLinearReg(Config = {
                 'num_ent': DATA_LOADER.num_ent,
                 'num_rel': DATA_LOADER.num_rel,
                 'emb_dim': EMB_SIZE,
@@ -98,7 +99,8 @@ def main():
     LOGGER.info('Number of entities: %d', DATA_LOADER.num_ent)
     LOGGER.info('Number of relations: %d', DATA_LOADER.num_rel)
     # TODO: Uncomment line when runnig struc_conve!!
-    model.log_parameters_info()
+    
+    # model.log_parameters_info()
 
     # Create a TensorFlow session and start training.
     session = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
@@ -121,7 +123,7 @@ def main():
     for step in range(MAX_STEPS):
         feed_dict = {
             model.is_train: True,
-            model.distmult_iterator_handle: train_iterator_handle,
+            model.input_iterator_handle: train_iterator_handle,
             model.relreg_iterator_handle: relreg_iterator_handle,
             model.baseline_weight: baseline_weight,
             model.reg_weight: reg_weight}
