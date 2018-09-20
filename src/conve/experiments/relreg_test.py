@@ -16,22 +16,22 @@ from ..models.bilinear_reg import BiLinearReg
 
 LOGGER = logging.getLogger(__name__)
 
-DATA_LOADER = KinshipLoader()
+DATA_LOADER = KinshipLoader()#FB15k237Loader()
 
 DEVICE = '/GPU:0'
-MODEL_NAME = 'bilinear_Kinship_bl'
+MODEL_NAME = 'bilinear_Kinship_reg0.1_emb_512_low_rank'
 MAX_STEPS = 10000000
 LOG_STEPS = 100
 SUMMARY_STEPS = None
 CKPT_STEPS = 1000
 EVAL_STEPS = 1000
 
-EMB_SIZE = 16
+EMB_SIZE = 512
 INPUT_DROPOUT = 0.2
 FEATURE_MAP_DROPOUT = 0.3
 OUTPUT_DROPOUT = 0.2
 LEARNING_RATE = 1e-3
-BATCH_SIZE = 128
+BATCH_SIZE = 512
 LABEL_SMOOTHING_EPSILON = 0.1
 
 WORKING_DIR = os.path.join(os.getcwd(), 'temp')
@@ -118,7 +118,8 @@ def main():
 
     # Initalize the loss term weights.
     baseline_weight = 1.0
-    reg_weight = 0.0
+    reg_weight = 0.1
+    sim_threshold = 1.0
     
     for step in range(MAX_STEPS):
         feed_dict = {
@@ -126,7 +127,8 @@ def main():
             model.input_iterator_handle: train_iterator_handle,
             model.relreg_iterator_handle: relreg_iterator_handle,
             model.baseline_weight: baseline_weight,
-            model.reg_weight: reg_weight}
+            model.reg_weight: reg_weight,
+            model.sim_threshold: sim_threshold}
 
 
         if model.summaries is not None and \

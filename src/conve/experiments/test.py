@@ -9,14 +9,15 @@ import numpy as np
 from ..data.loaders import *
 from ..evaluation.metrics import ranking_and_hits
 #from ..models.conve_struc_merged import ConvE
-from ..models.conve_autoencoder import ConvE
+from ..models.conve_initial_baseline import ConvE
+#from ..models.conve_autoencoder import ConvE
 
 LOGGER = logging.getLogger(__name__)
 
-DATA_LOADER = FB15k237Loader()
+DATA_LOADER = WN18RRLoader()
 
-DEVICE = '/GPU:3'
-MODEL_NAME = 'conve_auto_fb15k237_1'
+DEVICE = '/GPU:0'
+MODEL_NAME = 'conve_baseline_initial_WN18RR'
 MAX_STEPS = 10000000
 LOG_STEPS = 100
 SUMMARY_STEPS = 1000
@@ -75,7 +76,8 @@ def main():
                 'batch_size': BATCH_SIZE,
                 'add_loss_summaries': ADD_LOSS_SUMMARIES,
                 'add_variable_summaries': ADD_VARIABLE_SUMMARIES,
-                'add_tensor_summaries': ADD_TENSOR_SUMMARIES})
+                'add_tensor_summaries': ADD_TENSOR_SUMMARIES,
+                'embedding_dim': 200})
 
     # Create dataset iterator initializers.
     train_dataset, struc_dataset = DATA_LOADER.train_dataset(
@@ -94,6 +96,7 @@ def main():
     # Log some information.
     LOGGER.info('Number of entities: %d', DATA_LOADER.num_ent)
     LOGGER.info('Number of relations: %d', DATA_LOADER.num_rel)
+    # TODO: Uncomment line when runnig struc_conve!!
     model.log_parameters_info()
 
     # Create a TensorFlow session and start training.
@@ -112,9 +115,9 @@ def main():
 
     # Initalize the loss term weights.
     semant_loss_weight = 1.0
-    struct_loss_weight = 1.0
-    entity_loss_weight = 1.0
-    relation_loss_weight = 1.0
+    struct_loss_weight = 0.0
+    #entity_loss_weight = 1.0
+    #relation_loss_weight = 1.0
 
     for step in range(MAX_STEPS):
         feed_dict = {
@@ -122,9 +125,9 @@ def main():
             model.input_iterator_handle: train_iterator_handle,
             model.struc_iterator_handle: struc_iterator_handle,
             model.semant_loss_weight: semant_loss_weight,
-            model.struct_loss_weight: struct_loss_weight,
-            model.entity_loss_weight: entity_loss_weight,
-            model.relation_loss_weight: relation_loss_weight}
+            model.struct_loss_weight: struct_loss_weight}
+            #model.entity_loss_weight: entity_loss_weight,
+            #model.relation_loss_weight: relation_loss_weight}
 
         if model.summaries is not None and \
             SUMMARY_STEPS is not None and \

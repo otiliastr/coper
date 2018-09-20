@@ -116,12 +116,24 @@ class _DataLoader(Loader):
 
         def relreg_map_fn(sample):
             sample = relreg_parser(sample)
-            seq = tf.to_int64(sample['seq'])
+            seq_0 = sample['seq'][0]
+            seq_1 = sample['seq'][1]
+            seq_2 = sample['seq'][2]
+            #seq = tf.to_int64(sample['seq'])
+            #seq_mask_0 = tf.to_int64([sample['seq_mask'][0]])
+            #seq_mask_1 = tf.to_int64([sample['seq_mask'][1]])
+            #seq_mask_2 = tf.to_int64([sample['seq_mask'][2]])
             seq_mask = tf.to_int64(sample['seq_mask'])
-            print("Seq mask is {}".format(seq_mask))
+            #print("Seq mask is {}".format(seq_mask))
             return {'rel': sample['rel'],
-                    'seq': seq, # sample['seq'],
+                    'seq_0': seq_0,
+                    'seq_1': seq_1,
+                    'seq_2': seq_2,
+                    #'seq': seq, # sample['seq'],
                     'sim': sample['sim'],
+                    #'seq_mask_0': seq_mask_0,
+                    #'seq_mask_1': seq_mask_1,
+                    #'seq_mask_2': seq_mask_2,
                     'seq_mask': seq_mask}
 
 
