@@ -131,6 +131,7 @@ class _DataLoader(Loader):
                     'seq_2': seq_2,
                     #'seq': seq, # sample['seq'],
                     'sim': sample['sim'],
+                    'agg_sim':sample['agg_sim'],
                     #'seq_mask_0': seq_mask_0,
                     #'seq_mask_1': seq_mask_1,
                     #'seq_mask_2': seq_mask_2,
@@ -363,6 +364,7 @@ class _DataLoader(Loader):
         print("Getting Relation Sequence Similarities....")
         number_relations_passed = 0
         sequence_similarities = {}
+        rel_agg_similarities = {}
         len_1_seqs = []
         valid_sequences = {}
         for sequence in e1_seq_set.keys():
@@ -378,6 +380,8 @@ class _DataLoader(Loader):
 
             if seq1 not in sequence_similarities:
                 sequence_similarities[seq1] = {}
+            if seq1 not in rel_agg_similarities:
+                rel_agg_similarities[seq1] = 0.0
 
             gen = ((seq2, seq2_e1) for seq2, seq2_e1 in valid_sequences.items() if (seq1 != seq2))
             for seq2, seq2_e1 in gen:
@@ -401,16 +405,18 @@ class _DataLoader(Loader):
                 else:
                     subgraph_similarity = 0
 
-                if subgraph_similarity >= seq_threshold:
+                if subgraph_similarity > 0.0:
+                    #if subgraph_similarity >= seq_threshold:
                     sequence_similarities[seq1][seq2] = subgraph_similarity
+                    rel_agg_similarities[seq1] += subgraph_similarity
 
             number_relations_passed += 1.
             percent_done = number_relations_passed / total_relations * 100
             print("Percent done is: {}".format(percent_done))
 
-        return sequence_similarities
+        return sequence_similarities, rel_agg_similarities
 
-    def parse_rel_seq_sim(self, sequence_similarities):
+    def parse_rel_seq_sim(self, sequence_similarities, rel_agg_similarities):
         rel_siq_sim = {}
         # TODO: Remove this hardcoded max path length
         seq_max_len = 3
@@ -420,9 +426,10 @@ class _DataLoader(Loader):
                 seq_idx = len(sequence)-1
                 seq_mask = [0] * seq_max_len
                 seq_mask[seq_idx] = 1
+                agg_sim = rel_agg_similarities[rel]
                 triple = (rel, padded_seq, tuple(seq_mask))
 
-                rel_siq_sim[triple] = similarity
+                rel_siq_sim[triple] = (similarity, agg_sim)
         return rel_siq_sim
 
 
@@ -451,11 +458,11 @@ class _DataLoader(Loader):
             # edgelist_filename = self.create_struc_edgelist(directory, json_files['full'], entity_ids)
             e1_neighbors, e1e2_rel_map = self.get_neighbors_and_hashmap(json_files['full'], entity_ids, relation_ids)
             seq_e1_sets, seq_e1_pair_sets, _ = self.compute_sequence_eval_sets(e1_neighbors, e1e2_rel_map)
-            sequence_similarities = self.get_rel_seq_sims(seq_e1_sets,
+            sequence_similarities, rel_agg_similarities = self.get_rel_seq_sims(seq_e1_sets,
                                                           seq_e1_pair_sets,
                                                           relreg_args['seq_threshold'],
                                                           relreg_args['seq_lengths'])
-            rel_seq_sim = self.parse_rel_seq_sim(sequence_similarities)
+            rel_seq_sim = self.parse_rel_seq_sim(sequence_similarities, rel_agg_similarities)
             rel_seq_path = os.path.join(directory, 'seq_multi.json')
             self._write_graph(rel_seq_path, rel_seq_sim, 'relreg')
             # Generate random walks for structure regularization
@@ -464,6 +471,8 @@ class _DataLoader(Loader):
          
         if relreg_args is not None:
             filetypes = ['train', 'dev', 'test', 'relreg']
+            rel_seq_path = os.path.join(directory, 'seq_multi.json')
+            json_files['relreg'] = rel_seq_path
         else:
             filetypes = ['train', 'dev', 'test']
 
@@ -522,6 +531,7 @@ class _DataLoader(Loader):
                 'rel': tf.FixedLenFeature([], tf.int64),
                 'seq': tf.FixedLenFeature([3], tf.int64),
                 'sim': tf.FixedLenFeature([], tf.float32),
+                'agg_sim': tf.FixedLenFeature([], tf.float32),
                 'seq_mask':tf.FixedLenFeature([3], tf.int64)
             }
             return tf.parse_single_example(r, features=features)
@@ -601,12 +611,14 @@ class _DataLoader(Loader):
                     rel = key[0]
                     seq = key[1]
                     seq_mask = key[2]
-                    sim = value
+                    sim = value[0]
+                    agg_sim = value[1]
 
                     sample = {
                         'rel': rel,
                         'seq': ' '.join(list(map(lambda elem: str(elem), seq))),
                         'sim': sim,
+                        'agg_sim': agg_sim,
                         'seq_mask': ' '.join(list(map(lambda elem: str(elem), seq_mask)))
                     }
                     handle.write(json.dumps(sample) + '\n')
@@ -717,12 +729,13 @@ class _DataLoader(Loader):
         #print("sim is {}".format(sample['sim']))
         #print('rel is {}'.format(sample['rel']))
         #print('seq_mask is {}'.format(sample['seq_mask']))
-        
+        print("agg_sim is {}".format(sample['agg_sim']))
         # dtypes:
         # rel: [rel_id], seq: 'rel_1_id, rel_2_id, rel_3_id', sim: .7777, seq_mask: 'bool, bool, bool'
         rel = list(map(lambda elem: int(elem), sample['rel']))
         seq = [int(rel) for rel in sample['seq'].split(' ') if rel != None]
         sim = sample['sim']
+        agg_sim = sample['agg_sim']
         seq_mask = [int(bool_val) for bool_val in sample['seq_mask'].split(' ')]
 
         def _int64(values):
@@ -737,6 +750,7 @@ class _DataLoader(Loader):
             'rel': _int64(rel),
             'seq': _int64(seq),
             'sim': _float([sim]),
+            'agg_sim': _float([agg_sim]),
             'seq_mask': _int64(seq_mask)
         })
 
