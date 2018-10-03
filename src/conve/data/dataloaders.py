@@ -124,18 +124,22 @@ class _DataLoader(Loader):
             #seq_mask_1 = tf.to_int64([sample['seq_mask'][1]])
             #seq_mask_2 = tf.to_int64([sample['seq_mask'][2]])
             seq_mask = tf.to_int64(sample['seq_mask'])
+            e2_multi = tf.to_float(tf.sparse_to_indicator(
+                sample['e2_multi'], self.num_ent))
             #print("Seq mask is {}".format(seq_mask))
-            return {'rel': sample['rel'],
+            return {'s_ent': sample['s_ent'],
+                    'rel': sample['rel'],
                     'seq_0': seq_0,
                     'seq_1': seq_1,
                     'seq_2': seq_2,
                     #'seq': seq, # sample['seq'],
                     'sim': sample['sim'],
-                    'agg_sim':sample['agg_sim'],
+                    #'agg_sim':sample['agg_sim'],
                     #'seq_mask_0': seq_mask_0,
                     #'seq_mask_1': seq_mask_1,
                     #'seq_mask_2': seq_mask_2,
-                    'seq_mask': seq_mask}
+                    'seq_mask': seq_mask,
+                    'e2_multi': e2_multi}
 
 
         conve_data = conve_files.apply(tf.contrib.data.parallel_interleave(
@@ -262,6 +266,19 @@ class _DataLoader(Loader):
                             hashmap[(e1, e2)] = set()
                         hashmap[(e1, e2)].add(rel)
         return neighbors_dict, hashmap
+
+    
+    def get_full_graph(self, json_file, entity_ids, relation_ids):
+        e2_multi_dict = {}
+        with open(json_file, 'r') as handle:
+            for line in handle:
+                sample = json.loads(line)
+                e1 = entity_ids[sample['e1'].strip()]
+                rel = relation_ids[sample['rel'].strip()]
+                e2_multi = set(map(lambda e2: entity_ids[e2], sample['e2_multi1'].strip().split(" ")))
+                if '_reverse' not in sample['rel'].strip():
+                    e2_multi_dict[(e1, rel)] = set(e2_multi)
+        return e2_multi_dict
 
     @staticmethod
     def print_dict(d):
@@ -406,8 +423,9 @@ class _DataLoader(Loader):
                     subgraph_similarity = 0
 
                 if subgraph_similarity > 0.0:
-                    #if subgraph_similarity >= seq_threshold:
-                    sequence_similarities[seq1][seq2] = subgraph_similarity
+                    #if subgraph_similarity >= seq_thresholdi
+                    e2_multi = list(seq1_e2)
+                    sequence_similarities[seq1][seq2] = (subgraph_similarity, e2_multi)
                     rel_agg_similarities[seq1] += subgraph_similarity
 
             number_relations_passed += 1.
@@ -415,6 +433,53 @@ class _DataLoader(Loader):
             print("Percent done is: {}".format(percent_done))
 
         return sequence_similarities, rel_agg_similarities
+
+    @staticmethod
+    def get_indv_rel_seq_sims(e1_seq_set, e1_seq_e2_set, seq_threshold, seq_lengths, e2_multi_dict):
+        number_relations_passed = 0
+        rel_seq_sim_and_s_ents = {}
+        len_1_seqs = []
+        valid_sequences = {}
+        for sequence in e1_seq_set.keys():
+            if len(sequence) == 1:
+                len_1_seqs += [sequence]
+            if len(sequence) in seq_lengths:
+                valid_sequences[sequence] = e1_seq_set[sequence]
+
+        total_relations = len(len_1_seqs)
+
+        for seq1 in len_1_seqs:
+            seq1_e1 = e1_seq_set[seq1]
+
+            gen = ((seq2, seq2_e1) for seq2, seq2_e1 in valid_sequences.items() if (seq1 != seq2))
+            for seq2, seq2_e1 in gen:
+                intersection_e1 = seq1_e1.intersection(seq2_e1)
+                if len(intersection_e1) > 0:
+                    sampled_e1 = np.random.choice(list(intersection_e1), len(intersection_e1), replace = True)
+                else:
+                    sampled_e1 = []
+
+                for e1 in sampled_e1:
+                    seq1_pair = (e1, seq1)
+                    seq2_pair = (e1, seq2)
+
+                    seq1_e2 = e1_seq_e2_set[seq1_pair]
+                    seq2_e2 = e1_seq_e2_set[seq2_pair]
+
+                    e2_in_common = seq1_e2.intersection(seq2_e2)
+                    similarity = len(e2_in_common) / len(seq2_e2)
+                    
+                    if similarity > 0.0:
+                        triple = (e1, seq1, seq2)
+                        e2_multi = e2_multi_dict[(e1, seq1[0])]
+                        rel_seq_sim_and_s_ents[triple] = (similarity, e2_multi)
+
+            number_relations_passed += 1.
+            percent_done = number_relations_passed / total_relations * 100
+            print("Percent done is: {}".format(percent_done))
+
+        return rel_seq_sim_and_s_ents
+
 
     def parse_rel_seq_sim(self, sequence_similarities, rel_agg_similarities):
         rel_siq_sim = {}
@@ -432,6 +497,17 @@ class _DataLoader(Loader):
                 rel_siq_sim[triple] = (similarity, agg_sim)
         return rel_siq_sim
 
+    def extract_rel_seq_info(self, rel_seq_info):
+        rel_seq_data = {}
+        seq_max_len = 3
+        for (s_ent, rel, sequence), (sim, e2_multi) in rel_seq_info.items():
+            padded_seq = tuple(list(sequence) + [0]* (seq_max_len-len(sequence)))
+            seq_idx = len(sequence)-1
+            seq_mask = [0] * seq_max_len
+            seq_mask[seq_idx] = 1
+            quadruple = (s_ent, rel, padded_seq, tuple(seq_mask))
+            rel_seq_data[quadruple] = (sim, e2_multi)
+        return rel_seq_data
 
     def create_tf_record_files(self,
                                directory,
@@ -456,13 +532,15 @@ class _DataLoader(Loader):
         if relreg_args is not None and not os.path.exists(save_path):
             # Create edgelist
             # edgelist_filename = self.create_struc_edgelist(directory, json_files['full'], entity_ids)
-            e1_neighbors, e1e2_rel_map = self.get_neighbors_and_hashmap(json_files['full'], entity_ids, relation_ids)
+            e1_neighbors, e1e2_rel_map = self.get_neighbors_and_hashmap(json_files['train'], entity_ids, relation_ids)
+            e2_multi_dict = self.get_full_graph(json_files['full'], entity_ids, relation_ids)
             seq_e1_sets, seq_e1_pair_sets, _ = self.compute_sequence_eval_sets(e1_neighbors, e1e2_rel_map)
-            sequence_similarities, rel_agg_similarities = self.get_rel_seq_sims(seq_e1_sets,
+            sequence_similarities = self.get_indv_rel_seq_sims(seq_e1_sets,
                                                           seq_e1_pair_sets,
                                                           relreg_args['seq_threshold'],
-                                                          relreg_args['seq_lengths'])
-            rel_seq_sim = self.parse_rel_seq_sim(sequence_similarities, rel_agg_similarities)
+                                                          relreg_args['seq_lengths'],
+                                                          e2_multi_dict)
+            rel_seq_sim = self.extract_rel_seq_info(sequence_similarities)
             rel_seq_path = os.path.join(directory, 'seq_multi.json')
             self._write_graph(rel_seq_path, rel_seq_sim, 'relreg')
             # Generate random walks for structure regularization
@@ -470,7 +548,7 @@ class _DataLoader(Loader):
             json_files['relreg'] = rel_seq_path
          
         if relreg_args is not None:
-            filetypes = ['train', 'dev', 'test', 'relreg']
+            filetypes = ['relreg', 'train', 'dev', 'test']
             rel_seq_path = os.path.join(directory, 'seq_multi.json')
             json_files['relreg'] = rel_seq_path
         else:
@@ -516,6 +594,7 @@ class _DataLoader(Loader):
                             tf_record_filenames[filetype].append(filename)
                             tf_records_writer = tf.python_io.TFRecordWriter(filename)
                 tf_records_writer.close()
+        
 
         def conve_tf_record_parser(r):
             features = {
@@ -528,11 +607,13 @@ class _DataLoader(Loader):
 
         def relreg_tf_record_parser(r):
             features = {
+                's_ent': tf.FixedLenFeature([], tf.int64),
                 'rel': tf.FixedLenFeature([], tf.int64),
                 'seq': tf.FixedLenFeature([3], tf.int64),
                 'sim': tf.FixedLenFeature([], tf.float32),
-                'agg_sim': tf.FixedLenFeature([], tf.float32),
-                'seq_mask':tf.FixedLenFeature([3], tf.int64)
+                #'agg_sim': tf.FixedLenFeature([], tf.float32),
+                'seq_mask':tf.FixedLenFeature([3], tf.int64),
+                'e2_multi': tf.VarLenFeature(tf.int64)
             }
             return tf.parse_single_example(r, features=features)
 
@@ -548,7 +629,6 @@ class _DataLoader(Loader):
 
         # One more directory is created due to the archive extraction.
         directory = os.path.join(directory, self.dataset_name)
-
         # Load and preprocess the data.
         full_graph = {}  # Maps from (e1, rel) to set of e2 values.
         graphs = {}  # Maps from filename to dictionaries like labels.
@@ -608,19 +688,29 @@ class _DataLoader(Loader):
                         'e2_multi1': ' '.join(list(value))}
                     handle.write(json.dumps(sample) + '\n')
                 elif labels == 'relreg':
-                    rel = key[0]
-                    seq = key[1]
-                    seq_mask = key[2]
+                    s_ent = int(key[0])
+                    rel = key[1]
+                    seq = key[2]
+                    seq_mask = key[3]
                     sim = value[0]
-                    agg_sim = value[1]
+                    e2_multi = value[1]
+                    #agg_sim = value[1]
 
                     sample = {
+                        's_ent': s_ent,
                         'rel': rel,
                         'seq': ' '.join(list(map(lambda elem: str(elem), seq))),
                         'sim': sim,
-                        'agg_sim': agg_sim,
-                        'seq_mask': ' '.join(list(map(lambda elem: str(elem), seq_mask)))
+                        #'agg_sim': agg_sim,
+                        'seq_mask': ' '.join(list(map(lambda elem: str(elem), seq_mask))),
+                        'e2_multi': ' '.join(list(map(lambda elem: str(elem), e2_multi)))
                     }
+                    # print("Sample is {}".format(sample))
+                    # print("The type of s_ent is {}".format(type(s_ent)))
+                    # print('The type of rel is {}'.format(type(rel)))
+                    # print("The type of seq is {}".format(type(seq)))
+                    # print("The type of seq_mask is {}".format(type(seq_mask)))
+                    # print("The type of sim is {}".format(sim))
                     handle.write(json.dumps(sample) + '\n')
                 else:
                     e1, rel = key
@@ -729,14 +819,16 @@ class _DataLoader(Loader):
         #print("sim is {}".format(sample['sim']))
         #print('rel is {}'.format(sample['rel']))
         #print('seq_mask is {}'.format(sample['seq_mask']))
-        print("agg_sim is {}".format(sample['agg_sim']))
+        #print("agg_sim is {}".format(sample['agg_sim']))
         # dtypes:
         # rel: [rel_id], seq: 'rel_1_id, rel_2_id, rel_3_id', sim: .7777, seq_mask: 'bool, bool, bool'
+        s_ent = sample['s_ent']
         rel = list(map(lambda elem: int(elem), sample['rel']))
         seq = [int(rel) for rel in sample['seq'].split(' ') if rel != None]
         sim = sample['sim']
-        agg_sim = sample['agg_sim']
+        #agg_sim = sample['agg_sim']
         seq_mask = [int(bool_val) for bool_val in sample['seq_mask'].split(' ')]
+        e2_multi = [int(e2) for e2 in sample['e2_multi'].split(' ')]
 
         def _int64(values):
             return tf.train.Feature(
@@ -747,11 +839,13 @@ class _DataLoader(Loader):
                     float_list=tf.train.FloatList(value=values))
 
         features = tf.train.Features(feature={
+            's_ent': _int64([s_ent]),
             'rel': _int64(rel),
             'seq': _int64(seq),
             'sim': _float([sim]),
-            'agg_sim': _float([agg_sim]),
-            'seq_mask': _int64(seq_mask)
+            #'agg_sim': _float([agg_sim]),
+            'seq_mask': _int64(seq_mask),
+            'e2_multi': _int64(e2_multi)
         })
 
         return tf.train.Example(features=features)
