@@ -435,7 +435,7 @@ class _DataLoader(Loader):
         return sequence_similarities, rel_agg_similarities
 
     @staticmethod
-    def get_indv_rel_seq_sims(e1_seq_set, e1_seq_e2_set, seq_threshold, seq_lengths, e2_multi_dict):
+    def get_indv_rel_seq_sims(e1_seq_set, e1_seq_e2_set, seq_threshold, seq_lengths):
         number_relations_passed = 0
         rel_seq_sim_and_s_ents = {}
         len_1_seqs = []
@@ -454,12 +454,12 @@ class _DataLoader(Loader):
             gen = ((seq2, seq2_e1) for seq2, seq2_e1 in valid_sequences.items() if (seq1 != seq2))
             for seq2, seq2_e1 in gen:
                 intersection_e1 = seq1_e1.intersection(seq2_e1)
-                if len(intersection_e1) > 0:
-                    sampled_e1 = np.random.choice(list(intersection_e1), len(intersection_e1), replace = True)
-                else:
-                    sampled_e1 = []
+                #if len(intersection_e1) > 0:
+                 #   sampled_e1 = np.random.choice(list(intersection_e1), len(intersection_e1), replace = True)
+                #else:
+                 #   sampled_e1 = []
 
-                for e1 in sampled_e1:
+                for e1 in intersection_e1:
                     seq1_pair = (e1, seq1)
                     seq2_pair = (e1, seq2)
 
@@ -471,7 +471,7 @@ class _DataLoader(Loader):
                     
                     if similarity > 0.0:
                         triple = (e1, seq1, seq2)
-                        e2_multi = e2_multi_dict[(e1, seq1[0])]
+                        e2_multi = list(seq1_e2)
                         rel_seq_sim_and_s_ents[triple] = (similarity, e2_multi)
 
             number_relations_passed += 1.
@@ -533,13 +533,12 @@ class _DataLoader(Loader):
             # Create edgelist
             # edgelist_filename = self.create_struc_edgelist(directory, json_files['full'], entity_ids)
             e1_neighbors, e1e2_rel_map = self.get_neighbors_and_hashmap(json_files['train'], entity_ids, relation_ids)
-            e2_multi_dict = self.get_full_graph(json_files['full'], entity_ids, relation_ids)
+            #e2_multi_dict = self.get_full_graph(json_files['train'], entity_ids, relation_ids)
             seq_e1_sets, seq_e1_pair_sets, _ = self.compute_sequence_eval_sets(e1_neighbors, e1e2_rel_map)
             sequence_similarities = self.get_indv_rel_seq_sims(seq_e1_sets,
                                                           seq_e1_pair_sets,
                                                           relreg_args['seq_threshold'],
-                                                          relreg_args['seq_lengths'],
-                                                          e2_multi_dict)
+                                                          relreg_args['seq_lengths'])
             rel_seq_sim = self.extract_rel_seq_info(sequence_similarities)
             rel_seq_path = os.path.join(directory, 'seq_multi.json')
             self._write_graph(rel_seq_path, rel_seq_sim, 'relreg')
