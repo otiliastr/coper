@@ -126,8 +126,9 @@ class BiLinearReg(object):
         #self.reg_seq_2_bias = tf.nn.embedding_lookup(self.weights['rel_bias'], self.reg_seq_2)
         
         #self.reg_loss = self.compute_non_linear_reg_l2()
-        self.reg_loss = self.compute_non_linear_bce_reg()
-        
+        #self.reg_loss = self.cosine_similarity_regularization()
+        self.reg_loss = self.ent_cosine_similarity_regularization()
+
         # Optimization
         #self.collective_loss = self.bilinear_loss
         self.bilinear_weighted_loss = self.baseline_weight * self.bilinear_loss
@@ -166,11 +167,53 @@ class BiLinearReg(object):
         reg_rel_embs_normed = tf.nn.l2_normalize(reg_rel_embs, 2)
         # compute row-wise cosine similarity
         cosine_similarity = tf.reduce_mean(tf.reduce_sum(tf.multiply(reg_pred_normed, reg_rel_embs_normed), 2), 1)
-        cosine_similarity = tf.reshape(self.cosine_similarity, [batch_size])
-        reg_loss_weight = tf.reshape(self.reg_loss_weight, [batch_size])
+        cosine_similarity = tf.reshape(cosine_similarity, [batch_size])
+        reg_loss_weight = tf.reshape(reg_loss_weight, [batch_size])
         
         reg_loss = tf.reduce_sum(cosine_similarity * reg_loss_weight)
         return reg_loss
+
+    def ent_cosine_similarity_regularization(self):
+        batch_size = tf.shape(self.reg_seq_0_emb)[0]
+        # map similarity to max margin score
+        pos_sim_shift = 1./(1. - self.sim_threshold) * math.pi * (self.reg_sim - self.sim_threshold)
+        neg_sim_shift = 1./(self.sim_threshold) * math.pi * (self.reg_sim - self.sim_threshold)
+        sim_transform = -tf.tanh(pos_sim_shift)
+        not_sim_transform = -tf.tanh(neg_sim_shift)
+        reg_loss_weight = tf.minimum(sim_transform, not_sim_transform)
+        # hard thresholding
+        #condition = tf.greater_equal(self.reg_sim, self.sim_threshold)
+        #reg_loss_weight = tf.where(condition, tf.ones_like(self.reg_sim)*-1., tf.ones_like(self.reg_sim))
+        # predict target entity from relation
+        rel_e2_pred_raw = tf.einsum('bn,bnm->bm', self.reg_e1_embs, self.reg_rel_embs)
+        rel_e2_pred = tf.nn.tanh(rel_e2_pred_raw)
+        # extract sequences
+        seq_rel_1_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', self.reg_e1_embs, self.reg_seq_0_emb))
+        seq_rel_2_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', seq_rel_1_e2, self.reg_seq_1_emb))
+        seq_rel_3_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', seq_rel_2_e2, self.reg_seq_2_emb))
+        # prepare predicted e2s for masking
+        seq_rel_1_e2 = tf.reshape(seq_rel_1_e2, [batch_size, 1, self.emb_dim])
+        seq_rel_2_e2 = tf.reshape(seq_rel_2_e2, [batch_size, 1, self.emb_dim])
+        seq_rel_3_e2 = tf.reshape(seq_rel_3_e2, [batch_size, 1, self.emb_dim])
+        # filter out dummy sequences
+        seq_e2_pred = tf.boolean_mask(tf.concat([seq_rel_1_e2, seq_rel_2_e2, seq_rel_3_e2], 1), self.reg_seq_mask)
+        # normalzie rows for cosine similarity
+        seq_e2_pred = tf.reshape(seq_e2_pred, [batch_size, self.emb_dim])
+        rel_e2_pred = tf.reshape(rel_e2_pred, [batch_size, self.emb_dim])
+        #reg_pred_normed = tf.nn.l2_normalize(reg_sequences, 2)
+        #reg_rel_embs_normed = tf.nn.l2_normalize(reg_rel_embs, 2)
+
+        # compute vector closeness same way as regular function is computed
+        # not normalizing by L2 here because normalizing the objective vectors by
+        # that was very suboptimal.
+        degree_closeness = tf.reduce_sum(tf.multiply(seq_e2_pred, rel_e2_pred), 1)
+        sigmoid_similarity = tf.nn.sigmoid(degree_closeness)
+
+        reg_loss_weight = tf.reshape(reg_loss_weight, [batch_size])
+        reg_loss = tf.reduce_sum(sigmoid_similarity * reg_loss_weight)
+
+        return reg_loss
+
 
     #model 7
     def compute_non_linear_reg_l2(self):
