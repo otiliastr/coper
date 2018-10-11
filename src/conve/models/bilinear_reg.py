@@ -28,7 +28,8 @@ class BiLinearReg(object):
         self.summaries = None
         self.weights = self.get_weights()
         self.reg_weight = tf.placeholder(tf.float32)
-        self.baseline_weight = tf.placeholder(tf.float32)
+        self.obj_pos_weight = tf.placeholder(tf.float32)
+        self.obj_neg_weight = tf.placeholder(tf.float32)
    
         self.sim_threshold = tf.placeholder(tf.float32)
 
@@ -58,10 +59,11 @@ class BiLinearReg(object):
                 'seq_2': tf.int64,
                 'sim': tf.float32,
                 #'agg_sim': tf.float32,
-                'seq_mask': tf.int64
+                'seq_mask': tf.int64,
                 #'seq_mask_0': tf.int64,
                 #'seq_mask_1': tf.int64,
                 #'seq_mask_2': tf.int64,
+               'seq_e2_multi': tf.float32
             },
             output_shapes={
                 's_ent': [None],
@@ -75,7 +77,9 @@ class BiLinearReg(object):
                 #'seq_mask_0': [None],
                 #'seq_mask_1': [None],
                 #'seq_mask_2': [None]})
-                'seq_mask': [None, 3]})
+                'seq_mask': [None, 3],
+                'seq_e2_multi': [None, self.num_ent]
+            })
         
 
         self.next_input_sample = self.input_iterator.get_next()
@@ -94,6 +98,7 @@ class BiLinearReg(object):
         self.reg_sim = self.next_relreg_sample['sim']
         #self.reg_agg_sim = self.next_relreg_sample['agg_sim']
         self.reg_seq_mask = self.next_relreg_sample['seq_mask']
+        self.reg_seq_e2_multi = self.next_relreg_sample['seq_e2_multi']
 
         # DistMult Prediction Pipeline
         self.e1_emb = tf.nn.embedding_lookup(self.weights['ent_emb'], self.e1)
@@ -109,33 +114,119 @@ class BiLinearReg(object):
         self.e2s = self.weights['ent_emb']
         self.bilinear_raw_pred = tf.matmul(self.pair_e2_pred, self.e2s, transpose_b=True)
 
-        self.bilinear_raw_pred = self.bilinear_raw_pred
-        self.bilinear_elem_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=self.e2_multi,
-                                                                  logits=self.bilinear_raw_pred)
-        self.bilinear_loss = tf.reduce_sum(self.bilinear_elem_loss)
+        self.bilinear_raw_pred = self.bilinear_raw_pred * (10. ** -10)
+        # extract only samples that are inportant
+        # compute loss of all known positive entities
+        self.obj_pos_elem_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=self.e2_multi,
+                                                                  logits=self.bilinear_raw_pred, 
+                                                                  weights = self.e2_multi)
+        self.obj_pos_loss = tf.reduce_sum(self.obj_pos_elem_loss)
+        # compute loss of all unknown poitive entities
+        self.obj_neg_elem_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=self.e2_multi,
+                                                                  logits=self.bilinear_raw_pred, 
+                                                                  weights = 1. - self.e2_multi)
 
+        self.obj_neg_loss = tf.reduce_sum(self.obj_neg_elem_loss)
         # Rel Regularization Pipeline
         self.reg_e1_embs = tf.nn.embedding_lookup(self.weights['ent_emb'], self.reg_e1)
         self.reg_rel_embs = tf.nn.embedding_lookup(self.weights['rel_emb'], self.reg_rel) # self.reg_rel)
         self.reg_seq_0_emb = tf.nn.embedding_lookup(self.weights['rel_emb'], self.reg_seq_0)
         self.reg_seq_1_emb = tf.nn.embedding_lookup(self.weights['rel_emb'], self.reg_seq_1)
         self.reg_seq_2_emb = tf.nn.embedding_lookup(self.weights['rel_emb'], self.reg_seq_2)
-
+        
         #self.reg_seq_0_bias = tf.nn.embedding_lookup(self.weights['rel_bias'], self.reg_seq_0)
         #self.reg_seq_1_bias = tf.nn.embedding_lookup(self.weights['rel_bias'], self.reg_seq_1)
         #self.reg_seq_2_bias = tf.nn.embedding_lookup(self.weights['rel_bias'], self.reg_seq_2)
         
         #self.reg_loss = self.compute_non_linear_reg_l2()
         #self.reg_loss = self.cosine_similarity_regularization()
-        self.reg_loss = self.ent_cosine_similarity_regularization()
+        self.seq_raw_pred = self.compute_sequence_predictions()
+        self.reg_loss = self.compute_second_condition_loss()
+        self.seq_pos_loss, self.seq_neg_loss = self.learn_composition()
 
         # Optimization
-        #self.collective_loss = self.bilinear_loss
-        self.bilinear_weighted_loss = self.baseline_weight * self.bilinear_loss
-        self.reg_weighted_loss = self.reg_weight * self.reg_loss
-        self.collective_loss = self.bilinear_weighted_loss + self.reg_weighted_loss
+        # weight each loss term appropriately
+        self.obj_pos_weighted_loss = self.obj_pos_weight * self.obj_pos_loss
+        self.obj_neg_weighted_loss = self.obj_neg_weight * self.obj_neg_loss
+
+        self.seq_pos_weighted_loss = self.obj_pos_weight * self.seq_pos_loss
+        self.seq_neg_weighted_loss = self.obj_neg_weight * self.seq_neg_loss
+
+        self.reg_weighted_loss = self.reg_weight * self.reg_loss * 0.0
+        # collect loss terms
+        self.collective_loss = self.obj_pos_weighted_loss + self.obj_neg_weighted_loss + self.reg_weighted_loss + self.seq_pos_weighted_loss + self.seq_neg_weighted_loss
         self.opt = tf.train.AdamOptimizer(self.lr)
         self.train_op = self.opt.minimize(self.collective_loss)
+
+    def compute_second_condition_loss(self):
+        batch_size = tf.shape(self.reg_seq_0_emb)[0]
+        # predict target entity from relation
+        rel_e2_pred_raw = tf.einsum('bn,bnm->bm', self.reg_e1_embs, self.reg_rel_embs)
+        rel_e2_pred = tf.nn.tanh(rel_e2_pred_raw)
+        # extract sequences
+        #seq_rel_1_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', self.reg_e1_embs, self.reg_seq_0_emb))
+        #seq_rel_2_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', seq_rel_1_e2, self.reg_seq_1_emb))
+        #seq_rel_3_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', seq_rel_2_e2, self.reg_seq_2_emb))
+        # prepare predicted e2s for masking
+        #seq_rel_1_e2 = tf.reshape(seq_rel_1_e2, [batch_size, 1, self.emb_dim])
+        #seq_rel_2_e2 = tf.reshape(seq_rel_2_e2, [batch_size, 1, self.emb_dim])
+        #seq_rel_3_e2 = tf.reshape(seq_rel_3_e2, [batch_size, 1, self.emb_dim])
+        # filter out dummy sequences
+        #seq_e2_pred = tf.boolean_mask(tf.concat([seq_rel_1_e2, seq_rel_2_e2, seq_rel_3_e2], 1), self.reg_seq_mask)
+        # assert vector shapes match
+        #seq_e2_pred = tf.reshape(seq_e2_pred, [batch_size, self.emb_dim])
+        rel_e2_pred = tf.reshape(rel_e2_pred, [batch_size, self.emb_dim])
+        # compute e2 prediction weights
+        rel_raw_pred = tf.matmul(rel_e2_pred, self.e2s, transpose_b=True)
+        #seq_raw_pred = tf.matmul(seq_e2_pred, self.e2s, transpose_b=True)
+        # incorporate sim(e1, ru, sj) into loss
+        self.reg_sim = tf.reshape(self.reg_sim, [batch_size, 1])
+        rel_raw_pred = rel_raw_pred #* self.reg_sim
+        # compute Loss weighted by known entities
+        #raw_distance = tf.multiply(tf.square(rel_raw_pred - seq_raw_pred), self.reg_seq_e2_multi)
+        seq_sigmoid_pred = tf.nn.sigmoid(self.seq_raw_pred)
+        relevant_idxs = tf.maximum(0., self.reg_seq_e2_multi - self.e2_multi)
+        bce_elem_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=seq_sigmoid_pred,
+                                                                  logits=rel_raw_pred,
+                                                                  weights = relevant_idxs)
+        
+        bce_weighted_loss = bce_elem_loss * self.reg_sim
+        
+        reg_loss = tf.reduce_sum(bce_weighted_loss)
+        return reg_loss
+
+    def compute_sequence_predictions(self):
+        batch_size = tf.shape(self.reg_seq_0_emb)[0]
+        seq_rel_1_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', self.reg_e1_embs, self.reg_seq_0_emb))
+        seq_rel_2_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', seq_rel_1_e2, self.reg_seq_1_emb))
+        seq_rel_3_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', seq_rel_2_e2, self.reg_seq_2_emb))
+        # prepare predicted e2s for masking
+        seq_rel_1_e2 = tf.reshape(seq_rel_1_e2, [batch_size, 1, self.emb_dim])
+        seq_rel_2_e2 = tf.reshape(seq_rel_2_e2, [batch_size, 1, self.emb_dim])
+        seq_rel_3_e2 = tf.reshape(seq_rel_3_e2, [batch_size, 1, self.emb_dim])
+        # filter out dummy sequences
+        seq_e2_pred = tf.boolean_mask(tf.concat([seq_rel_1_e2, seq_rel_2_e2, seq_rel_3_e2], 1), self.reg_seq_mask)
+        # assert vector shapes match
+        seq_e2_pred = tf.reshape(seq_e2_pred, [batch_size, self.emb_dim])
+        seq_raw_pred = tf.matmul(seq_e2_pred, self.e2s, transpose_b=True)
+        return seq_raw_pred
+ 
+    def learn_composition(self):
+        #TODO: Add Sequence Learning function
+        batch_size = tf.shape(self.reg_seq_0_emb)[0]
+        self.reg_seq_e2_multi = tf.reshape(self.reg_seq_e2_multi, [batch_size, self.num_ent])
+        self.seq_raw_pred = tf.reshape(self.seq_raw_pred, [batch_size, self.num_ent])
+
+        seq_elem_pos_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=self.reg_seq_e2_multi,
+                                                                  logits=self.seq_raw_pred,
+                                                                  weights = self.reg_seq_e2_multi)
+        seq_pos_loss = tf.reduce_sum(seq_elem_pos_loss)
+        
+        seq_elem_neg_loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=self.reg_seq_e2_multi,
+                                                                  logits=self.seq_raw_pred,
+                                                                  weights = 1. - self.reg_seq_e2_multi)
+        seq_neg_loss = tf.reduce_sum(seq_elem_neg_loss)
+        return seq_pos_loss * 0., seq_neg_loss * 0.
 
     # model 2
     def cosine_similarity_regularization(self):
@@ -169,26 +260,6 @@ class BiLinearReg(object):
         cosine_similarity = tf.reduce_mean(tf.reduce_sum(tf.multiply(reg_pred_normed, reg_rel_embs_normed), 2), 1)
         cosine_similarity = tf.reshape(cosine_similarity, [batch_size])
         reg_loss_weight = tf.reshape(reg_loss_weight, [batch_size])
-        
-        reg_loss = tf.reduce_sum(cosine_similarity * reg_loss_weight)
-        return reg_loss
-
-    def ent_cosine_similarity_regularization(self):
-        batch_size = tf.shape(self.reg_seq_0_emb)[0]
-        # map similarity to max margin score
-        pos_sim_shift = 1./(1. - self.sim_threshold) * math.pi * (self.reg_sim - self.sim_threshold)
-        neg_sim_shift = 1./(self.sim_threshold) * math.pi * (self.reg_sim - self.sim_threshold)
-        sim_transform = -tf.tanh(pos_sim_shift)
-        not_sim_transform = -tf.tanh(neg_sim_shift)
-        reg_loss_weight = tf.minimum(sim_transform, not_sim_transform)
-        # hard thresholding
-        #condition = tf.greater_equal(self.reg_sim, self.sim_threshold)
-        #reg_loss_weight = tf.where(condition, tf.ones_like(self.reg_sim)*-1., tf.ones_like(self.reg_sim))
-        # predict target entity from relation
-        rel_e2_pred_raw = tf.einsum('bn,bnm->bm', self.reg_e1_embs, self.reg_rel_embs)
-        rel_e2_pred = tf.nn.tanh(rel_e2_pred_raw)
-        # extract sequences
-        seq_rel_1_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', self.reg_e1_embs, self.reg_seq_0_emb))
         seq_rel_2_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', seq_rel_1_e2, self.reg_seq_1_emb))
         seq_rel_3_e2 = tf.nn.tanh(tf.einsum('bn,bnm->bm', seq_rel_2_e2, self.reg_seq_2_emb))
         # prepare predicted e2s for masking

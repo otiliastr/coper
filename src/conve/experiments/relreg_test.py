@@ -7,7 +7,7 @@ import math
 import tensorflow as tf
 import numpy as np
 
-from ..data.dataloaders import *
+from ..data.method_5_loaders import *
 from ..evaluation.metrics import ranking_and_hits
 #from ..models.conve_struc_merged import ConvE
 from ..models.conve_initial_baseline import ConvE
@@ -23,11 +23,13 @@ DATA_LOADER = FB15k237Loader()#FB15k237Loader()
 beta = 1.001
 DATASET = 'FB15k237'
 EXP_TYPE = 'reg'
-REG_TYPE = 'method_2++_K=5'
+REG_TYPE = 'method_5+'
 
-REG_WEIGHT = '.1'
-SIM_THRESHOLD = '.0'
+REG_WEIGHT = '.0'
+SIM_THRESHOLD = 'None'
 NUM_PRETRAIN_STEPS = 0
+POS_WEIGHT = 1.0
+NEG_WEIGHT = 1.0
 
 
 DEVICE = '/GPU:0'
@@ -50,14 +52,15 @@ ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
 ADD_TENSOR_SUMMARIES = False
 RELREG_ARGS = {'seq_threshold': 0.0,
-               'seq_lengths': [2, 3]}
+               'seq_lengths': [2],
+               'sim_threshold': 0.85}
 
 
 if EXP_TYPE == 'reg':
     print('HI')
     #MODEL_NAME = 'bi_non_linear_{}_{}_with_{}_and_batch_size_{}_emb_size_{}'.format(EXP_TYPE, REG_TYPE, DATASET, BATCH_SIZE, EMB_SIZE)
     #MODEL_NAME = 'bi_non_linear_{}_on_{}_with_{}_and_batch_size_{}_emb_size_{}'.format(EXP_TYPE, DATASET, REG_TYPE, BATCH_SIZE, EMB_SIZE)
-    MODEL_NAME = 'bi_non_linear_{}_{}_{}_{}_{}_emb_{}_batch_size_{}'.format(DATASET, EXP_TYPE, REG_WEIGHT, REG_TYPE, SIM_THRESHOLD, EMB_SIZE, BATCH_SIZE)
+    MODEL_NAME = 'bi_non_linear_{}_{}_{}_{}_{}_pos_weight_{}_neg_weight_{}_emb_{}_batch_size_{}'.format(DATASET, EXP_TYPE, REG_WEIGHT, REG_TYPE, RELREG_ARGS['sim_threshold'], POS_WEIGHT, NEG_WEIGHT, EMB_SIZE, BATCH_SIZE)
     #MODEL_NAME = 'bilinear_{}_{}_{}_{}_None_emb_{}_batch_size_{}'.format(DATASET, EXP_TYPE, REG_WEIGHT, REG_TYPE, EMB_SIZE, BATCH_SIZE)
 else:
     MODEL_NAME = 'bi_non_linear_{}_emb_{}_batch_size_{}'.format(DATASET, EMB_SIZE, BATCH_SIZE)
@@ -68,7 +71,8 @@ LOG_DIR = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'logs')
 CKPT_PATH = os.path.join(WORKING_DIR, 'models', MODEL_NAME, 'model_weights.ckpt')
 EVAL_PATH = os.path.join(WORKING_DIR, 'evaluation', MODEL_NAME)
 REL_EMBEDDING_PATH = os.path.join(EVAL_PATH, 'rel_emb.txt')
-OBJ_LOSS_PATH = os.path.join(EVAL_PATH, 'obj_loss.txt')
+OBJ_POS_LOSS_PATH = os.path.join(EVAL_PATH, 'obj_pos_loss.txt')
+OBJ_NEG_LOSS_PATH = os.path.join(EVAL_PATH, 'obj_neg_loss.txt')
 REG_LOSS_PATH = os.path.join(EVAL_PATH, 'reg_loss.txt')
 COLL_LOSS_PATH = os.path.join(EVAL_PATH, 'coll_loss.txt')
 os.makedirs(EVAL_PATH, exist_ok=True)
@@ -152,15 +156,19 @@ def main():
 
     # Initalize the loss term weights.
     baseline_weight = 1.0
-    reg_weight = float(REG_WEIGHT) #* .98 ** (math.floor(step / 1000))
+    reg_weight = float(REG_WEIGHT) #if SIM_THRESHOLD != 'None' else 0.0#* .98 ** (math.floor(step / 1000))
     sim_threshold = float(SIM_THRESHOLD) if SIM_THRESHOLD != 'None' else 0.0
     
     prev_valid_loss = np.inf
     session.run(dev_iterator.initializer)
     start_reg_step = None
     is_reg = False
+    obj_pos_weight = POS_WEIGHT
+    obj_neg_weight = NEG_WEIGHT
     for step in range(MAX_STEPS):
-        
+        #if step > 50000:
+         #    reg_weight = min(.5, .1 * math.ceil((step - 50000.)/6081.))
+        #obj_neg_weight = 1.0 #* (.9999 ** (step))
         #sim_threshold = 1.0 + .005 * step
         """
         if is_reg:
@@ -175,7 +183,8 @@ def main():
             model.is_train: True,
             model.input_iterator_handle: train_iterator_handle,
             model.relreg_iterator_handle: relreg_iterator_handle,
-            model.baseline_weight: baseline_weight,
+            model.obj_pos_weight: obj_pos_weight,
+            model.obj_neg_weight: obj_neg_weight,
             model.reg_weight: reg_weight, #* (float(1.0001 ** (step - 1000)) if step >= 1000 else 0.0),
             model.sim_threshold: sim_threshold
            }
@@ -189,7 +198,12 @@ def main():
                  model.reg_weighted_loss, model.train_op), feed_dict)
         else:
             summaries = None
-            loss, obj_loss, reg_loss, _ = session.run((model.collective_loss, model.bilinear_weighted_loss, model.reg_weighted_loss, model.train_op), feed_dict)
+            loss, obj_pos_loss, obj_neg_loss, reg_loss, _ = session.run((model.collective_loss, 
+                                                                        model.obj_pos_weighted_loss,
+                                                                        model.obj_neg_weighted_loss, 
+                                                                        model.reg_weighted_loss, 
+                                                                        model.train_op), 
+                                                                        feed_dict)
         
         #if step > 0 and step % 1000== 0:
          #   rel_emb = session.run(model.variables['rel_emb'])
@@ -204,7 +218,8 @@ def main():
         
         if step % LOG_LOSS == 0 and step > 0:
             # log loss weights
-            _write_data_to_file(OBJ_LOSS_PATH, obj_loss)
+            _write_data_to_file(OBJ_POS_LOSS_PATH, obj_pos_loss)
+            _write_data_to_file(OBJ_NEG_LOSS_PATH, obj_neg_loss)
             _write_data_to_file(REG_LOSS_PATH, reg_loss)
             _write_data_to_file(COLL_LOSS_PATH, loss)
         
@@ -213,11 +228,16 @@ def main():
             #LOGGER.info('Step %6d | Loss: %10.4f', step, loss)
 
             session.run(dev_iterator.initializer)
-            valid_loss = session.run(model.bilinear_weighted_loss, feed_dict= {model.input_iterator_handle: dev_iterator_handle,
+            valid_pos_loss, valid_neg_loss = session.run((model.obj_pos_weighted_loss, 
+                                                         model.obj_neg_weighted_loss), 
+                                                         feed_dict= {model.input_iterator_handle: dev_iterator_handle,
                                                                    #model.relreg_iterator_handle: relreg_iterator_handle,
-                                                                           model.baseline_weight: 1.0})
+                                                                     model.obj_pos_weight: obj_pos_weight,
+                                                                     model.obj_neg_weight: obj_neg_weight})
             #LOGGER.info('Step %6d | Train Loss: %10.4f | Validation Loss: %10.4f | Obj Weight: %10.4f | Reg Weight: %10.4f', step, loss, valid_loss, baseline_weight, reg_weight)
-            LOGGER.info('Step %6d | Train Loss: %10.4f | Validation Loss: %10.4f', step, loss, valid_loss)
+            train_loss = obj_pos_loss + obj_neg_loss
+            valid_loss = valid_pos_loss + valid_neg_loss
+            LOGGER.info('Step %6d | Agg Loss: %10.4f | Train Loss %10.4f | Validation Loss: %10.4f', step, loss, train_loss, valid_loss)
             #if (valid_loss - prev_valid_loss > .0001) and start_reg_step is None:
             """
             if step >= 10000 and start_reg_step is None:
