@@ -39,13 +39,13 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
             e1, e2, rel, e2_multi1, pred1 = \
                 session.run(
                     fetches=(
-                        model.next_input_sample['e1'],
-                        model.next_input_sample['e2'],
-                        model.next_input_sample['rel'],
-                        model.next_input_sample['e2_multi1'],
-                        model.bilinear_raw_pred),
+                        model.next_eval_sample['e1'],
+                        model.next_eval_sample['e2'],
+                        model.next_eval_sample['rel'],
+                        model.next_eval_sample['e2_multi1'],
+                        model.eval_predictions),
                     feed_dict={
-                        model.input_iterator_handle: data_iterator_handle})
+                        model.eval_iterator_handle: data_iterator_handle})
 
             target_values = pred1[np.arange(0, len(pred1)), e2]
             pred1[e2_multi1 == 1] = -np.inf

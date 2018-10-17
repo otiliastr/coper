@@ -10,6 +10,7 @@ import six
 import numpy as np
 import requests
 import tensorflow as tf
+import math
 
 from tqdm import tqdm
 
@@ -126,19 +127,18 @@ class _DataLoader(Loader):
             seq_mask = tf.to_int64(sample['seq_mask'])
             seq_e2_multi = tf.to_float(tf.sparse_to_indicator(
                 sample['seq_e2_multi'], self.num_ent))
+            rel_e2_multi = tf.to_float(tf.sparse_to_indicator(
+                sample['rel_e2_multi'], self.num_ent))
+
             #print("Seq mask is {}".format(seq_mask))
             return {'s_ent': sample['s_ent'],
                     'rel': sample['rel'],
                     'seq_0': seq_0,
                     'seq_1': seq_1,
                     'seq_2': seq_2,
-                    #'seq': seq, # sample['seq'],
                     'sim': sample['sim'],
-                    #'agg_sim':sample['agg_sim'],
-                    #'seq_mask_0': seq_mask_0,
-                    #'seq_mask_1': seq_mask_1,
-                    #'seq_mask_2': seq_mask_2,
                     'seq_mask': seq_mask,
+                    'rel_e2_multi': rel_e2_multi,
                     'seq_e2_multi': seq_e2_multi
                    }
 
@@ -148,15 +148,42 @@ class _DataLoader(Loader):
             block_length=batch_size, sloppy=True)) \
             .map(map_fn, num_parallel_calls=num_parallel_batches)
 
+        relreg_data = relreg_files.apply(tf.contrib.data.parallel_interleave(
+            tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
+            block_length=batch_size, sloppy=True)) \
+            .map(relreg_map_fn, num_parallel_calls=num_parallel_batches)
+
+
         if not include_inv_relations:
             conve_data = conve_data.filter(filter_inv_relations)
+   
+        conve_data = conve_data.map(remove_is_inverse)
+             
+        do_negative_sample = True
+        if do_negative_sample:
+            obj_negative_sampling = lambda sample: self._sample_negatives(
+                    sample,
+                    prop_negatives = 2.0,
+                    is_reg = False)
+            reg_negative_sampling = lambda sample: self._sample_negatives(
+                    sample,
+                    prop_negatives = 2.0,
+                    is_reg = True)
+            
+            conve_data = conve_data.map(obj_negative_sampling)
+            relreg_data = relreg_data.map(reg_negative_sampling)       
 
         conve_data = conve_data \
-            .map(remove_is_inverse) \
+            .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000)) \
+            .batch(batch_size) \
+            .prefetch(prefetch_buffer_size)
+        
+        relreg_data = relreg_data \
             .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000)) \
             .batch(batch_size) \
             .prefetch(prefetch_buffer_size)
 
+        """
         relreg_data = relreg_files.apply(tf.contrib.data.parallel_interleave(
             tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
             block_length=batch_size, sloppy=True)) \
@@ -166,7 +193,8 @@ class _DataLoader(Loader):
             batch_size=batch_size,
             num_parallel_batches=num_parallel_batches)) \
             .prefetch(prefetch_buffer_size)
-
+        """
+        
         return conve_data, relreg_data
 
     def dev_dataset(self,
@@ -229,6 +257,148 @@ class _DataLoader(Loader):
             .map(remove_is_inverse) \
             .batch(batch_size) \
             .prefetch(prefetch_buffer_size)
+
+    def _sample_negatives(self, sample, prop_negatives=1.0, is_reg=False):
+        if not is_reg:
+            e1 = sample['e1']
+            e2 = sample['e2']
+            rel = sample['rel']
+            e2_multi= sample['e2_multi1']
+        else:
+            e1 = sample['s_ent']
+            rel = sample['rel']
+            seq_0 = sample['seq_0']
+            seq_1 = sample['seq_1']
+            seq_2 = sample['seq_2']
+            sim = sample['sim']
+            seq_mask = sample['seq_mask']
+            rel_e2_multi = sample['rel_e2_multi']
+            e2_multi = sample['seq_e2_multi']
+        
+        zero = tf.constant(0, dtype=tf.float32)
+        one = tf.constant(1, dtype=tf.float32)
+        correct_e2s = tf.where(tf.equal(e2_multi, one))[:, 0]
+        wrong_e2s = tf.where(tf.equal(e2_multi, zero))[:, 0]
+        wrong_e2s = tf.random_shuffle(wrong_e2s)
+        num_positives = tf.reduce_sum(e2_multi)#tf.cast(correct_e2s.shape[0], tf.float32)
+        num_negative_samples = tf.cast(tf.round(num_positives * prop_negatives), tf.int32)
+        num_negatives = tf.minimum(tf.shape(wrong_e2s)[0], num_negative_samples)
+        
+        wrong_e2s = wrong_e2s[:num_negatives]
+        indexes = tf.concat([correct_e2s, wrong_e2s], axis = 0)
+        indexes = tf.reshape(indexes, [tf.shape(indexes)[0], 1])
+        ones = tf.ones([tf.shape(indexes)[0]])
+
+        lookup_sparse = tf.SparseTensor(indices=indexes, values=ones, dense_shape=[self.num_ent])
+        lookup_values = tf.to_float(tf.sparse_tensor_to_dense(
+                           lookup_sparse, validate_indices=False))
+        
+        if not is_reg:
+            tensor = {
+                'e1': e1,
+                'e2': e2,
+                'rel': rel,
+                'e2_multi': e2_multi,
+                'lookup_values': lookup_values,
+            }
+        else:
+            tensor = {
+                'e1': e1,
+                'rel': rel,
+                'seq_0': seq_0,
+                'seq_1': seq_1,
+                'seq_2': seq_2,
+                'sim': sim,
+                'seq_mask': seq_mask,
+                'rel_e2_multi': rel_e2_multi,
+                'seq_e2_multi': e2_multi,
+                'lookup_values': lookup_values
+            }
+        return tensor
+
+        
+    # ripped from Otilia's QA Curriculum Github
+    #TODO: Add Support for Sequence Learning
+    def _add_negative_samples(self, sample, exclude_identity=False, filter_alternative_correct=True,
+                              num_negatives=2, is_reg=False):
+        if not is_reg:
+            e1 = sample['e1']
+            e2 = sample['e2']
+            rel = sample['rel']
+            e2_multi= sample['e2_multi1']
+        else:
+            e1 = sample['s_ent']
+            rel = sample['rel']
+            seq_0 = sample['seq_0']
+            seq_1 = sample['seq_1']
+            seq_2 = sample['seq_2']
+            sim = sample['sim']
+            seq_mask_0 = sample['seq_mask'][0]
+            seq_mask_1 = sample['seq_mask'][1]
+            seq_mask_2 = sample['seq_mask'][2]
+            e2_multi = sample['seq_e2_multi']
+
+        if exclude_identity:
+            # Add e1 to e2_multi to make sure the negative triples don't include (e1, r, e1).
+            e1_one_hot = tf.one_hot(e1, e2_multi.shape[0], dtype=tf.bool, on_value=True, off_value=False)
+            e2_multi = tf.math.logical_or(tf.cast(e2_multi, dtype=tf.bool), e1_one_hot)
+        else:
+            e2_multi = tf.cast(e2_multi, dtype=tf.bool)
+        
+        
+        # Find wrong answers to this question.
+        if filter_alternative_correct:
+            # Exclude e2s that appear as correct answers in e2_multi.
+            zero = tf.constant(False, dtype=tf.bool)
+            wrong_e2s = tf.where(tf.equal(e2_multi, zero))[:, 0]
+            # Pick some random wrong answers.
+            wrong_e2s = tf.random_shuffle(wrong_e2s)
+        else:
+            # Take all possible e2s, except for the correct one, including alternative correct answers.
+            num_entities = e2_multi.shape[1]
+            wrong_e2s = tf.concat(
+                [tf.range(e2, dtype=e2.dtype), tf.range(e2, num_entities, dtype=e2.dtype)],
+                axis=0)
+
+        # If we request at most `num_negatives` negative samples, select only this many.
+        if num_negatives is None:
+            num_negatives = tf.shape(wrong_e2s)[0]
+        else:
+            num_negatives = tf.minimum(tf.shape(wrong_e2s)[0], num_negatives)
+        wrong_e2s = wrong_e2s[:num_negatives]
+
+        # Create samples with the negatives.
+        if not is_reg:
+            e1s = tf.cast(tf.fill((num_negatives + 1,), e1), dtype=tf.int64)
+            rels = tf.cast(tf.fill((num_negatives + 1,), rel), dtype=tf.int64)
+            e2 = tf.cast(tf.expand_dims(e2, -1), dtype=tf.int64)
+            e2s = tf.concat([e2, wrong_e2s], axis=0)
+            truth_scores = tf.concat(
+                (tf.ones(shape=(1,), dtype=tf.float32), tf.zeros(shape=(num_negatives,), dtype=tf.float32)),
+                axis=0)
+
+            # Create a dataset from the samples.
+            tensors = {
+                'e1': e1s,
+                'e2': e2s,
+                'rel': rels,
+                'truth_scores': truth_scores
+            }
+        
+        else:
+            s_ents = tf.fill((num_negatives + 1,), e1)
+            seq_0 = tf.fill((num_negatives + 1, ), seq_0)
+            seq_1 = tf.fill((num_negatives + 1, ), seq_1)
+            seq_2 = tf.fill((num_negatives + 1, ), seq_2)
+            sim = tf.fill((num_negatives + 1, ), sim)
+            seq_mask_0 = tf.fill((num_negatives + 1, ), seq_mask_0)
+            seq_mask_1 = tf.fill((num_negatives + 1, ), seq_mask_1)
+            seq_mask_2 = tf.fill((num_negatives + 1, ), seq_mask_2)
+            e2s = tf.concat([e2, wrong_e2s], axis=0)
+            
+            #e2s = tf.concat([
+
+        return tf.data.Dataset.from_tensor_slices(tensors) 
 
     # generate json files and ids
     def generate_json_files_and_ids(self, directory, buffer_size=1024 * 1024):
@@ -467,15 +637,14 @@ class _DataLoader(Loader):
                     seq2_e2 = e1_seq_e2_set[seq2_pair]
 
                     e2_in_common = seq1_e2.intersection(seq2_e2)
-                    similarity = len(e2_in_common) / len(seq2_e2)
+                    similarity = len(e2_in_common) / len(seq1_e2)
                     
                     if similarity > sim_threshold:
                         #print("Similarity larger than .9: {}".format((e1, seq1[0], seq2, similarity)))
                         double = (e1, seq1)
                         if double not in rel_seq_sim_and_s_ents:
                             rel_seq_sim_and_s_ents[double] = {}
-                        e2_rem = seq2_e2
-                        rel_seq_sim_and_s_ents[double][seq2] = (similarity, list(e2_rem))
+                        rel_seq_sim_and_s_ents[double][seq2] = (similarity, list(seq1_e2), list(seq2_e2))
 
             number_relations_passed += 1.
             percent_done = number_relations_passed / total_relations * 100
@@ -653,6 +822,7 @@ class _DataLoader(Loader):
                 'sim': tf.FixedLenFeature([], tf.float32),
                 #'agg_sim': tf.FixedLenFeature([], tf.float32),
                 'seq_mask':tf.FixedLenFeature([3], tf.int64),
+                'rel_e2_multi': tf.VarLenFeature(tf.int64),
                 'seq_e2_multi': tf.VarLenFeature(tf.int64)
                 #'e2_multi': tf.VarLenFeature(tf.int64)
             }
@@ -722,12 +892,16 @@ class _DataLoader(Loader):
         with open(filename, 'w') as handle:
             for key, value in six.iteritems(graph):
                 if labels is None:
-                    sample = {
-                        'e1': key[0],
-                        'e2': 'None',
-                        'rel': key[1],
-                        'e2_multi1': ' '.join(list(value))}
-                    handle.write(json.dumps(sample) + '\n')
+                    e1, rel = key
+                    e2_multi1 = ' '.join(list(value))
+                    for e2 in value:
+                        sample = {
+                            'e1': e1,
+                            'e2': e2,
+                            'rel': rel,
+                            'e2_multi1': e2_multi1
+                            }
+                        handle.write(json.dumps(sample) + '\n')
                 elif labels == 'relreg':
                     #s_ent = int(key[0])
                     s_ent = key[0]
@@ -735,11 +909,17 @@ class _DataLoader(Loader):
                     seq = key[2]
                     seq_mask = key[3]
                     sim = value[0]
-                    e2_multi = value[1]
-                    if len(e2_multi) > 0: 
-                        e2_multi_enc = ' '.join(list(map(lambda elem: str(elem), e2_multi)))
+                    rel_e2_multi = value[1]
+                    seq_e2_multi = value[2]
+                    if len(rel_e2_multi) > 0:
+                        rel_e2_multi_enc = ' '.join(list(map(lambda elem: str(elem), rel_e2_multi)))
                     else:
-                        e2_multi_enc = ''
+                        rel_e2_multi_enc = ''
+
+                    if len(seq_e2_multi) > 0: 
+                        seq_e2_multi_enc = ' '.join(list(map(lambda elem: str(elem), seq_e2_multi)))
+                    else:
+                        seq_e2_multi_enc = ''
                     #e2_multi = value[1]
                     #agg_sim = value[1]
 
@@ -750,7 +930,8 @@ class _DataLoader(Loader):
                         'sim': sim,
                         #'agg_sim': agg_sim,
                         'seq_mask': ' '.join(list(map(lambda elem: str(elem), seq_mask))),
-                        'seq_e2_multi': e2_multi_enc #' '.join(list(map(lambda elem: str(elem), e2_multi)))
+                        'rel_e2_multi': rel_e2_multi_enc,
+                        'seq_e2_multi': seq_e2_multi_enc #' '.join(list(map(lambda elem: str(elem), e2_multi)))
                     }
                     # print("Sample is {}".format(sample))
                     # print("The type of s_ent is {}".format(type(s_ent)))
@@ -876,10 +1057,15 @@ class _DataLoader(Loader):
         #agg_sim = sample['agg_sim']
         seq_mask = [int(bool_val) for bool_val in sample['seq_mask'].split(' ')]
         #print("sample['seq_e2_multi']: {}".format(sample['seq_e2_multi']))
-        if sample['seq_e2_multi'] == '':
-            e2_multi = []
+        if sample['rel_e2_multi'] == '':
+            rel_e2_multi = []
         else:
-            e2_multi = [int(ent_id) for ent_id in sample['seq_e2_multi'].split(' ')]
+            rel_e2_multi = [int(ent_id) for ent_id in sample['rel_e2_multi'].split(' ')]
+        
+        if sample['seq_e2_multi'] == '':
+            seq_e2_multi = []
+        else:
+            seq_e2_multi = [int(ent_id) for ent_id in sample['seq_e2_multi'].split(' ')]
         #e2_multi = [int(e2) for e2 in sample['e2_multi'].split(' ')]
 
         def _int64(values):
@@ -897,7 +1083,8 @@ class _DataLoader(Loader):
             'sim': _float([sim]),
             #'agg_sim': _float([agg_sim]),
             'seq_mask': _int64(seq_mask),
-            'seq_e2_multi': _int64(e2_multi)
+            'rel_e2_multi': _int64(rel_e2_multi),
+            'seq_e2_multi': _int64(seq_e2_multi)
         })
 
         return tf.train.Example(features=features)
