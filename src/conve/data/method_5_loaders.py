@@ -248,7 +248,7 @@ class _DataLoader(Loader):
                 'e2_multi1': sample['e2_multi1']}
 
         data = tf.data.Dataset.from_tensor_slices(filenames)\
-            .interleave(tf.data.TFRecordDataset)\
+            .interleave(tf.data.TFRecordDataset, cycle_length=len(filenames))\
             .map(lambda s: map_fn(s))
 
         if not include_inv_relations:
