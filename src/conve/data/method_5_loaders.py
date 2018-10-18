@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import abc
+import glob
 import json
 import logging
 import os
@@ -810,11 +811,14 @@ class _DataLoader(Loader):
             print("Filetype is: {}".format(filetype))
             count = 0
             file_index = 0
-            filename = os.path.join(
-                directory, '{0}-{1}.tfrecords'.format(filetype, file_index))
-            tf_record_filenames[filetype] = [filename]
-            print("filename: {}".format(filename))
-            if not os.path.exists(filename):
+            filenames = glob.glob(os.path.join(
+                directory, '{0}-{1}.tfrecords'.format(filetype, '*')))
+            tf_record_filenames[filetype] = filenames
+            if len(filenames) == 0:
+                filename = os.path.join(
+                    directory, '{0}-{1}.tfrecords'.format(filetype, file_index))
+                print("filename: {}".format(filename))
+                tf_record_filenames[filetype] = [filename]
                 tf_records_writer = tf.python_io.TFRecordWriter(filename)
                 with open(json_files[filetype], 'r') as handle:
                     for line in handle:
