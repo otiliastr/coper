@@ -92,8 +92,8 @@ class _DataLoader(Loader):
         conve_parser, relreg_parser, filenames = self.create_tf_record_files(
             directory, relreg_args, buffer_size=buffer_size)
 
-        conve_files = tf.data.Dataset.from_tensor_slices(filenames['train'])
-        #relreg_files = tf.data.Dataset.from_tensor_slices(filenames['relreg'])
+        conve_files = filenames['train']
+        #relreg_files = filenames['relreg']
 
         def map_fn(sample):
             sample = conve_parser(sample)
@@ -227,6 +227,7 @@ class _DataLoader(Loader):
                       prefetch_buffer_size=128):
         parser, _, filenames = self.create_tf_record_files(
             directory, relreg_args=None, buffer_size=buffer_size)
+        filenames = filenames[dataset_type]
 
         def map_fn(sample):
             sample = parser(sample)
@@ -249,7 +250,7 @@ class _DataLoader(Loader):
                 'e2_multi1': sample['e2_multi1']}
 
         data = tf.data.Dataset.from_tensor_slices(filenames)\
-            .interleave(tf.data.TFRecordDataset, cycle_length=len(filenames))\
+            .flat_map(tf.data.TFRecordDataset)\
             .map(lambda s: map_fn(s))
 
         if not include_inv_relations:
