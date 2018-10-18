@@ -892,16 +892,12 @@ class _DataLoader(Loader):
         with open(filename, 'w') as handle:
             for key, value in six.iteritems(graph):
                 if labels is None:
-                    e1, rel = key
-                    e2_multi1 = ' '.join(list(value))
-                    for e2 in value:
-                        sample = {
-                            'e1': e1,
-                            'e2': e2,
-                            'rel': rel,
-                            'e2_multi1': e2_multi1
-                            }
-                        handle.write(json.dumps(sample) + '\n')
+                    sample = {
+                        'e1': key[0],
+                        'e2': 'None',
+                        'rel': key[1],
+                        'e2_multi1': ' '.join(list(value))}
+                    handle.write(json.dumps(sample) + '\n')
                 elif labels == 'relreg':
                     #s_ent = int(key[0])
                     s_ent = key[0]
