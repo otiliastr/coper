@@ -6,6 +6,7 @@ import logging
 import os
 import tarfile
 import six
+import pickle
 
 import numpy as np
 import requests
@@ -92,7 +93,7 @@ class _DataLoader(Loader):
             directory, relreg_args, buffer_size=buffer_size)
 
         conve_files = tf.data.Dataset.from_tensor_slices(filenames['train'])
-        relreg_files = tf.data.Dataset.from_tensor_slices(filenames['relreg'])
+        #relreg_files = tf.data.Dataset.from_tensor_slices(filenames['relreg'])
 
         def map_fn(sample):
             sample = conve_parser(sample)
@@ -148,10 +149,10 @@ class _DataLoader(Loader):
             block_length=batch_size, sloppy=True)) \
             .map(map_fn, num_parallel_calls=num_parallel_batches)
 
-        relreg_data = relreg_files.apply(tf.contrib.data.parallel_interleave(
-            tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
-            block_length=batch_size, sloppy=True)) \
-            .map(relreg_map_fn, num_parallel_calls=num_parallel_batches)
+        #relreg_data = relreg_files.apply(tf.contrib.data.parallel_interleave(
+         #   tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
+          #  block_length=batch_size, sloppy=True)) \
+           # .map(relreg_map_fn, num_parallel_calls=num_parallel_batches)
 
 
         if not include_inv_relations:
@@ -165,23 +166,23 @@ class _DataLoader(Loader):
                     sample,
                     prop_negatives = 2.0,
                     is_reg = False)
-            reg_negative_sampling = lambda sample: self._sample_negatives(
-                    sample,
-                    prop_negatives = 2.0,
-                    is_reg = True)
+            #reg_negative_sampling = lambda sample: self._sample_negatives(
+             #       sample,
+              #      prop_negatives = 2.0,
+               #     is_reg = True)
             
             conve_data = conve_data.map(obj_negative_sampling)
-            relreg_data = relreg_data.map(reg_negative_sampling)       
+            #relreg_data = relreg_data.map(reg_negative_sampling)       
 
         conve_data = conve_data \
             .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000)) \
             .batch(batch_size) \
             .prefetch(prefetch_buffer_size)
         
-        relreg_data = relreg_data \
-            .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000)) \
-            .batch(batch_size) \
-            .prefetch(prefetch_buffer_size)
+        #relreg_data = relreg_data \
+         #   .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000)) \
+          #  .batch(batch_size) \
+           # .prefetch(prefetch_buffer_size)
 
         """
         relreg_data = relreg_files.apply(tf.contrib.data.parallel_interleave(
@@ -195,7 +196,7 @@ class _DataLoader(Loader):
             .prefetch(prefetch_buffer_size)
         """
         
-        return conve_data, relreg_data
+        return conve_data # relreg_data
 
     def dev_dataset(self,
                     directory,
@@ -410,7 +411,7 @@ class _DataLoader(Loader):
         self.num_rel = len(relation_ids) - 1
         return json_files, entity_ids, relation_ids
 
-
+    
     @staticmethod
     def get_neighbors_and_hashmap(json_file, entity_ids, relation_ids):
         neighbors_dict = {}
@@ -437,8 +438,25 @@ class _DataLoader(Loader):
                             hashmap[(e1, e2)] = set()
                         hashmap[(e1, e2)].add(rel)
         return neighbors_dict, hashmap
-
-    
+    """
+    def get_neighbors_and_hashmap(self, fpath, entity_ids, relation_ids):
+        neighbors_dict = {}
+        hashmap = {}
+        with open(fpath, 'r') as handle:
+            for line in handle:
+                e1, rel, e2 = list(map(lambda elem: str(elem), line.strip().split("\t")))
+                e1 = entity_ids[e1]
+                rel = relation_ids[rel]
+                e2 = entity_ids[e2]
+                if e1 not in neighbors_dict.keys():
+                    neighbors_dict[e1] = set()
+                neighbors_dict[e1].add(e2)
+                # possible that multiple relations from same entity map to same target entity
+                if (e1, e2) not in hashmap.keys():
+                    hashmap[(e1, e2)] = set()
+                hashmap[(e1, e2)].add(rel)
+        return neighbors_dict, hashmap
+    """
     def get_full_graph(self, json_file, entity_ids, relation_ids):
         e2_multi_dict = {}
         with open(json_file, 'r') as handle:
@@ -548,7 +566,7 @@ class _DataLoader(Loader):
     # compute similarities of all sequences, you can filter ones to keep using seq_threshold and store the remainder
     # in a dictionary of sequence_similarities.
     @staticmethod
-    def get_rel_seq_sims(e1_seq_set, e1_seq_e2_set, seq_threshold, seq_lengths):
+    def get_rel_seq_sims(e1_seq_set, e1_seq_e2_set, seq_threshold, seq_lengths, sim_threshold):
         print("Getting Relation Sequence Similarities....")
         number_relations_passed = 0
         sequence_similarities = {}
@@ -584,7 +602,7 @@ class _DataLoader(Loader):
                     seq2_e2 = e1_seq_e2_set[seq2_pair]
 
                     e2_in_common = seq1_e2.intersection(seq2_e2)
-                    similarity = len(e2_in_common) / len(seq2_e2)
+                    similarity = len(e2_in_common) / len(seq1_e2)
                     aggregate_similarity += similarity
 
                 total_subgraphs = len(intersection_e1)
@@ -593,7 +611,7 @@ class _DataLoader(Loader):
                 else:
                     subgraph_similarity = 0
 
-                if subgraph_similarity > 0.0:
+                if subgraph_similarity > sim_threshold:
                     #if subgraph_similarity >= seq_thresholdi
                     sequence_similarities[seq1][seq2] = (subgraph_similarity)
                     #rel_agg_similarities[seq1] += subgraph_similarity
@@ -717,6 +735,12 @@ class _DataLoader(Loader):
                     write_handle.write(json.dumps(write_sample) + '\n')
         return write_fp
 
+    def save_obj(self, obj, name):
+        directory = os.getcwd()
+        fpath = os.path.join(directory, 'obj', name)
+        with open(fpath + '.pkl', 'wb') as f:
+            pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
     def create_tf_record_files(self,
                                directory,
                                relreg_args,
@@ -734,32 +758,47 @@ class _DataLoader(Loader):
 
         # Check whether or not to include structure.
         save_directory = directory
-        save_path = os.path.join(save_directory, 'rel_seq_path.json')
+        #save_path = os.path.join(save_directory, 'rel_seq_path.json')
+        save_path = os.path.join(directory, 'sequence_similarities.pkl')
         print("The path is: {}".format(save_path))
         print("The directory is {}".format(directory))
         if relreg_args is not None and not os.path.exists(save_path):
             # Create edgelist
             # edgelist_filename = self.create_struc_edgelist(directory, json_files['full'], entity_ids)
             e1_neighbors, e1e2_rel_map = self.get_neighbors_and_hashmap(json_files['train'], entity_ids, relation_ids)
+            #train_file = os.path.join(directory, 'train.txt')
+            #e1_neighbors, e1e2_rel_map = self.get_neighbors_and_hashmap(train_file, entity_ids, relation_ids)
             #e2_multi_dict = self.get_full_graph(json_files['train'], entity_ids, relation_ids)
             seq_e1_sets, seq_e1_pair_sets, _ = self.compute_sequence_eval_sets(e1_neighbors, e1e2_rel_map)
-            sequence_similarities = self.get_indv_rel_seq_sims(seq_e1_sets,
-                                                          seq_e1_pair_sets,
-                                                          relreg_args['seq_threshold'],
+
+            sequence_similarities = self.get_rel_seq_sims(seq_e1_sets, 
+                                                          seq_e1_pair_sets, 
+                                                          relreg_args['seq_threshold'], 
                                                           relreg_args['seq_lengths'],
                                                           relreg_args['sim_threshold'])
-            rel_seq_sim = self.extract_rel_seq_info(sequence_similarities)
-            #rel = self.extend_train_data(json_files['train'], rel_seq_sim)
-            rel_seq_path = os.path.join(directory, 'rel_seq_path.json')
-            self._write_graph(rel_seq_path, rel_seq_sim, 'relreg')
+            seq_sim_save_path = os.path.join(directory, 'sequence_similarities')
+            query_e2_save_path = os.path.join(directory, 'query_e2s')
+            rel_ids_path = os.path.join(directory, 'rel_ids')
+            ent_ids_path = os.path.join(directory, 'ent_ids')
+            self.save_obj(sequence_similarities, seq_sim_save_path)
+            self.save_obj(seq_e1_pair_sets, query_e2_save_path)
+            self.save_obj(entity_ids, ent_ids_path)
+            self.save_obj(relation_ids, rel_ids_path)
+            #sequence_similarities = self.get_indv_rel_seq_sims(seq_e1_sets,
+             #                                             seq_e1_pair_sets,
+              #                                            relreg_args['seq_threshold'],
+               #                                           relreg_args['seq_lengths'],
+                #                                          relreg_args['sim_threshold'])
+            #rel_seq_sim = self.extract_rel_seq_info(sequence_similarities)
+            #rel_seq_path = os.path.join(directory, 'rel_seq_path.json')
+            #self._write_graph(rel_seq_path, rel_seq_sim, 'relreg')
             # Generate random walks for structure regularization
-            # self.run_struc2vec(directory, edgelist_filename, struc2vec_args)
-            json_files['relreg'] = rel_seq_path
+            #json_files['relreg'] = rel_seq_path
          
         if relreg_args is not None:
-            filetypes = ['relreg', 'train', 'dev', 'test']
-            rel_seq_path = os.path.join(directory, 'rel_seq_path.json')
-            json_files['relreg'] = rel_seq_path
+            filetypes = ['train', 'dev', 'test']#, 'relreg']
+            #rel_seq_path = os.path.join(directory, 'rel_seq_path.json')
+            #json_files['relreg'] = rel_seq_path
         else:
             filetypes = ['train', 'dev', 'test']
 
