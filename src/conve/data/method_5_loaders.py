@@ -143,17 +143,17 @@ class _DataLoader(Loader):
                     'seq_e2_multi': seq_e2_multi
                    }
 
+        conve_data = tf.data.Dataset.from_tensor_slices(conve_files) \
+            .interleave(tf.data.TFRecordDataset,
+                        cycle_length=num_parallel_readers,
+                        block_length=batch_size) \
+            .map(lambda s: map_fn(s), num_parallel_calls=num_parallel_batches)
 
-        conve_data = conve_files.apply(tf.contrib.data.parallel_interleave(
-            tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
-            block_length=batch_size, sloppy=True)) \
-            .map(map_fn, num_parallel_calls=num_parallel_batches)
-
-        #relreg_data = relreg_files.apply(tf.contrib.data.parallel_interleave(
-         #   tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
-          #  block_length=batch_size, sloppy=True)) \
-           # .map(relreg_map_fn, num_parallel_calls=num_parallel_batches)
-
+        # relreg_data = tf.data.Dataset.from_tensor_slices(relreg_files) \
+        #     .interleave(tf.data.TFRecordDataset,
+        #                 cycle_length=num_parallel_readers,
+        #                 block_length=batch_size) \
+        #     .map(lambda s: relreg_map_fn(s), num_parallel_calls=num_parallel_batches)
 
         if not include_inv_relations:
             conve_data = conve_data.filter(filter_inv_relations)
@@ -248,7 +248,8 @@ class _DataLoader(Loader):
                 'rel': sample['rel'],
                 'e2_multi1': sample['e2_multi1']}
 
-        data = tf.data.TFRecordDataset(filenames[dataset_type]) \
+        data = tf.data.Dataset.from_tensor_slices(filenames)\
+            .interleave(tf.data.TFRecordDataset, cycle_length=len(filenames))\
             .map(lambda s: map_fn(s))
 
         if not include_inv_relations:
@@ -931,16 +932,12 @@ class _DataLoader(Loader):
         with open(filename, 'w') as handle:
             for key, value in six.iteritems(graph):
                 if labels is None:
-                    e1, rel = key
-                    e2_multi1 = ' '.join(list(value))
-                    for e2 in value:
-                        sample = {
-                            'e1': e1,
-                            'e2': e2,
-                            'rel': rel,
-                            'e2_multi1': e2_multi1
-                            }
-                        handle.write(json.dumps(sample) + '\n')
+                    sample = {
+                        'e1': key[0],
+                        'e2': 'None',
+                        'rel': key[1],
+                        'e2_multi1': ' '.join(list(value))}
+                    handle.write(json.dumps(sample) + '\n')
                 elif labels == 'relreg':
                     #s_ent = int(key[0])
                     s_ent = key[0]
