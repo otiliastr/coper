@@ -18,15 +18,15 @@ from ..models.bilinear_reg import BiLinearReg
 
 LOGGER = logging.getLogger(__name__)
 
-DATA_LOADER = UMLSLoader()#FB15k237Loader()
+DATA_LOADER = FB15k237Loader()#FB15k237Loader()
 
 beta = 1.001
-DATASET = 'UMLS'
-EXP_TYPE = 'reg'
-REG_TYPE = 'method_6+'
+DATASET = 'FB15k237'
+EXP_TYPE = 'bl'
+REG_TYPE = 'method_7'
 
 SIM_THRESHOLD = 'None'
-NUM_PRETRAIN_STEPS = 0
+NUM_PRETRAIN_STEPS = -1
 OBJ_WEIGHT = 1.0
 SEQ_WEIGHT = 0.0
 REG_WEIGHT = 0.0
@@ -51,8 +51,8 @@ ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
 ADD_TENSOR_SUMMARIES = False
 RELREG_ARGS = {'seq_threshold': 0.0,
-               'seq_lengths': [2],
-               'sim_threshold': 0.5}
+               'seq_lengths': [2, 3],
+               'sim_threshold': 0.0}
 
 
 if EXP_TYPE == 'reg':
@@ -119,16 +119,16 @@ def main():
             #})
 
     # Create dataset iterator initializers.
-    train_dataset, relreg_dataset = DATA_LOADER.train_dataset(
-        DATA_DIR, BATCH_SIZE, RELREG_ARGS, include_inv_relations=True)
+    train_dataset = DATA_LOADER.train_dataset(
+        DATA_DIR, BATCH_SIZE, RELREG_ARGS, include_inv_relations=True, buffer_size = 1024, prefetch_buffer_size = 16)
 
     dev_dataset = DATA_LOADER.dev_dataset(
-        DATA_DIR, BATCH_SIZE, include_inv_relations=False)
+        DATA_DIR, BATCH_SIZE, include_inv_relations=True, buffer_size = 1024, prefetch_buffer_size = 16)
     test_dataset = DATA_LOADER.test_dataset(
-        DATA_DIR, BATCH_SIZE, include_inv_relations=False)
+        DATA_DIR, BATCH_SIZE, include_inv_relations=True, buffer_size = 1024, prefetch_buffer_size = 16)
 
     train_iterator = train_dataset.make_one_shot_iterator()
-    relreg_iterator = relreg_dataset.make_one_shot_iterator()
+    #relreg_iterator = relreg_dataset.make_one_shot_iterator()
     dev_iterator = dev_dataset.make_initializable_iterator()
     test_iterator = test_dataset.make_initializable_iterator()
 
@@ -149,7 +149,7 @@ def main():
 
     # Obtain the dataset iterator handles.
     train_iterator_handle = session.run(train_iterator.string_handle())
-    relreg_iterator_handle = session.run(relreg_iterator.string_handle())
+    #relreg_iterator_handle = session.run(relreg_iterator.string_handle())
     dev_iterator_handle = session.run(dev_iterator.string_handle())
     test_iterator_handle = session.run(test_iterator.string_handle())
 
@@ -184,12 +184,12 @@ def main():
         feed_dict = {
             model.is_train: True,
             model.input_iterator_handle: train_iterator_handle,
-            model.relreg_iterator_handle: relreg_iterator_handle,
+            #model.relreg_iterator_handle: relreg_iterator_handle,
             #model.obj_pos_weight: obj_pos_weight,
             #model.obj_neg_weight: obj_neg_weight,
-            model.seq_weight: seq_weight,
+            #model.seq_weight: seq_weight,
             model.obj_weight: obj_weight,
-            model.reg_weight: reg_weight, #* (float(1.0001 ** (step - 1000)) if step >= 1000 else 0.0),
+            #model.reg_weight: reg_weight, #* (float(1.0001 ** (step - 1000)) if step >= 1000 else 0.0),
             #model.sim_threshold: sim_threshold
            }
 
@@ -202,10 +202,10 @@ def main():
                  model.reg_weighted_loss, model.train_op), feed_dict)
         else:
             summaries = None
-            loss, obj_loss, reg_loss, seq_loss, _ = session.run((model.collective_loss, 
+            loss, obj_loss, _ = session.run((model.collective_loss, 
                                                                         model.obj_weighted_loss,
-                                                                        model.reg_weighted_loss,
-                                                                        model.seq_weighted_loss, 
+             #                                                           model.reg_weighted_loss,
+              #                                                          model.seq_weighted_loss, 
                                                                         model.train_op), 
                                                                         feed_dict)
         
@@ -223,8 +223,8 @@ def main():
         if step % LOG_LOSS == 0 and step > 0:
             # log loss weights
             _write_data_to_file(OBJ_LOSS_PATH, obj_loss)
-            _write_data_to_file(REG_LOSS_PATH, reg_loss)
-            _write_data_to_file(SEQ_LOSS_PATH, seq_loss)
+            #_write_data_to_file(REG_LOSS_PATH, reg_loss)
+            #_write_data_to_file(SEQ_LOSS_PATH, seq_loss)
             _write_data_to_file(COLL_LOSS_PATH, loss)
         
         # Log the loss, if necessary.
