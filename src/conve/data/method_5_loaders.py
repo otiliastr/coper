@@ -142,17 +142,17 @@ class _DataLoader(Loader):
                     'seq_e2_multi': seq_e2_multi
                    }
 
+        conve_data = tf.data.Dataset.from_tensor_slices(conve_files) \
+            .interleave(tf.data.TFRecordDataset,
+                        cycle_length=num_parallel_readers,
+                        block_length=batch_size) \
+            .map(lambda s: map_fn(s), num_parallel_calls=num_parallel_batches)
 
-        conve_data = conve_files.apply(tf.contrib.data.parallel_interleave(
-            tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
-            block_length=batch_size, sloppy=True)) \
-            .map(map_fn, num_parallel_calls=num_parallel_batches)
-
-        relreg_data = relreg_files.apply(tf.contrib.data.parallel_interleave(
-            tf.data.TFRecordDataset, cycle_length=num_parallel_readers,
-            block_length=batch_size, sloppy=True)) \
-            .map(relreg_map_fn, num_parallel_calls=num_parallel_batches)
-
+        relreg_data = tf.data.Dataset.from_tensor_slices(relreg_files) \
+            .interleave(tf.data.TFRecordDataset,
+                        cycle_length=num_parallel_readers,
+                        block_length=batch_size) \
+            .map(lambda s: relreg_map_fn(s), num_parallel_calls=num_parallel_batches)
 
         if not include_inv_relations:
             conve_data = conve_data.filter(filter_inv_relations)
@@ -247,7 +247,8 @@ class _DataLoader(Loader):
                 'rel': sample['rel'],
                 'e2_multi1': sample['e2_multi1']}
 
-        data = tf.data.TFRecordDataset(filenames[dataset_type]) \
+        data = tf.data.Dataset.from_tensor_slices(filenames)\
+            .interleave(tf.data.TFRecordDataset)\
             .map(lambda s: map_fn(s))
 
         if not include_inv_relations:
