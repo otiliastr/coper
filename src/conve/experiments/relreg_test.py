@@ -3,11 +3,12 @@ from __future__ import absolute_import, division, print_function
 import logging
 import os
 import math
+import pickle
 
 import tensorflow as tf
 import numpy as np
 
-from ..data.method_5_loaders import *
+from ..data.weighted_guess_loaders import *
 from ..evaluation.metrics import ranking_and_hits
 from ..models.conve_struc_merged import ConvE
 #from ..models.conve_initial_baseline import ConvE
@@ -18,18 +19,20 @@ from ..models.bilinear_reg import BiLinearReg
 
 LOGGER = logging.getLogger(__name__)
 
-DATA_LOADER = FB15k237Loader()#FB15k237Loader()
+DATA_LOADER = KinshipLoader()#FB15k237Loader()
 
 beta = 1.001
-DATASET = 'FB15k237'
-EXP_TYPE = 'bl'
+DATASET = 'Kinship'
+EXP_TYPE = 'hybrid_1'
 REG_TYPE = 'method_7'
 
 SIM_THRESHOLD = 'None'
-NUM_PRETRAIN_STEPS = -1
+NUM_PRETRAIN_STEPS = 0
 OBJ_WEIGHT = 1.0
 SEQ_WEIGHT = 0.0
 REG_WEIGHT = 0.0
+EPSILON = 0.1
+USE_BALL = False
 
 DEVICE = '/GPU:0'
 MAX_STEPS = 10000000
@@ -51,16 +54,17 @@ ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
 ADD_TENSOR_SUMMARIES = False
 RELREG_ARGS = {'seq_threshold': 0.0,
-               'seq_lengths': [2, 3],
+               'seq_lengths': [2],
                'sim_threshold': 0.0}
 
 
-if EXP_TYPE == 'reg':
+if EXP_TYPE != 'bl':
     print('HI')
     #MODEL_NAME = 'bi_non_linear_{}_{}_with_{}_and_batch_size_{}_emb_size_{}'.format(EXP_TYPE, REG_TYPE, DATASET, BATCH_SIZE, EMB_SIZE)
     #MODEL_NAME = 'bi_non_linear_{}_on_{}_with_{}_and_batch_size_{}_emb_size_{}'.format(EXP_TYPE, DATASET, REG_TYPE, BATCH_SIZE, EMB_SIZE)
-    MODEL_NAME = 'ConvE_{}_{}_{}_reg-weight_{}_seq-weight_{}_sim-threshold_{}_emb_{}_batch_size_{}'.format(DATASET, EXP_TYPE, REG_TYPE, str(REG_WEIGHT), str(SEQ_WEIGHT), RELREG_ARGS['sim_threshold'], EMB_SIZE, BATCH_SIZE)
+    #MODEL_NAME = 'ConvE_{}_{}_{}_reg-weight_{}_seq-weight_{}_sim-threshold_{}_emb_{}_batch_size_{}'.format(DATASET, EXP_TYPE, REG_TYPE, str(REG_WEIGHT), str(SEQ_WEIGHT), RELREG_ARGS['sim_threshold'], EMB_SIZE, BATCH_SIZE)
     #MODEL_NAME = 'bilinear_{}_{}_{}_{}_None_emb_{}_batch_size_{}'.format(DATASET, EXP_TYPE, REG_WEIGHT, REG_TYPE, EMB_SIZE, BATCH_SIZE)
+    MODEL_NAME = 'ConvE_{}_{}_sim_threshold_{}_emb_size_{}_batch_size_{}'.format(DATASET, EXP_TYPE, RELREG_ARGS['sim_threshold'], EMB_SIZE, BATCH_SIZE)
 else:
     MODEL_NAME = 'ConvE_negative_sampling_{}_emb_{}_batch_size_{}'.format(DATASET, EMB_SIZE, BATCH_SIZE)
 
@@ -74,6 +78,11 @@ OBJ_LOSS_PATH = os.path.join(EVAL_PATH, 'obj_loss.txt')
 REG_LOSS_PATH = os.path.join(EVAL_PATH, 'reg_loss.txt')
 COLL_LOSS_PATH = os.path.join(EVAL_PATH, 'coll_loss.txt')
 SEQ_LOSS_PATH = os.path.join(EVAL_PATH, 'seq_loss.txt')
+ENTITY_EMB_PATH = os.path.join(WORKING_DIR, 'entity_embs.pkl')
+PRED_WEIGHTS_PATH = os.path.join(WORKING_DIR, 'pred_weights.txt')
+OUTPUT_BIAS_PATH = os.path.join(WORKING_DIR, 'output_bias.pkl')
+
+
 os.makedirs(EVAL_PATH, exist_ok=True)
 
 def _write_data_to_file(file_path, data):
@@ -84,6 +93,11 @@ def _write_data_to_file(file_path, data):
     with open(file_path, append_write) as handle:
         handle.write(str(data) + "\n")
 
+def save_obj(obj, fpath):
+    #directory = os.getcwd()
+    #fpath = os.path.join(directory, 'obj', name)
+    with open(fpath, 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
 def main():
     DATA_LOADER.create_tf_record_files(DATA_DIR, RELREG_ARGS)
@@ -119,16 +133,16 @@ def main():
             #})
 
     # Create dataset iterator initializers.
-    train_dataset = DATA_LOADER.train_dataset(
+    train_dataset, relreg_dataset = DATA_LOADER.train_dataset(
         DATA_DIR, BATCH_SIZE, RELREG_ARGS, include_inv_relations=True, buffer_size = 1024, prefetch_buffer_size = 16)
 
     dev_dataset = DATA_LOADER.dev_dataset(
-        DATA_DIR, BATCH_SIZE, include_inv_relations=True, buffer_size = 1024, prefetch_buffer_size = 16)
+        DATA_DIR, BATCH_SIZE, include_inv_relations=False, buffer_size = 1024, prefetch_buffer_size = 16)
     test_dataset = DATA_LOADER.test_dataset(
-        DATA_DIR, BATCH_SIZE, include_inv_relations=True, buffer_size = 1024, prefetch_buffer_size = 16)
+        DATA_DIR, BATCH_SIZE, include_inv_relations=False, buffer_size = 1024, prefetch_buffer_size = 16)
 
     train_iterator = train_dataset.make_one_shot_iterator()
-    #relreg_iterator = relreg_dataset.make_one_shot_iterator()
+    relreg_iterator = relreg_dataset.make_one_shot_iterator()
     dev_iterator = dev_dataset.make_initializable_iterator()
     test_iterator = test_dataset.make_initializable_iterator()
 
@@ -149,7 +163,7 @@ def main():
 
     # Obtain the dataset iterator handles.
     train_iterator_handle = session.run(train_iterator.string_handle())
-    #relreg_iterator_handle = session.run(relreg_iterator.string_handle())
+    relreg_iterator_handle = session.run(relreg_iterator.string_handle())
     dev_iterator_handle = session.run(dev_iterator.string_handle())
     test_iterator_handle = session.run(test_iterator.string_handle())
 
@@ -161,35 +175,24 @@ def main():
     session.run(dev_iterator.initializer)
     start_reg_step = None
     is_reg = False
-    #obj_pos_weight = POS_WEIGHT
-    #obj_neg_weight = NEG_WEIGHT
     obj_weight = OBJ_WEIGHT
     seq_weight = SEQ_WEIGHT
+    epsilon = EPSILON
+    use_ball = USE_BALL
     for step in range(MAX_STEPS):
-        #if step > 3000:
-            #seq_weight = .1
-         #   reg_weight = .1
-         #    reg_weight = min(.5, .1 * math.ceil((step - 50000.)/6081.))
-        #obj_neg_weight = 1.0 #* (.9999 ** (step))
-        #sim_threshold = 1.0 + .005 * step
-        """
-        if is_reg:
-            reg_weight = min(10.0, .01 * (beta ** (step - start_reg_step)))
-            #print("reg_weight is {}".format(reg_weight))
-        else:
-            baseline_weight = 1.0 #min(1., .01 * (float(1.001 ** (step - NUM_PRETRAIN_STEPS))))
-            reg_weight = 0.0 #min(1., .1 * (float(1.0001 ** (step - NUM_PRETRAIN_STEPS))))
-        #reg_weight = float(REG_WEIGHT) #* .98 ** (math.floor(step / 100))
-        """
+        if step > 9000:
+            use_ball = True
+
         feed_dict = {
             model.is_train: True,
             model.input_iterator_handle: train_iterator_handle,
-            #model.relreg_iterator_handle: relreg_iterator_handle,
-            #model.obj_pos_weight: obj_pos_weight,
-            #model.obj_neg_weight: obj_neg_weight,
-            #model.seq_weight: seq_weight,
+            model.relreg_iterator_handle: relreg_iterator_handle,
+            model.seq_weight: seq_weight,
             model.obj_weight: obj_weight,
-            #model.reg_weight: reg_weight, #* (float(1.0001 ** (step - 1000)) if step >= 1000 else 0.0),
+            model.epsilon: epsilon,
+            model.use_ball: use_ball,
+            #model.dist_weight: 0.0
+            model.reg_weight: reg_weight, #* (float(1.0001 ** (step - 1000)) if step >= 1000 else 0.0),
             #model.sim_threshold: sim_threshold
            }
 
@@ -202,11 +205,12 @@ def main():
                  model.reg_weighted_loss, model.train_op), feed_dict)
         else:
             summaries = None
-            loss, obj_loss, _ = session.run((model.collective_loss, 
+            loss, obj_loss, output_bias, _ = session.run((model.collective_loss, 
                                                                         model.obj_weighted_loss,
-             #                                                           model.reg_weighted_loss,
-              #                                                          model.seq_weighted_loss, 
-                                                                        model.train_op), 
+                                                                        model.variables['output_bias'],
+                           #                                             model.reg_weighted_loss,
+                            #                                            model.seq_weighted_loss, 
+                                                                        model.train_op),
                                                                         feed_dict)
         
         #if step > 0 and step % 1000== 0:
@@ -254,20 +258,28 @@ def main():
 
         # Evaluate, if necessary.
         if step % EVAL_STEPS == 0 and step > NUM_PRETRAIN_STEPS:
-            LOGGER.info('Running dev evaluation.')
-            session.run(dev_iterator.initializer)
-            ranking_and_hits(
-                model, EVAL_PATH, dev_iterator_handle,
-                'dev_evaluation', session)
+         #   LOGGER.info('Running dev evaluation.')
+          #  session.run(dev_iterator.initializer)
+           # ranking_and_hits(
+            #    model, EVAL_PATH, dev_iterator_handle,
+             #   'dev_evaluation', session)
             LOGGER.info('Running test evaluation.')
             session.run(test_iterator.initializer)
             ranking_and_hits(
                 model, EVAL_PATH, test_iterator_handle,
                 'test_evaluation', session)
+            #ranking_and_hits(
+             #   model, EVAL_PATH, train_iterator_handle,
+              #  'train_evaluation', session)
+            entity_embeddings = session.run(model.variables['ent_emb'])
+            save_obj(entity_embeddings, ENTITY_EMB_PATH)
+            save_obj(output_bias, OUTPUT_BIAS_PATH)
+
 
         if step % CKPT_STEPS == 0 and step > NUM_PRETRAIN_STEPS:
             LOGGER.info('Saving checkpoint at %s.', CKPT_PATH)
             saver.save(session, CKPT_PATH)
+
 
 
 if __name__ == '__main__':

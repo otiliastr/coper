@@ -47,6 +47,9 @@ class ConvE(object):
         self.obj_weight = tf.placeholder(tf.float32)
         self.reg_weight = tf.placeholder(tf.float32)
         self.seq_weight = tf.placeholder(tf.float32)
+        self.dist_weight = tf.placeholder(tf.float32)
+        self.epsilon = tf.placeholder(tf.float32)
+        self.use_ball = tf.placeholder(tf.bool)
         # Build the graph.
         self.input_iterator_handle = tf.placeholder(tf.string, shape=[])
         self.input_iterator = tf.data.Iterator.from_string_handle(
@@ -56,13 +59,15 @@ class ConvE(object):
                 'e2': tf.int64,
                 'rel': tf.int64,
                 'e2_multi': tf.float32,
-                'lookup_values': tf.float32},
+                #'lookup_values': tf.float32
+            },
             output_shapes={
                 'e1': [None],
                 'e2': [None],
                 'rel': [None],
                 'e2_multi': [None, self.num_ent],
-                'lookup_values': [None, self.num_ent]})
+                #'lookup_values': [None, self.num_ent]
+            })
 
         self.relreg_iterator_handle = tf.placeholder_with_default("", shape=[])
         self.relreg_iterator = tf.data.Iterator.from_string_handle(
@@ -77,7 +82,7 @@ class ConvE(object):
                 'seq_mask': tf.int64,
                 'rel_e2_multi': tf.float32,
                 'seq_e2_multi': tf.float32,
-                'lookup_values': tf.float32
+                #'lookup_values': tf.float32
             },
             output_shapes={
                 'e1': [None],
@@ -89,7 +94,7 @@ class ConvE(object):
                 'seq_mask': [None, 3],
                 'rel_e2_multi': [None, self.num_ent],
                 'seq_e2_multi': [None, self.num_ent],
-                'lookup_values': [None, self.num_ent]
+                #'lookup_values': [None, self.num_ent]
             })
 
         self.eval_iterator_handle = tf.placeholder(tf.string, shape=[])
@@ -119,7 +124,7 @@ class ConvE(object):
         self.e2 = self.next_input_sample['e2']
         #self.truth_scores = self.next_input_sample['truth_scores']
         self.e2_multi = self.next_input_sample['e2_multi']
-        self.obj_lookup_values = self.next_input_sample['lookup_values']
+        #self.obj_lookup_values = self.next_input_sample['lookup_values']
         # get reg samples
         self.reg_e1 = self.next_relreg_sample['e1']
         self.reg_rel = self.next_relreg_sample['rel']
@@ -131,7 +136,7 @@ class ConvE(object):
         self.reg_seq_mask = self.next_relreg_sample['seq_mask']
         self.reg_seq_e2_multi = self.next_relreg_sample['seq_e2_multi']
         self.reg_rel_e2_multi = self.next_relreg_sample['rel_e2_multi']
-        self.reg_lookup_values = self.next_relreg_sample['lookup_values']
+        #self.reg_lookup_values = self.next_relreg_sample['lookup_values']
         # get eval samples
         self.eval_e1 = self.next_eval_sample['e1']
         self.eval_rel = self.next_eval_sample['rel']
@@ -159,24 +164,30 @@ class ConvE(object):
         self.reg_sequence_probabilities = self._compute_likelihoods(self.reg_sequence_predictions)
 
         self.reg_rel_probabilities = self._compute_likelihoods(self._create_predictions(reg_e1_emb, reg_rel_emb))
-        reg_loss = self._match_rel_to_seq(self.reg_rel_probabilities, self.reg_sequence_probabilities)
+        reg_loss = self._comp_rest_with_seq(self.reg_rel_probabilities, self.reg_sequence_probabilities)
 
-        seq_loss = self._create_loss(self.reg_sequence_probabilities, self.reg_seq_e2_multi, self.reg_lookup_values)
+        batch_size = tf.shape(reg_e1_emb)[0]
+        ones = tf.ones([batch_size, self.num_ent], tf.float32)
+        seq_loss = self._create_loss(self.reg_sequence_probabilities, self.reg_seq_e2_multi, tf.ones([batch_size, self.num_ent], tf.float32))
 
         self.prediction_vector = self._create_predictions(conve_e1_emb, conve_rel_emb)
         self.predictions = self._compute_likelihoods(self.prediction_vector)
+       
+        self.eval_prediction_vector = self._create_predictions(eval_e1_emb, eval_rel_emb)
+        self.eval_predictions = self._compute_likelihoods(self.eval_prediction_vector)
 
-        self.eval_predictions = self._compute_likelihoods(self._create_predictions(eval_e1_emb, eval_rel_emb))
-
-        obj_loss = self._create_loss(self.predictions, self.e2_multi, self.obj_lookup_values)
+        candidates = self._find_candidates(self.epsilon)
+        weights = tf.cond(tf.equal(self.use_ball, False), lambda: ones, lambda: self._find_candidates(self.epsilon))
+        obj_loss = self._create_loss(self.predictions, self.e2_multi, weights)
         #struct_loss = self._create_struct_loss(source_struc_emb, target_struc_emb)
-
+        dist_loss = self.compute_distribution_loss(self.prediction_vector)
         # Combine the two losses according to the provided weights.
+        
         self.obj_weighted_loss = obj_loss * self.obj_weight
         self.reg_weighted_loss = reg_loss * self.reg_weight
         self.seq_weighted_loss = seq_loss * self.seq_weight
-        self.collective_loss = (
-            (self.obj_weighted_loss + self.reg_weighted_loss + self.seq_weighted_loss)) #+ 
+        self.dist_weighted_loss = dist_loss * self.dist_weight
+        self.collective_loss = self.obj_weighted_loss #+ self.reg_weighted_loss + self.seq_weighted_loss 
             #(struct_loss * self.struct_loss_weight))
 
         # The following control dependency is needed in order for batch
@@ -251,6 +262,12 @@ class ConvE(object):
 
 
     def _create_predictions(self, e1_emb, rel_emb):
+        e1_emb = tf.layers.batch_normalization(
+            e1_emb, momentum=0.1, reuse=tf.AUTO_REUSE,
+            training=False, fused=True, name='EntEmbBN')
+        rel_emb = tf.layers.batch_normalization(
+            rel_emb, momentum=0.1, reuse=tf.AUTO_REUSE,
+            training=False, fused=True, name='RelEmbBN')
         e1_emb = tf.reshape(e1_emb, [-1, 10, 20, 1])
         rel_emb = tf.reshape(rel_emb, [-1, 10, 20, 1])
 
@@ -295,15 +312,15 @@ class ConvE(object):
             fc_bn = tf.layers.batch_normalization(
                 fc_dropout, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE,
                 training=False, fused=True, name='FCBN')
-            fc_relu = tf.nn.relu(fc_bn)
+            #fc_relu = tf.nn.relu(fc_bn)
 
             if self._tensor_summaries:
                 _create_summaries('fc_result', fc)
                 _create_summaries('fc_with_dropout', fc_dropout)
                 _create_summaries('fc_with_batch_norm', fc_bn)
-                _create_summaries('fc_with_activation', fc_relu)
+                #_create_summaries('fc_with_activation', fc_relu)
         
-        return fc_relu
+        return fc_bn
 
     def _create_sequence_predictions(self, e1, rel_1, rel_2, rel_3):
         batch_size = tf.shape(rel_1)[0]
@@ -317,25 +334,32 @@ class ConvE(object):
 
         aggregate_predictions = tf.concat([seq1_predictions, seq2_predictions, seq3_predictions], 1)
         selected_predictions = tf.boolean_mask(aggregate_predictions, self.reg_seq_mask)
-        mean, var = tf.nn.moments(selected_predictions, [0, 1])
-        #selected_predictions = tf.Print(selected_predictions, [tf.reduce_max(selected_predictions), 
-         #                                                      tf.reduce_mean(selected_predictions),
-          #                                                     mean, var
-           #                                                   ])
         
         return selected_predictions
 
     def _compute_likelihoods(self, prediction_vector):
+        #batch_size = tf.shape(prediction_vector)[0]
+        prediction_relu = tf.nn.relu(prediction_vector)
+        #prediction_norm = tf.sqrt(tf.reduce_sum(prediction_relu * prediction_relu, 1))
+        #prediction_norm = tf.reshape(prediction_norm, [batch_size, 1])
+
+        #prediction_unit_norm = prediction_relu / prediction_norm
+        if self._tensor_summaries:
+            _create_summaries('fc_with_activation', prediction_relu)
+
         with tf.name_scope('output_layer'):
             ent_emb = self.variables['ent_emb']
             bias = self.variables['output_bias']
+            ent_emb = tf.layers.batch_normalization(
+            ent_emb, momentum=0.1, reuse=tf.AUTO_REUSE,
+            training=False, fused=True, name='CorEntEmbBN')
+            #ent_emb_norm = tf.sqrt( tf.reduce_sum(ent_emb * ent_emb, 1))
+            #ent_emb_norm = tf.reshape(ent_emb_norm, [self.num_ent, 1])
+            #ent_emb_unit_norm = ent_emb / ent_emb_norm
+             
             ent_emb_t = tf.transpose(ent_emb)
-            mean, var = tf.nn.moments(ent_emb_t, [0, 1])
-            #ent_emb_t = tf.Print(ent_emb_t, [tf.reduce_max(ent_emb_t), 
-             #                                                  tf.reduce_mean(ent_emb_t),
-              #                                                 mean, var
-               #                                               ])
-            predictions = tf.matmul(prediction_vector, ent_emb_t)
+     
+            predictions = tf.matmul(prediction_relu, ent_emb_t)
             predictions = predictions + bias
 
             if self._tensor_summaries:
@@ -355,11 +379,33 @@ class ConvE(object):
                 tf.summary.scalar('loss', semant_loss)
         return semant_loss
 
+    def _find_candidates(self, epsilon):
+        batch_size = tf.shape(self.predictions)[0]
+        min_correct_weight = tf.reduce_min(self.predictions * self.e2_multi, 1)
+        min_correct_weight = tf.reshape(min_correct_weight, [batch_size, 1])
+        lower_bound = self.predictions + epsilon
+        candidates = tf.greater_equal(lower_bound, min_correct_weight)
+        return tf.cast(candidates, tf.float32)
+
+    def _comp_rest_with_seq(self, relation_probs, sequence_probs):
+        batch_size = tf.shape(relation_probs)[0]
+        ones = tf.ones([batch_size, self.num_ent], tf.float32)
+        loss_weights = ones - self.reg_rel_e2_multi
+        elem_loss = tf.square(relation_probs - sequence_probs) * loss_weights
+        sample_loss = tf.reduce_sum(elem_loss, 1)
+        sample_loss = tf.reshape(sample_loss, [batch_size])
+        reg_similarity = tf.reshape(self.reg_sim, [batch_size])
+        total_loss = tf.reduce_mean(sample_loss * reg_similarity)
+        return total_loss
+
     def _match_rel_to_seq(self, relation_probs, sequence_probs):
         batch_size = tf.shape(relation_probs)[0]
+        ones = tf.ones([batch_size, self.num_ent], tf.float32)
+        loss_weights = ones - self.reg_rel_e2_multi
         #sequence_probs = tf.Print(sequence_probs, [sequence_probs], 'sequence_probs')
-        sequence_probs = tf.nn.sigmoid(sequence_probs)
+        #sequence_probs = tf.nn.sigmoid(sequence_probs)
         #sequence_probs = tf.Print(sequence_probs, [sequence_probs], 'sequence_probs')
+        
         reg_elem_loss = tf.losses.sigmoid_cross_entropy(
                     sequence_probs, relation_probs,
                     weights = tf.maximum(0., self.reg_seq_e2_multi - self.reg_rel_e2_multi),
@@ -373,6 +419,21 @@ class ConvE(object):
         reg_batch_weighted_loss = tf.nn.relu(reg_batch_weighted_loss)
         reg_loss = tf.reduce_sum(reg_batch_weighted_loss)
         return reg_loss
+
+    def compute_distribution_loss(self, prediction_vectors):
+        entity_embs = self.variables['ent_emb']
+        mean, variance = tf.nn.moments(prediction_vectors, 0)
+        ent_maxes = tf.reduce_max(entity_embs, 0)
+        ent_mins = tf.reduce_min(entity_embs, 0)
+        ent_mean = (ent_maxes + ent_mins) / 2.
+        ent_variance = tf.square(ent_maxes - ent_mins) / 12.
+        mean_loss = tf.reduce_sum(tf.square(mean - ent_mean))
+        variance_loss = tf.reduce_sum(tf.square(variance - ent_variance))
+        distribution_loss = mean_loss + variance_loss
+        return distribution_loss 
+
+    def cosine_match(self, rel_pred, seq_pred):
+        pass
 
     def log_parameters_info(self):
         """Logs the trainable parameters of this model,
