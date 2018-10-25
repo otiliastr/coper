@@ -94,7 +94,7 @@ class _DataLoader(Loader):
             directory, relreg_args, buffer_size=buffer_size)
 
         conve_files = filenames['train']
-        relreg_files = filenames['relreg']
+        #relreg_files = filenames['relreg']
 
         def map_fn(sample):
             sample = conve_parser(sample)
@@ -150,11 +150,11 @@ class _DataLoader(Loader):
                         block_length=batch_size) \
             .map(lambda s: map_fn(s), num_parallel_calls=num_parallel_batches)
 
-        relreg_data = tf.data.Dataset.from_tensor_slices(relreg_files) \
-             .interleave(tf.data.TFRecordDataset,
-                         cycle_length=num_parallel_readers,
-                         block_length=batch_size) \
-             .map(lambda s: relreg_map_fn(s), num_parallel_calls=num_parallel_batches)
+        #relreg_data = tf.data.Dataset.from_tensor_slices(relreg_files) \
+         #    .interleave(tf.data.TFRecordDataset,
+          #               cycle_length=num_parallel_readers,
+           #              block_length=batch_size) \
+            # .map(lambda s: relreg_map_fn(s), num_parallel_calls=num_parallel_batches)
 
         if not include_inv_relations:
             conve_data = conve_data.filter(filter_inv_relations)
@@ -166,7 +166,7 @@ class _DataLoader(Loader):
             obj_negative_sampling = lambda sample: self._sample_negatives(
                     sample,
                     prop_negatives=2.0,
-                    num_labels=10,
+                    num_labels=100,
                     is_reg = False)
             #reg_negative_sampling = lambda sample: self._sample_negatives(
              #       sample,
@@ -181,10 +181,10 @@ class _DataLoader(Loader):
             .batch(batch_size) \
             .prefetch(prefetch_buffer_size)
         
-        relreg_data = relreg_data \
-            .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000)) \
-            .batch(batch_size) \
-            .prefetch(prefetch_buffer_size)
+        #relreg_data = relreg_data \
+         #   .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000)) \
+          #  .batch(batch_size) \
+           # .prefetch(prefetch_buffer_size)
 
         """
         relreg_data = relreg_files.apply(tf.contrib.data.parallel_interleave(
@@ -198,7 +198,7 @@ class _DataLoader(Loader):
             .prefetch(prefetch_buffer_size)
         """
         
-        return conve_data, relreg_data
+        return conve_data, #relreg_data
 
     def dev_dataset(self,
                     directory,
@@ -768,6 +768,7 @@ class _DataLoader(Loader):
         #save_path = os.path.join(directory, 'sequence_similarities.pkl')
         print("The path is: {}".format(save_path))
         print("The directory is {}".format(directory))
+        """
         if relreg_args is not None and not os.path.exists(save_path): #os.path.exists(save_path):
             # Create edgelist
             e1_neighbors, e1e2_rel_map = self.get_neighbors_and_hashmap(json_files['train'], entity_ids, relation_ids)
@@ -788,7 +789,8 @@ class _DataLoader(Loader):
             json_files['relreg'] = rel_seq_path
         else:
             filetypes = ['train', 'dev', 'test']
-
+        """
+        filetypes = ['train', 'dev', 'test']
         tf_record_filenames = {}
         print("The filetypes are: {}".format(filetypes))
         for filetype in filetypes:

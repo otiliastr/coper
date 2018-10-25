@@ -19,10 +19,10 @@ from ..models.bilinear_reg import BiLinearReg
 
 LOGGER = logging.getLogger(__name__)
 
-DATA_LOADER = UMLSLoader()#FB15k237Loader()
+DATA_LOADER = FB15k237Loader()#FB15k237Loader()
 
 beta = 1.001
-DATASET = 'UMLS'
+DATASET = 'FB15k237'
 EXP_TYPE = 'hybrid_1'
 REG_TYPE = 'method_7'
 
@@ -133,7 +133,7 @@ def main():
             #})
 
     # Create dataset iterator initializers.
-    train_dataset, relreg_dataset = DATA_LOADER.train_dataset(
+    train_dataset = DATA_LOADER.train_dataset(
         DATA_DIR, BATCH_SIZE, RELREG_ARGS, include_inv_relations=True, buffer_size = 1024, prefetch_buffer_size = 16)
 
     dev_dataset = DATA_LOADER.dev_dataset(
@@ -142,7 +142,7 @@ def main():
         DATA_DIR, BATCH_SIZE, include_inv_relations=False, buffer_size = 1024, prefetch_buffer_size = 16)
 
     train_iterator = train_dataset.make_one_shot_iterator()
-    relreg_iterator = relreg_dataset.make_one_shot_iterator()
+    #relreg_iterator = relreg_dataset.make_one_shot_iterator()
     dev_iterator = dev_dataset.make_initializable_iterator()
     test_iterator = test_dataset.make_initializable_iterator()
 
@@ -163,7 +163,7 @@ def main():
 
     # Obtain the dataset iterator handles.
     train_iterator_handle = session.run(train_iterator.string_handle())
-    relreg_iterator_handle = session.run(relreg_iterator.string_handle())
+    #relreg_iterator_handle = session.run(relreg_iterator.string_handle())
     dev_iterator_handle = session.run(dev_iterator.string_handle())
     test_iterator_handle = session.run(test_iterator.string_handle())
 
@@ -183,7 +183,7 @@ def main():
         feed_dict = {
             model.is_train: True,
             model.input_iterator_handle: train_iterator_handle,
-            model.relreg_iterator_handle: relreg_iterator_handle,
+         #   model.relreg_iterator_handle: relreg_iterator_handle,
             model.seq_weight: seq_weight,
             model.obj_weight: obj_weight,
             model.epsilon: epsilon,
