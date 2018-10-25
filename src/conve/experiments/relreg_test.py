@@ -19,10 +19,10 @@ from ..models.bilinear_reg import BiLinearReg
 
 LOGGER = logging.getLogger(__name__)
 
-DATA_LOADER = KinshipLoader()#FB15k237Loader()
+DATA_LOADER = UMLSLoader()#FB15k237Loader()
 
 beta = 1.001
-DATASET = 'Kinship'
+DATASET = 'UMLS'
 EXP_TYPE = 'hybrid_1'
 REG_TYPE = 'method_7'
 
@@ -34,7 +34,7 @@ REG_WEIGHT = 0.0
 EPSILON = 0.1
 USE_BALL = False
 
-DEVICE = '/GPU:0'
+DEVICE = '/CPU:0'
 MAX_STEPS = 10000000
 LOG_STEPS = 100
 SUMMARY_STEPS = None
@@ -180,9 +180,6 @@ def main():
     epsilon = EPSILON
     use_ball = USE_BALL
     for step in range(MAX_STEPS):
-        if step > 9000:
-            use_ball = True
-
         feed_dict = {
             model.is_train: True,
             model.input_iterator_handle: train_iterator_handle,
@@ -205,8 +202,7 @@ def main():
                  model.reg_weighted_loss, model.train_op), feed_dict)
         else:
             summaries = None
-            loss, obj_loss, output_bias, _ = session.run((model.collective_loss, 
-                                                                        model.obj_weighted_loss,
+            loss, output_bias, _ = session.run((model.collective_loss,
                                                                         model.variables['output_bias'],
                            #                                             model.reg_weighted_loss,
                             #                                            model.seq_weighted_loss, 
@@ -226,9 +222,6 @@ def main():
         
         if step % LOG_LOSS == 0 and step > 0:
             # log loss weights
-            _write_data_to_file(OBJ_LOSS_PATH, obj_loss)
-            #_write_data_to_file(REG_LOSS_PATH, reg_loss)
-            #_write_data_to_file(SEQ_LOSS_PATH, seq_loss)
             _write_data_to_file(COLL_LOSS_PATH, loss)
         
         # Log the loss, if necessary.
@@ -240,7 +233,7 @@ def main():
              #                                            feed_dict= {model.eval_iterator_handle: dev_iterator_handle,
               #                                                       model.obj_weight: obj_weight})
             #LOGGER.info('Step %6d | Train Loss: %10.4f | Validation Loss: %10.4f | Obj Weight: %10.4f | Reg Weight: %10.4f', step, loss, valid_loss, baseline_weight, reg_weight)
-            train_loss = obj_loss
+            train_loss = loss
             #valid_loss = valid_pos_loss + valid_neg_loss
             LOGGER.info('Step %6d | Agg Loss: %10.4f | Train Loss %10.4f ', step, loss, train_loss)
             #if (valid_loss - prev_valid_loss > .0001) and start_reg_step is None:

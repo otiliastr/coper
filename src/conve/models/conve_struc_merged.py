@@ -59,14 +59,14 @@ class ConvE(object):
                 'e2': tf.int64,
                 'rel': tf.int64,
                 'e2_multi': tf.float32,
-                #'lookup_values': tf.float32
+                'lookup_values': tf.int32
             },
             output_shapes={
                 'e1': [None],
                 'e2': [None],
                 'rel': [None],
                 'e2_multi': [None, self.num_ent],
-                #'lookup_values': [None, self.num_ent]
+                'lookup_values': [None, None]
             })
 
         self.relreg_iterator_handle = tf.placeholder_with_default("", shape=[])
@@ -82,7 +82,7 @@ class ConvE(object):
                 'seq_mask': tf.int64,
                 'rel_e2_multi': tf.float32,
                 'seq_e2_multi': tf.float32,
-                #'lookup_values': tf.float32
+                'lookup_values': tf.int32
             },
             output_shapes={
                 'e1': [None],
@@ -94,7 +94,7 @@ class ConvE(object):
                 'seq_mask': [None, 3],
                 'rel_e2_multi': [None, self.num_ent],
                 'seq_e2_multi': [None, self.num_ent],
-                #'lookup_values': [None, self.num_ent]
+                'lookup_values': [None, None]
             })
 
         self.eval_iterator_handle = tf.placeholder(tf.string, shape=[])
@@ -124,7 +124,7 @@ class ConvE(object):
         self.e2 = self.next_input_sample['e2']
         #self.truth_scores = self.next_input_sample['truth_scores']
         self.e2_multi = self.next_input_sample['e2_multi']
-        #self.obj_lookup_values = self.next_input_sample['lookup_values']
+        self.obj_lookup_values = self.next_input_sample['lookup_values']
         # get reg samples
         self.reg_e1 = self.next_relreg_sample['e1']
         self.reg_rel = self.next_relreg_sample['rel']
@@ -136,7 +136,7 @@ class ConvE(object):
         self.reg_seq_mask = self.next_relreg_sample['seq_mask']
         self.reg_seq_e2_multi = self.next_relreg_sample['seq_e2_multi']
         self.reg_rel_e2_multi = self.next_relreg_sample['rel_e2_multi']
-        #self.reg_lookup_values = self.next_relreg_sample['lookup_values']
+        self.reg_lookup_values = self.next_relreg_sample['lookup_values']
         # get eval samples
         self.eval_e1 = self.next_eval_sample['e1']
         self.eval_rel = self.next_eval_sample['rel']
@@ -153,42 +153,15 @@ class ConvE(object):
         # eval embeddings
         eval_e1_emb = tf.nn.embedding_lookup(ent_emb, self.eval_e1, name='eval_e1_emb')
         eval_rel_emb = tf.nn.embedding_lookup(rel_emb, self.eval_rel, name='eval_rel_emb')
-        # regularization embeddings
-        reg_e1_emb = tf.nn.embedding_lookup(ent_emb, self.reg_e1, name='reg_e1_emb')
-        reg_rel_emb = tf.nn.embedding_lookup(rel_emb, self.reg_rel, name='reg_rel_emb')
-        reg_seq_0_emb = tf.nn.embedding_lookup(rel_emb, self.reg_seq_0)
-        reg_seq_1_emb = tf.nn.embedding_lookup(rel_emb, self.reg_seq_1)
-        reg_seq_2_emb = tf.nn.embedding_lookup(rel_emb, self.reg_seq_2)
-
-        self.reg_sequence_predictions = self._create_sequence_predictions(reg_e1_emb, reg_seq_0_emb, reg_seq_1_emb, reg_seq_2_emb)
-        self.reg_sequence_probabilities = self._compute_likelihoods(self.reg_sequence_predictions)
-
-        self.reg_rel_probabilities = self._compute_likelihoods(self._create_predictions(reg_e1_emb, reg_rel_emb))
-        reg_loss = self._comp_rest_with_seq(self.reg_rel_probabilities, self.reg_sequence_probabilities)
-
-        batch_size = tf.shape(reg_e1_emb)[0]
-        ones = tf.ones([batch_size, self.num_ent], tf.float32)
-        seq_loss = self._create_loss(self.reg_sequence_probabilities, self.reg_seq_e2_multi, tf.ones([batch_size, self.num_ent], tf.float32))
 
         self.prediction_vector = self._create_predictions(conve_e1_emb, conve_rel_emb)
-        self.predictions = self._compute_likelihoods(self.prediction_vector)
-       
+        self.predictions = self._compute_likelihoods(self.prediction_vector, self.obj_lookup_values)
+
         self.eval_prediction_vector = self._create_predictions(eval_e1_emb, eval_rel_emb)
         self.eval_predictions = self._compute_likelihoods(self.eval_prediction_vector)
 
-        candidates = self._find_candidates(self.epsilon)
-        weights = tf.cond(tf.equal(self.use_ball, False), lambda: ones, lambda: self._find_candidates(self.epsilon))
-        obj_loss = self._create_loss(self.predictions, self.e2_multi, weights)
-        #struct_loss = self._create_struct_loss(source_struc_emb, target_struc_emb)
-        dist_loss = self.compute_distribution_loss(self.prediction_vector)
-        # Combine the two losses according to the provided weights.
-        
-        self.obj_weighted_loss = obj_loss * self.obj_weight
-        self.reg_weighted_loss = reg_loss * self.reg_weight
-        self.seq_weighted_loss = seq_loss * self.seq_weight
-        self.dist_weighted_loss = dist_loss * self.dist_weight
-        self.collective_loss = self.obj_weighted_loss #+ self.reg_weighted_loss + self.seq_weighted_loss 
-            #(struct_loss * self.struct_loss_weight))
+        filtered_targets = tf.batch_gather(self.e2_multi, self.obj_lookup_values)
+        self.collective_loss = self._create_loss(self.predictions, filtered_targets)
 
         # The following control dependency is needed in order for batch
         # normalization to work correctly.
@@ -262,12 +235,6 @@ class ConvE(object):
 
 
     def _create_predictions(self, e1_emb, rel_emb):
-        e1_emb = tf.layers.batch_normalization(
-            e1_emb, momentum=0.1, reuse=tf.AUTO_REUSE,
-            training=False, fused=True, name='EntEmbBN')
-        rel_emb = tf.layers.batch_normalization(
-            rel_emb, momentum=0.1, reuse=tf.AUTO_REUSE,
-            training=False, fused=True, name='RelEmbBN')
         e1_emb = tf.reshape(e1_emb, [-1, 10, 20, 1])
         rel_emb = tf.reshape(rel_emb, [-1, 10, 20, 1])
 
@@ -312,7 +279,7 @@ class ConvE(object):
             fc_bn = tf.layers.batch_normalization(
                 fc_dropout, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE,
                 training=False, fused=True, name='FCBN')
-            #fc_relu = tf.nn.relu(fc_bn)
+            fc_relu = tf.nn.relu(fc_bn)
 
             if self._tensor_summaries:
                 _create_summaries('fc_result', fc)
@@ -320,7 +287,7 @@ class ConvE(object):
                 _create_summaries('fc_with_batch_norm', fc_bn)
                 #_create_summaries('fc_with_activation', fc_relu)
         
-        return fc_bn
+        return fc_relu
 
     def _create_sequence_predictions(self, e1, rel_1, rel_2, rel_3):
         batch_size = tf.shape(rel_1)[0]
@@ -337,43 +304,31 @@ class ConvE(object):
         
         return selected_predictions
 
-    def _compute_likelihoods(self, prediction_vector):
-        #batch_size = tf.shape(prediction_vector)[0]
-        prediction_relu = tf.nn.relu(prediction_vector)
-        #prediction_norm = tf.sqrt(tf.reduce_sum(prediction_relu * prediction_relu, 1))
-        #prediction_norm = tf.reshape(prediction_norm, [batch_size, 1])
-
-        #prediction_unit_norm = prediction_relu / prediction_norm
+    def _compute_likelihoods(self, prediction_relu, ent_indices=None):
         if self._tensor_summaries:
             _create_summaries('fc_with_activation', prediction_relu)
 
         with tf.name_scope('output_layer'):
-            ent_emb = self.variables['ent_emb']
-            bias = self.variables['output_bias']
-            ent_emb = tf.layers.batch_normalization(
-            ent_emb, momentum=0.1, reuse=tf.AUTO_REUSE,
-            training=False, fused=True, name='CorEntEmbBN')
-            #ent_emb_norm = tf.sqrt( tf.reduce_sum(ent_emb * ent_emb, 1))
-            #ent_emb_norm = tf.reshape(ent_emb_norm, [self.num_ent, 1])
-            #ent_emb_unit_norm = ent_emb / ent_emb_norm
-             
-            ent_emb_t = tf.transpose(ent_emb)
-     
-            predictions = tf.matmul(prediction_relu, ent_emb_t)
-            predictions = predictions + bias
-
+            if ent_indices is None:
+                ent_emb = self.variables['ent_emb']
+                ent_emb_t = tf.transpose(ent_emb)
+                predictions = tf.matmul(prediction_relu, ent_emb_t)
+                predictions = predictions + self.variables['output_bias']
+            else:
+                ent_emb = tf.gather(self.variables['ent_emb'], ent_indices) # Returns shape [BatchSize, NumSamples, EmbSize]
+                ent_emb_t = tf.transpose(ent_emb, [0, 2, 1])
+                predictions = tf.matmul(prediction_relu[:, None, :], ent_emb_t)[:, 0, :]
+                predictions = predictions + tf.gather(self.variables['output_bias'][0], ent_indices)
             if self._tensor_summaries:
                 _create_summaries('predictions', predictions)
-
         return predictions
 
-    def _create_loss(self, predictions, targets, lookup_values):
+    def _create_loss(self, predictions, targets):
         with tf.name_scope('loss'):
             semant_loss = tf.reduce_sum(
                 tf.losses.sigmoid_cross_entropy(
                     targets, predictions,
-                    label_smoothing=self.label_smoothing_epsilon,
-                    weights=lookup_values))
+                    label_smoothing=self.label_smoothing_epsilon))
 
             if self._loss_summaries:
                 tf.summary.scalar('loss', semant_loss)

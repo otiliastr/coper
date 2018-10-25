@@ -161,11 +161,12 @@ class _DataLoader(Loader):
    
         conve_data = conve_data.map(remove_is_inverse)
              
-        do_negative_sample = False
+        do_negative_sample = True
         if do_negative_sample:
             obj_negative_sampling = lambda sample: self._sample_negatives(
                     sample,
-                    prop_negatives = 2.0,
+                    prop_negatives=2.0,
+                    num_labels=10,
                     is_reg = False)
             #reg_negative_sampling = lambda sample: self._sample_negatives(
              #       sample,
@@ -262,7 +263,7 @@ class _DataLoader(Loader):
             .batch(batch_size) \
             .prefetch(prefetch_buffer_size)
 
-    def _sample_negatives(self, sample, prop_negatives=1.0, is_reg=False):
+    def _sample_negatives(self, sample, prop_negatives, num_labels, is_reg=False):
         if not is_reg:
             e1 = sample['e1']
             e2 = sample['e2']
@@ -283,19 +284,21 @@ class _DataLoader(Loader):
         one = tf.constant(1, dtype=tf.float32)
         correct_e2s = tf.where(tf.equal(e2_multi, one))[:, 0]
         wrong_e2s = tf.where(tf.equal(e2_multi, zero))[:, 0]
+        correct_e2s = tf.random_shuffle(correct_e2s)
         wrong_e2s = tf.random_shuffle(wrong_e2s)
         num_positives = tf.reduce_sum(e2_multi)#tf.cast(correct_e2s.shape[0], tf.float32)
-        num_negative_samples = tf.cast(tf.round(num_positives * prop_negatives), tf.int32)
-        num_negatives = tf.minimum(tf.shape(wrong_e2s)[0], num_negative_samples)
-        
-        wrong_e2s = wrong_e2s[:num_negatives]
-        indexes = tf.concat([correct_e2s, wrong_e2s], axis = 0)
-        indexes = tf.reshape(indexes, [tf.shape(indexes)[0], 1])
-        ones = tf.ones([tf.shape(indexes)[0]])
 
-        lookup_sparse = tf.SparseTensor(indices=indexes, values=ones, dense_shape=[self.num_ent])
-        lookup_values = tf.to_float(tf.sparse_tensor_to_dense(
-                           lookup_sparse, validate_indices=False))
+        # Collect the positive labels.
+        num_positives_needed = 1.0 / (1.0 + prop_negatives) * num_labels
+        num_positives = tf.cast(tf.minimum(num_positives, num_positives_needed), tf.int32)
+        correct_e2s = correct_e2s[:num_positives]
+
+        # Collect the negative labels.
+        num_negatives = num_labels - num_positives
+        wrong_e2s = wrong_e2s[:num_negatives]
+
+        indexes = tf.concat([correct_e2s, wrong_e2s], axis = 0)
+        lookup_values = tf.cast(indexes, tf.int32)
         
         if not is_reg:
             tensor = {
