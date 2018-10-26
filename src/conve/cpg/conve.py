@@ -27,6 +27,7 @@ def _create_summaries(name, tensor):
         tf.summary.scalar('min', tf.reduce_min(tensor))
         tf.summary.histogram('histogram', tensor)
 
+
 def batch_gather(params, indices, name=None):
     """Gather slices from `params` according to `indices` with leading batch dims.
     This operation assumes that the leading dimensions of `indices` are dense,
@@ -189,18 +190,19 @@ class ConvE(object):
                     'e2_multi1': [None, self.num_ent]
                 })
         
-        # get next samples from iterators
+        # Get the next samples from the training and the evaluation iterators.
         self.next_input_sample = self.input_iterator.get_next()
         self.next_eval_sample = self.eval_iterator.get_next()
-        # get obj samples
+
+        # Training Data
         self.is_train = tf.placeholder_with_default(False, shape=[])
         self.e1 = self.next_input_sample['e1']
         self.rel = self.next_input_sample['rel']
         self.e2 = self.next_input_sample['e2']
-        #self.truth_scores = self.next_input_sample['truth_scores']
         self.e2_multi = self.next_input_sample['e2_multi']
         self.obj_lookup_values = self.next_input_sample['lookup_values']
-        # get eval samples
+
+        # Evaluation Data
         self.eval_e1 = self.next_eval_sample['e1']
         self.eval_rel = self.next_eval_sample['rel']
         self.eval_e2 = self.next_eval_sample['e2']
@@ -255,7 +257,7 @@ class ConvE(object):
             name='conv1_bias', dtype=tf.float32,
             shape=[32], initializer=tf.zeros_initializer())
 
-        fc_input_size = 4608 # 10368
+        fc_input_size = 2048
         if self.concat_rel:
             fc_input_size += self.emb_size
 

@@ -327,4 +327,3 @@ class ConvE(object):
             LOGGER.info('\t%s %s' % (variable.name, variable.shape))
             num_parameters += variable.shape.num_elements()
         LOGGER.info('Number of trainable parameters: %d' % num_parameters)
-
