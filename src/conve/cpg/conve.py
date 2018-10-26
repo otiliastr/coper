@@ -295,8 +295,8 @@ class ConvE(object):
         if self.context_rel_out is not None:
             fc_weights = ContextualParameterGenerator(
                 context_size=[self.rel_emb_size] + self.context_rel_out, 
-                name='fc_weights', 
-                dtype=tf.float32, 
+                name='fc_weights',
+                dtype=tf.float32,
                 shape=[fc_input_size, self.ent_emb_size],
                 dropout=self.context_rel_dropout,
                 use_batch_norm=self.context_rel_use_batch_norm,
@@ -377,11 +377,12 @@ class ConvE(object):
                         input=pair[0][None], filter=pair[1],
                         strides=[1, 1, 1, 1], padding='VALID')[0], tf.zeros([]))
                 conv1 = tf.map_fn(fn=conv, elems=(stacked_emb, weights))[0]
+                conv1_plus_bias = conv1 + bias[:, None, None, :]
             else:
                 conv1 = tf.nn.conv2d(
                     input=stacked_emb, filter=weights,
                     strides=[1, 1, 1, 1], padding='VALID')
-            conv1_plus_bias = conv1 + bias[:, None, None, :]
+                conv1_plus_bias = conv1 + bias
             conv1_bn = tf.layers.batch_normalization(
                 conv1_plus_bias, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE,
                 training=False, fused=True, name='Conv1BN')
