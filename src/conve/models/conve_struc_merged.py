@@ -154,71 +154,43 @@ class ConvE(object):
         self.epsilon = tf.placeholder(tf.float32)
         self.use_ball = tf.placeholder(tf.bool)
         # Build the graph.
-        self.input_iterator_handle = tf.placeholder(tf.string, shape=[])
-        self.input_iterator = tf.data.Iterator.from_string_handle(
-            self.input_iterator_handle,
-            output_types={
-                'e1': tf.int64,
-                'e2': tf.int64,
-                'rel': tf.int64,
-                'e2_multi': tf.float32,
-                'lookup_values': tf.int32
-            },
-            output_shapes={
-                'e1': [None],
-                'e2': [None],
-                'rel': [None],
-                'e2_multi': [None, self.num_ent],
-                'lookup_values': [None, None]
-            })
+        with tf.device('/CPU:0'):
+            self.input_iterator_handle = tf.placeholder(tf.string, shape=[])
+            self.input_iterator = tf.data.Iterator.from_string_handle(
+                self.input_iterator_handle,
+                output_types={
+                    'e1': tf.int64,
+                    'e2': tf.int64,
+                    'rel': tf.int64,
+                    'e2_multi': tf.float32,
+                    'lookup_values': tf.int32
+                },
+                output_shapes={
+                    'e1': [None],
+                    'e2': [None],
+                    'rel': [None],
+                    'e2_multi': [None, self.num_ent],
+                    'lookup_values': [None, None]
+                })
 
-        self.relreg_iterator_handle = tf.placeholder_with_default("", shape=[])
-        self.relreg_iterator = tf.data.Iterator.from_string_handle(
-            self.relreg_iterator_handle,
-            output_types={
-                'e1': tf.int64,
-                'rel': tf.int64,
-                'seq_0': tf.int64,
-                'seq_1': tf.int64,
-                'seq_2': tf.int64,
-                'sim': tf.float32,
-                'seq_mask': tf.int64,
-                'rel_e2_multi': tf.float32,
-                'seq_e2_multi': tf.float32,
-                'lookup_values': tf.int32
-            },
-            output_shapes={
-                'e1': [None],
-                'rel': [None],
-                'seq_0': [None],
-                'seq_1': [None],
-                'seq_2': [None],
-                'sim': [None],
-                'seq_mask': [None, 3],
-                'rel_e2_multi': [None, self.num_ent],
-                'seq_e2_multi': [None, self.num_ent],
-                'lookup_values': [None, None]
-            })
-
-        self.eval_iterator_handle = tf.placeholder(tf.string, shape=[])
-        self.eval_iterator = tf.data.Iterator.from_string_handle(
-            self.eval_iterator_handle,
-            output_types={
-                'e1': tf.int64,
-                'rel': tf.int64,
-                'e2': tf.int64,
-                'e2_multi1': tf.float32},
-                #'truth_scores': tf.float32},
-            output_shapes={
-                'e1': [None],
-                'rel': [None],
-                'e2': [None],
-                'e2_multi1': [None, self.num_ent]
-            })
+            self.eval_iterator_handle = tf.placeholder(tf.string, shape=[])
+            self.eval_iterator = tf.data.Iterator.from_string_handle(
+                self.eval_iterator_handle,
+                output_types={
+                    'e1': tf.int64,
+                    'rel': tf.int64,
+                    'e2': tf.int64,
+                    'e2_multi1': tf.float32},
+                    #'truth_scores': tf.float32},
+                output_shapes={
+                    'e1': [None],
+                    'rel': [None],
+                    'e2': [None],
+                    'e2_multi1': [None, self.num_ent]
+                })
         
         # get next samples from iterators
         self.next_input_sample = self.input_iterator.get_next()
-        self.next_relreg_sample = self.relreg_iterator.get_next()
         self.next_eval_sample = self.eval_iterator.get_next()
         # get obj samples
         self.is_train = tf.placeholder_with_default(False, shape=[])
@@ -228,18 +200,6 @@ class ConvE(object):
         #self.truth_scores = self.next_input_sample['truth_scores']
         self.e2_multi = self.next_input_sample['e2_multi']
         self.obj_lookup_values = self.next_input_sample['lookup_values']
-        # get reg samples
-        self.reg_e1 = self.next_relreg_sample['e1']
-        self.reg_rel = self.next_relreg_sample['rel']
-        self.reg_seq_0 = self.next_relreg_sample['seq_0']
-        self.reg_seq_1 = self.next_relreg_sample['seq_1']
-        self.reg_seq_2 = self.next_relreg_sample['seq_2']
-        self.reg_sim = self.next_relreg_sample['sim']
-        #self.reg_agg_sim = self.next_relreg_sample['agg_sim']
-        self.reg_seq_mask = self.next_relreg_sample['seq_mask']
-        self.reg_seq_e2_multi = self.next_relreg_sample['seq_e2_multi']
-        self.reg_rel_e2_multi = self.next_relreg_sample['rel_e2_multi']
-        self.reg_lookup_values = self.next_relreg_sample['lookup_values']
         # get eval samples
         self.eval_e1 = self.next_eval_sample['e1']
         self.eval_rel = self.next_eval_sample['rel']
