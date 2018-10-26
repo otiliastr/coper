@@ -202,24 +202,12 @@ def main():
                  model.reg_weighted_loss, model.train_op), feed_dict)
         else:
             summaries = None
-            loss, output_bias, _ = session.run((model.collective_loss,
-                                                                        model.variables['output_bias'],
+            loss, _ = session.run((model.collective_loss,
                            #                                             model.reg_weighted_loss,
                             #                                            model.seq_weighted_loss, 
                                                                         model.train_op),
                                                                         feed_dict)
-        
-        #if step > 0 and step % 1000== 0:
-         #   rel_emb = session.run(model.variables['rel_emb'])
-            #print("THE SHAPE OF REL_EMB IS {}".format(rel_emb.shape))
-            #BUG
-            #with open(REL_EMBEDDING_PATH, 'w+') as handle:
-             #   for line in rel_emb:
-              #     write_line = " ".join(line)
-               #    handle.write(write_line + "\n")
 
-          #  np.savetxt(REL_EMBEDDING_PATH, rel_emb, delimiter = " ")
-        
         if step % LOG_LOSS == 0 and step > 0:
             # log loss weights
             _write_data_to_file(COLL_LOSS_PATH, loss)
@@ -266,7 +254,6 @@ def main():
               #  'train_evaluation', session)
             entity_embeddings = session.run(model.variables['ent_emb'])
             save_obj(entity_embeddings, ENTITY_EMB_PATH)
-            save_obj(output_bias, OUTPUT_BIAS_PATH)
 
 
         if step % CKPT_STEPS == 0 and step > NUM_PRETRAIN_STEPS:

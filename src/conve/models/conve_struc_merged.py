@@ -28,6 +28,8 @@ def _create_summaries(name, tensor):
 
 class ConvE(object):
     def __init__(self, model_descriptors):
+        self.concat_rel = model_descriptors.get('concat_rel', False)
+
         self.label_smoothing_epsilon = model_descriptors['label_smoothing_epsilon']
 
         self.num_ent = model_descriptors['num_ent']
@@ -188,17 +190,18 @@ class ConvE(object):
         conv1_bias = tf.get_variable(
             name='conv1_bias', dtype=tf.float32,
             shape=[32], initializer=tf.zeros_initializer())
+
+        fc_input_size = 10368
+        if self.concat_rel:
+            fc_input_size += self.emb_size
+
         fc_weights = tf.get_variable(
             name='fc_weights', dtype=tf.float32,
-            shape=[10368, self.emb_size],
+            shape=[fc_input_size, self.emb_size],
             initializer=tf.contrib.layers.xavier_initializer())
         fc_bias = tf.get_variable(
             name='fc_bias', dtype=tf.float32,
             shape=[self.emb_size], initializer=tf.zeros_initializer())
-
-        output_bias = tf.get_variable(
-            name='output_bias', dtype=tf.float32,
-            shape=[1, self.num_ent], initializer=tf.zeros_initializer())
 
         structure_weights = tf.get_variable(
             name='structure_weights', dtype=tf.float32,
@@ -215,7 +218,6 @@ class ConvE(object):
             'conv1_bias': conv1_bias,
             'fc_weights': fc_weights,
             'fc_bias': fc_bias,
-            'output_bias': output_bias,
             'structure_weights': structure_weights,
             'structure_bias': structure_bias}
 
@@ -226,7 +228,6 @@ class ConvE(object):
             _create_summaries('predictions/conv1_bias', conv1_bias)
             _create_summaries('predictions/fc_weights', fc_weights)
             _create_summaries('predictions/fc_bias', fc_bias)
-            _create_summaries('predictions/output_bias', output_bias)
             _create_summaries('structure/weights', structure_weights)
             _create_summaries('structure/bias', structure_bias)
         
@@ -273,13 +274,16 @@ class ConvE(object):
             bias = self.variables['fc_bias']
             batch_size = tf.shape(conv1_dropout)[0]
             fc_input = tf.reshape(conv1_dropout, [batch_size, -1])
+
+            if self.concat_rel:
+                fc_input = tf.concat([fc_input, tf.reshape(rel_emb, [-1, 200])], axis=1)
+
             fc = tf.matmul(fc_input, weights) + bias
             fc_dropout = tf.nn.dropout(
                 fc, 1 - (self.output_dropout * is_train_float))
             fc_bn = tf.layers.batch_normalization(
                 fc_dropout, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE,
                 training=False, fused=True, name='FCBN')
-            fc_relu = tf.nn.relu(fc_bn)
 
             if self._tensor_summaries:
                 _create_summaries('fc_result', fc)
@@ -287,7 +291,7 @@ class ConvE(object):
                 _create_summaries('fc_with_batch_norm', fc_bn)
                 #_create_summaries('fc_with_activation', fc_relu)
         
-        return fc_relu
+        return fc_bn
 
     def _create_sequence_predictions(self, e1, rel_1, rel_2, rel_3):
         batch_size = tf.shape(rel_1)[0]
@@ -313,12 +317,10 @@ class ConvE(object):
                 ent_emb = self.variables['ent_emb']
                 ent_emb_t = tf.transpose(ent_emb)
                 predictions = tf.matmul(prediction_relu, ent_emb_t)
-                predictions = predictions + self.variables['output_bias']
             else:
                 ent_emb = tf.gather(self.variables['ent_emb'], ent_indices) # Returns shape [BatchSize, NumSamples, EmbSize]
                 ent_emb_t = tf.transpose(ent_emb, [0, 2, 1])
                 predictions = tf.matmul(prediction_relu[:, None, :], ent_emb_t)[:, 0, :]
-                predictions = predictions + tf.gather(self.variables['output_bias'][0], ent_indices)
             if self._tensor_summaries:
                 _create_summaries('predictions', predictions)
         return predictions
