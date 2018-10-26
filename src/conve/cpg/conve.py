@@ -259,8 +259,8 @@ class ConvE(object):
                 use_batch_norm=self.context_rel_use_batch_norm,
                 initializer=tf.contrib.layers.xavier_initializer())
             conv1_bias = ContextualParameterGenerator(
-                context_size=[self.rel_emb_size] + self.context_rel_conv, 
-                name='conv1_bias', 
+                context_size=[self.rel_emb_size] + self.context_rel_conv,
+                name='conv1_bias',
                 dtype=tf.float32,
                 shape=[32],
                 dropout=self.context_rel_dropout,
