@@ -132,19 +132,19 @@ def main():
                 #'lr': 0.001
             #})
 
-    # Create dataset iterator initializers.
-    train_dataset = DATA_LOADER.train_dataset(
-        DATA_DIR, BATCH_SIZE, RELREG_ARGS, include_inv_relations=True, buffer_size = 1024, prefetch_buffer_size = 16)
+        # Create dataset iterator initializers.
+        train_dataset = DATA_LOADER.train_dataset(
+            DATA_DIR, BATCH_SIZE, RELREG_ARGS, include_inv_relations=True, buffer_size = 1024, prefetch_buffer_size = 16)
 
-    dev_dataset = DATA_LOADER.dev_dataset(
-        DATA_DIR, BATCH_SIZE, include_inv_relations=False, buffer_size = 1024, prefetch_buffer_size = 16)
-    test_dataset = DATA_LOADER.test_dataset(
-        DATA_DIR, BATCH_SIZE, include_inv_relations=False, buffer_size = 1024, prefetch_buffer_size = 16)
+        dev_dataset = DATA_LOADER.dev_dataset(
+            DATA_DIR, BATCH_SIZE, include_inv_relations=False, buffer_size = 1024, prefetch_buffer_size = 16)
+        test_dataset = DATA_LOADER.test_dataset(
+            DATA_DIR, BATCH_SIZE, include_inv_relations=False, buffer_size = 1024, prefetch_buffer_size = 16)
 
-    train_iterator = train_dataset.make_one_shot_iterator()
-    #relreg_iterator = relreg_dataset.make_one_shot_iterator()
-    dev_iterator = dev_dataset.make_initializable_iterator()
-    test_iterator = test_dataset.make_initializable_iterator()
+        train_iterator = train_dataset.make_one_shot_iterator()
+        #relreg_iterator = relreg_dataset.make_one_shot_iterator()
+        dev_iterator = dev_dataset.make_initializable_iterator()
+        test_iterator = test_dataset.make_initializable_iterator()
 
     # Log some information.
     LOGGER.info('Number of entities: %d', DATA_LOADER.num_ent)
