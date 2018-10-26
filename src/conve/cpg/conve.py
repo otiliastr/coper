@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import logging
+import math
 import tensorflow as tf
 
 from functools import reduce
@@ -140,6 +141,10 @@ class ConvE(object):
         self.ent_emb_size = model_descriptors['ent_emb_size']
         self.rel_emb_size = model_descriptors['rel_emb_size']
 
+        self.conv_filter_height = model_descriptors.get('conv_filter_height', 3)
+        self.conv_filter_width = model_descriptors.get('conv_filter_width', 3)
+        self.conv_num_channels = model_descriptors.get('conv_num_channels', 32)
+
         self.concat_rel = model_descriptors.get('concat_rel', False)
         self.context_rel_conv = model_descriptors.get('context_rel_conv', None)
         self.context_rel_out = model_descriptors.get('context_rel_out', None)
@@ -254,7 +259,7 @@ class ConvE(object):
                 context_size=[self.rel_emb_size] + self.context_rel_conv, 
                 name='conv1_weights',
                 dtype=tf.float32,
-                shape=[3, 3, 1, 32],
+                shape=[self.conv_filter_height, self.conv_filter_width, 1, self.conv_num_channels],
                 dropout=self.context_rel_dropout,
                 use_batch_norm=self.context_rel_use_batch_norm,
                 initializer=tf.contrib.layers.xavier_initializer())
@@ -262,20 +267,28 @@ class ConvE(object):
                 context_size=[self.rel_emb_size] + self.context_rel_conv,
                 name='conv1_bias',
                 dtype=tf.float32,
-                shape=[32],
+                shape=[self.conv_num_channels],
                 dropout=self.context_rel_dropout,
                 use_batch_norm=self.context_rel_use_batch_norm,
                 initializer=tf.zeros_initializer())
         else:
             conv1_weights = tf.get_variable(
                 name='conv1_weights', dtype=tf.float32,
-                shape=[3, 3, 1, 32],
+                shape=[self.conv_filter_height, self.conv_filter_width, 1, self.conv_num_channels],
                 initializer=tf.contrib.layers.xavier_initializer())
             conv1_bias = tf.get_variable(
                 name='conv1_bias', dtype=tf.float32,
-                shape=[32], initializer=tf.zeros_initializer())
+                shape=[self.conv_num_channels], initializer=tf.zeros_initializer())
+        
+        # Calculating the size of the convolution layer output.
+        conv_in_height = 10
+        conv_in_width = self.ent_emb_size // 10
+        if self.context_rel_conv is None and self.context_rel_out is None:
+            conv_in_width += self.rel_emb_size // 10
+        conv_out_height = math.ceil(float(conv_in_height - self.conv_filter_height + 1))
+        conv_out_width = math.ceil(float(conv_in_width - self.conv_filter_width + 1))
 
-        fc_input_size = 4608
+        fc_input_size = conv_out_height * conv_out_width * self.conv_num_channels
         if self.concat_rel:
             fc_input_size += self.rel_emb_size
 
