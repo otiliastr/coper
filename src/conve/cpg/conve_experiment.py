@@ -13,9 +13,11 @@ LOGGER = logging.getLogger(__name__)
 
 DATA_LOADER = UMLSLoader()
 
-EMB_SIZE = 100
-CONCAT_REL = False   # Set to `False` for plain ConvE
-CONTEXT_REL = [100]  # Set to `None` for plain ConvE
+ENT_EMB_SIZE = 200
+REL_EMB_SIZE = 50
+CONCAT_REL = False     # Set to `False` for plain ConvE
+CONTEXT_REL_CONV = []  # Set to `None` for plain ConvE
+CONTEXT_REL_OUT = None # Set to `None` for plain ConvE
 
 CONTEXT_REL_DROPOUT = 0.5
 CONTEXT_REL_USE_BATCH_NORM = False
@@ -45,7 +47,7 @@ ADD_LOSS_SUMMARIES = True
 ADD_VARIABLE_SUMMARIES = False
 ADD_TENSOR_SUMMARIES = False
 
-MODEL_NAME = 'ConvE_negative_sampling_{}_emb_{}_batch_size_{}'.format(DATA_LOADER.dataset_name, EMB_SIZE, BATCH_SIZE)
+MODEL_NAME = 'ConvE_negative_sampling_{}_ent_emb_{}_rel_emb_{}_batch_size_{}'.format(DATA_LOADER.dataset_name, ENT_EMB_SIZE, REL_EMB_SIZE, BATCH_SIZE)
 
 WORKING_DIR = os.path.join(os.getcwd(), 'temp')
 DATA_DIR = os.path.join(WORKING_DIR, 'data')
@@ -68,7 +70,13 @@ if __name__ == '__main__':
                 'label_smoothing_epsilon': LABEL_SMOOTHING_EPSILON,
                 'num_ent': DATA_LOADER.num_ent,
                 'num_rel': DATA_LOADER.num_rel,
-                'emb_size': EMB_SIZE,
+                'ent_emb_size': ENT_EMB_SIZE,
+                'rel_emb_size': REL_EMB_SIZE,
+                'concat_rel': CONCAT_REL,
+                'context_rel_conv': CONTEXT_REL_CONV,
+                'context_rel_out': CONTEXT_REL_OUT,
+                'context_rel_dropout': CONTEXT_REL_DROPOUT,
+                'context_rel_use_batch_norm': CONTEXT_REL_USE_BATCH_NORM,
                 'input_dropout': INPUT_DROPOUT,
                 'hidden_dropout': FEATURE_MAP_DROPOUT,
                 'output_dropout': OUTPUT_DROPOUT,
@@ -76,12 +84,7 @@ if __name__ == '__main__':
                 'batch_size': BATCH_SIZE,
                 'add_loss_summaries': ADD_LOSS_SUMMARIES,
                 'add_variable_summaries': ADD_VARIABLE_SUMMARIES,
-                'add_tensor_summaries': ADD_TENSOR_SUMMARIES,
-                'embedding_dim': 200,
-                'concat_rel': CONCAT_REL,
-                'context_rel': CONTEXT_REL,
-                'context_rel_dropout': CONTEXT_REL_DROPOUT,
-                'context_rel_use_batch_norm': CONTEXT_REL_USE_BATCH_NORM})
+                'add_tensor_summaries': ADD_TENSOR_SUMMARIES})
 
     # Create dataset iterator initializers.
     train_dataset = DATA_LOADER.train_dataset(
