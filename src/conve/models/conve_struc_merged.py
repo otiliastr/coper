@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
 import logging
-import math
 import tensorflow as tf
 
 from functools import reduce
@@ -89,10 +88,12 @@ def batch_gather(params, indices, name=None):
 
 
 class ContextualParameterGenerator(object):
-    def __init__(self, context_size, name, dtype, shape, initializer):
+    def __init__(self, context_size, name, dtype, shape, initializer, dropout=0.5, use_batch_norm=False):
         self.name = name
         self.dtype = dtype
         self.shape = shape
+        self.dropout = dropout
+        self.use_batch_norm = use_batch_norm
         self.num_elements = reduce(mul, self.shape, 1)
 
         # Create the projection matrices.
@@ -107,12 +108,19 @@ class ContextualParameterGenerator(object):
                     initializer=initializer))
             in_size = n
 
-    def generate(self, context):
+    def generate(self, context, is_train):
         # Generate the parameter values.
         generated_value = context
-        for projection in self.projections[:-1]:
+        for i, projection in enumerate(self.projections[:-1]):
             generated_value = tf.matmul(generated_value, projection)
+            if self.use_batch_norm:
+                generated_value = tf.layers.batch_normalization(
+                    generated_value, momentum=0.1, scale=False, reuse=tf.AUTO_REUSE,
+                    training=False, fused=True, name='%s/CPG/Projection%d/BatchNorm' % (self.name, i))
             generated_value = tf.nn.relu(generated_value)
+            generated_value = tf.nn.dropout(
+                generated_value, 1 - (self.dropout * tf.cast(is_train, tf.float32)))
+
         generated_value = tf.matmul(generated_value, self.projections[-1])
 
         # Reshape and cast to the requested type.
@@ -124,9 +132,6 @@ class ContextualParameterGenerator(object):
 
 class ConvE(object):
     def __init__(self, model_descriptors):
-        self.concat_rel = model_descriptors.get('concat_rel', False)
-        self.context_rel = model_descriptors.get('context_rel', [8])
-
         self.label_smoothing_epsilon = model_descriptors['label_smoothing_epsilon']
 
         self.num_ent = model_descriptors['num_ent']
@@ -134,7 +139,9 @@ class ConvE(object):
         self.emb_size = model_descriptors['emb_size']
 
         self.concat_rel = model_descriptors.get('concat_rel', False)
-        self.context_rel = model_descriptors.get('context_rel', [self.emb_size, 8])
+        self.context_rel = model_descriptors.get('context_rel', None)
+        self.context_rel_dropout = model_descriptors.get('context_rel_dropout', 0.0)
+        self.context_rel_use_batch_norm = model_descriptors.get('context_rel_use_batch_norm', False)
 
         self.input_dropout = model_descriptors['input_dropout']
         self.hidden_dropout = model_descriptors['hidden_dropout']
@@ -146,13 +153,7 @@ class ConvE(object):
 
         learning_rate = model_descriptors['learning_rate']
         optimizer = AMSGradOptimizer(learning_rate)
-       
-        self.obj_weight = tf.placeholder(tf.float32)
-        self.reg_weight = tf.placeholder(tf.float32)
-        self.seq_weight = tf.placeholder(tf.float32)
-        self.dist_weight = tf.placeholder(tf.float32)
-        self.epsilon = tf.placeholder(tf.float32)
-        self.use_ball = tf.placeholder(tf.bool)
+
         # Build the graph.
         with tf.device('/CPU:0'):
             self.input_iterator_handle = tf.placeholder(tf.string, shape=[])
@@ -181,7 +182,6 @@ class ConvE(object):
                     'rel': tf.int64,
                     'e2': tf.int64,
                     'e2_multi1': tf.float32},
-                    #'truth_scores': tf.float32},
                 output_shapes={
                     'e1': [None],
                     'rel': [None],
@@ -224,13 +224,13 @@ class ConvE(object):
         self.eval_predictions = self._compute_likelihoods(self.eval_prediction_vector)
 
         filtered_targets = batch_gather(self.e2_multi, self.obj_lookup_values)
-        self.collective_loss = self._create_loss(self.predictions, filtered_targets)
+        self.loss = self._create_loss(self.predictions, filtered_targets)
 
         # The following control dependency is needed in order for batch
         # normalization to work correctly.
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
-            self.train_op = optimizer.minimize(self.collective_loss)
+            self.train_op = optimizer.minimize(self.loss)
         self.summaries = tf.summary.merge_all()
 
     def _create_variables(self):
@@ -265,12 +265,16 @@ class ConvE(object):
                 name='fc_weights', 
                 dtype=tf.float32, 
                 shape=[fc_input_size, self.emb_size],
+                dropout=self.context_rel_dropout,
+                use_batch_norm=self.context_rel_use_batch_norm,
                 initializer=tf.contrib.layers.xavier_initializer())
             fc_bias = ContextualParameterGenerator(
                 context_size=rel_emb_size, 
                 name='fc_bias', 
-                dtype=tf.float32, 
+                dtype=tf.float32,
                 shape=[self.emb_size],
+                dropout=self.context_rel_dropout,
+                use_batch_norm=self.context_rel_use_batch_norm,
                 initializer=tf.zeros_initializer())
         else:
             fc_weights = tf.get_variable(
@@ -299,22 +303,22 @@ class ConvE(object):
         
         return variables
 
-    def _get_fc_params(self, rel_emb):
+    def _get_fc_params(self, rel_emb, is_train):
         weights = self.variables['fc_weights']
         bias = self.variables['fc_bias']
         if self.context_rel is not None:
-            weights = weights.generate(rel_emb)
-            bias = bias.generate(rel_emb)
+            weights = weights.generate(rel_emb, is_train)
+            bias = bias.generate(rel_emb, is_train)
         return (weights, bias)
 
     def _create_predictions(self, e1_emb, rel_emb):
         if self.context_rel is None:
-            s = self.emb_size / 10
+            s = int(self.emb_size / 10)
             e1_emb = tf.reshape(e1_emb, [-1, 10, s, 1])
             rel_emb = tf.reshape(rel_emb, [-1, 10, s, 1])
         else:
-            s = int(math.sqrt(self.emb_size))
-            e1_emb = tf.reshape(e1_emb, [-1, s, s, 1])
+            s = int(self.emb_size / 10)
+            e1_emb = tf.reshape(e1_emb, [-1, 10, s, 1])
 
         is_train_float = tf.cast(self.is_train, tf.float32)
 
@@ -351,7 +355,7 @@ class ConvE(object):
                 _create_summaries('conv1_with_dropout', conv1_dropout)
 
         with tf.name_scope('fc_layer'):
-            weights, bias = self._get_fc_params(rel_emb)
+            weights, bias = self._get_fc_params(rel_emb, self.is_train)
             batch_size = tf.shape(conv1_dropout)[0]
 
             fc_input = tf.reshape(conv1_dropout, [batch_size, -1])
@@ -374,7 +378,6 @@ class ConvE(object):
                 _create_summaries('fc_result', fc)
                 _create_summaries('fc_with_dropout', fc_dropout)
                 _create_summaries('fc_with_batch_norm', fc_bn)
-                #_create_summaries('fc_with_activation', fc_relu)
         
         return fc_bn
 
@@ -412,79 +415,11 @@ class ConvE(object):
 
     def _create_loss(self, predictions, targets):
         with tf.name_scope('loss'):
-            semant_loss = tf.reduce_sum(
+            loss = tf.reduce_sum(
                 tf.losses.sigmoid_cross_entropy(
                     targets, predictions,
                     label_smoothing=self.label_smoothing_epsilon))
 
             if self._loss_summaries:
-                tf.summary.scalar('loss', semant_loss)
-        return semant_loss
-
-    def _find_candidates(self, epsilon):
-        batch_size = tf.shape(self.predictions)[0]
-        min_correct_weight = tf.reduce_min(self.predictions * self.e2_multi, 1)
-        min_correct_weight = tf.reshape(min_correct_weight, [batch_size, 1])
-        lower_bound = self.predictions + epsilon
-        candidates = tf.greater_equal(lower_bound, min_correct_weight)
-        return tf.cast(candidates, tf.float32)
-
-    def _comp_rest_with_seq(self, relation_probs, sequence_probs):
-        batch_size = tf.shape(relation_probs)[0]
-        ones = tf.ones([batch_size, self.num_ent], tf.float32)
-        loss_weights = ones - self.reg_rel_e2_multi
-        elem_loss = tf.square(relation_probs - sequence_probs) * loss_weights
-        sample_loss = tf.reduce_sum(elem_loss, 1)
-        sample_loss = tf.reshape(sample_loss, [batch_size])
-        reg_similarity = tf.reshape(self.reg_sim, [batch_size])
-        total_loss = tf.reduce_mean(sample_loss * reg_similarity)
-        return total_loss
-
-    def _match_rel_to_seq(self, relation_probs, sequence_probs):
-        batch_size = tf.shape(relation_probs)[0]
-        ones = tf.ones([batch_size, self.num_ent], tf.float32)
-        loss_weights = ones - self.reg_rel_e2_multi
-        #sequence_probs = tf.Print(sequence_probs, [sequence_probs], 'sequence_probs')
-        #sequence_probs = tf.nn.sigmoid(sequence_probs)
-        #sequence_probs = tf.Print(sequence_probs, [sequence_probs], 'sequence_probs')
-        
-        reg_elem_loss = tf.losses.sigmoid_cross_entropy(
-                    sequence_probs, relation_probs,
-                    weights = tf.maximum(0., self.reg_seq_e2_multi - self.reg_rel_e2_multi),
-                    reduction = tf.losses.Reduction.NONE)
-        reg_batch_loss = tf.reduce_sum(reg_elem_loss, axis = 1)
-        #reg_batch_loss = tf.Print(reg_batch_loss, [reg_batch_loss])
-        reg_batch_loss = tf.reshape(reg_batch_loss, [batch_size])
-        reg_sim = tf.reshape(self.reg_sim, [batch_size])
-        reg_batch_weighted_loss = reg_batch_loss * reg_sim
-        #reg_batch_weighted_loss = tf.Print(reg_batch_weighted_loss, [reg_batch_weighted_loss])
-        reg_batch_weighted_loss = tf.nn.relu(reg_batch_weighted_loss)
-        reg_loss = tf.reduce_sum(reg_batch_weighted_loss)
-        return reg_loss
-
-    def compute_distribution_loss(self, prediction_vectors):
-        entity_embs = self.variables['ent_emb']
-        mean, variance = tf.nn.moments(prediction_vectors, 0)
-        ent_maxes = tf.reduce_max(entity_embs, 0)
-        ent_mins = tf.reduce_min(entity_embs, 0)
-        ent_mean = (ent_maxes + ent_mins) / 2.
-        ent_variance = tf.square(ent_maxes - ent_mins) / 12.
-        mean_loss = tf.reduce_sum(tf.square(mean - ent_mean))
-        variance_loss = tf.reduce_sum(tf.square(variance - ent_variance))
-        distribution_loss = mean_loss + variance_loss
-        return distribution_loss 
-
-    def cosine_match(self, rel_pred, seq_pred):
-        pass
-
-    def log_parameters_info(self):
-        """Logs the trainable parameters of this model,
-        along with their shapes.
-        """
-        LOGGER.info('Trainable parameters:')
-        num_parameters = 0
-        # TODO: This is not entirely correct. You have to be careful about which graph you compute this for.
-        for variable in tf.trainable_variables():
-            LOGGER.info('\t%s %s' % (variable.name, variable.shape))
-            num_parameters += variable.shape.num_elements()
-        LOGGER.info('Number of trainable parameters: %d' % num_parameters)
+                tf.summary.scalar('loss', loss)
+        return loss
