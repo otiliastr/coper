@@ -4,6 +4,9 @@ import logging
 import math
 import tensorflow as tf
 
+from functools import reduce
+from operator import mul
+
 from ..utilities.amsgrad import AMSGradOptimizer
 
 __all__ = ['ConvE']
@@ -24,7 +27,6 @@ def _create_summaries(name, tensor):
         tf.summary.scalar('max', tf.reduce_max(tensor))
         tf.summary.scalar('min', tf.reduce_min(tensor))
         tf.summary.histogram('histogram', tensor)
-
 
 def batch_gather(params, indices, name=None):
     """Gather slices from `params` according to `indices` with leading batch dims.
@@ -86,9 +88,50 @@ def batch_gather(params, indices, name=None):
         return result
 
 
+class ContextualParameterGenerator(object):
+    def __init__(self, context_size, name, dtype, shape, inner_dims=None):
+        self.name = name
+        self.dtype = dtype
+        self.shape = shape
+        self.num_elements = reduce(mul, self.shape, 1)
+
+        # Create the projection matrices.
+        if inner_dims is None:
+            projection = tf.get_variable(
+                name='%s/CPG/Projection' % name, 
+                dtype=tf.float32,
+                shape=[context_size, self.num_elements],
+                initializer=tf.contrib.layers.xavier_initializer())
+            self.projections = [projection]
+        else:
+            self.projections = []
+            in_size = context_size
+            for i, n in enumerate(inner_dims + [self.num_elements]):
+                self.projections.append(
+                    tf.get_variable(
+                        name='%s/CPG/Projection%d' % (name, i), 
+                        dtype=tf.float32,
+                        shape=[in_size, n],
+                        initializer=tf.contrib.layers.xavier_initializer()))
+                in_size = n
+
+    def generate(self, context):
+        # Generate the parameter values.
+        generated_value = context
+        for projection in self.projections:
+            generated_value = tf.matmul(generated_value, projection)
+
+        # Reshape and cast to the requested type.
+        generated_value = tf.reshape(generated_value, [-1] + self.shape)
+        generated_value = tf.cast(generated_value, self.dtype)
+
+        return generated_value
+
+
 class ConvE(object):
     def __init__(self, model_descriptors):
         self.concat_rel = model_descriptors.get('concat_rel', False)
+        self.context_rel = model_descriptors.get('context_rel', 4)
 
         self.label_smoothing_epsilon = model_descriptors['label_smoothing_epsilon']
 
@@ -238,9 +281,12 @@ class ConvE(object):
             name='ent_emb', dtype=tf.float32,
             shape=[self.num_ent, self.emb_size],
             initializer=tf.contrib.layers.xavier_initializer())
+        
+        rel_emb_size = self.context_rel if self.context_rel is not None else self.emb_size
+
         rel_emb = tf.get_variable(
             name='rel_emb', dtype=tf.float32,
-            shape=[self.num_rel, self.emb_size],
+            shape=[self.num_rel, rel_emb_size],
             initializer=tf.contrib.layers.xavier_initializer())
 
         conv1_weights = tf.get_variable(
@@ -251,35 +297,37 @@ class ConvE(object):
             name='conv1_bias', dtype=tf.float32,
             shape=[32], initializer=tf.zeros_initializer())
 
-        fc_input_size = 10368
+        fc_input_size = 4608 # 10368
         if self.concat_rel:
             fc_input_size += self.emb_size
 
-        fc_weights = tf.get_variable(
-            name='fc_weights', dtype=tf.float32,
-            shape=[fc_input_size, self.emb_size],
-            initializer=tf.contrib.layers.xavier_initializer())
-        fc_bias = tf.get_variable(
-            name='fc_bias', dtype=tf.float32,
-            shape=[self.emb_size], initializer=tf.zeros_initializer())
+        if self.context_rel is not None:
+            fc_weights = ContextualParameterGenerator(
+                context_size=rel_emb_size, 
+                name='fc_weights', 
+                dtype=tf.float32, 
+                shape=[fc_input_size, self.emb_size])
+            fc_bias = ContextualParameterGenerator(
+                context_size=rel_emb_size, 
+                name='fc_bias', 
+                dtype=tf.float32, 
+                shape=[self.emb_size])
+        else:
+            fc_weights = tf.get_variable(
+                name='fc_weights', dtype=tf.float32,
+                shape=[fc_input_size, self.emb_size],
+                initializer=tf.contrib.layers.xavier_initializer())
+            fc_bias = tf.get_variable(
+                name='fc_bias', dtype=tf.float32,
+                shape=[self.emb_size], initializer=tf.zeros_initializer())
 
-        structure_weights = tf.get_variable(
-            name='structure_weights', dtype=tf.float32,
-            shape=[self.num_ent, self.emb_size],
-            initializer=tf.truncated_normal_initializer(stddev=1.0/math.sqrt(self.emb_size)))
-        structure_bias = tf.get_variable(
-            name='structure_bias', dtype=tf.float32,
-            shape=[self.num_ent], initializer=tf.zeros_initializer())
-        
         variables = {
             'ent_emb': ent_emb,
             'rel_emb': rel_emb,
             'conv1_weights': conv1_weights,
             'conv1_bias': conv1_bias,
             'fc_weights': fc_weights,
-            'fc_bias': fc_bias,
-            'structure_weights': structure_weights,
-            'structure_bias': structure_bias}
+            'fc_bias': fc_bias}
 
         if self._variable_summaries:
             _create_summaries('emb/ent', ent_emb)
@@ -288,20 +336,30 @@ class ConvE(object):
             _create_summaries('predictions/conv1_bias', conv1_bias)
             _create_summaries('predictions/fc_weights', fc_weights)
             _create_summaries('predictions/fc_bias', fc_bias)
-            _create_summaries('structure/weights', structure_weights)
-            _create_summaries('structure/bias', structure_bias)
         
         return variables
 
-
+    def _get_fc_params(self, rel_emb):
+        weights = self.variables['fc_weights']
+        bias = self.variables['fc_bias']
+        if self.context_rel is not None:
+            weights = weights.generate(rel_emb)
+            bias = bias.generate(rel_emb)
+        return (weights, bias)
 
     def _create_predictions(self, e1_emb, rel_emb):
         e1_emb = tf.reshape(e1_emb, [-1, 10, 20, 1])
-        rel_emb = tf.reshape(rel_emb, [-1, 10, 20, 1])
+
+        if self.context_rel is None:
+            rel_emb = tf.reshape(rel_emb, [-1, 10, 20, 1])
 
         is_train_float = tf.cast(self.is_train, tf.float32)
 
-        stacked_emb = tf.concat([e1_emb, rel_emb], 1)
+        if self.context_rel is None:
+            stacked_emb = tf.concat([e1_emb, rel_emb], 1)
+        else:
+            stacked_emb = e1_emb
+        
         stacked_emb = tf.layers.batch_normalization(
             stacked_emb, momentum=0.1, reuse=tf.AUTO_REUSE,
             training=False, fused=True, name='StackedEmbBN')
@@ -330,15 +388,19 @@ class ConvE(object):
                 _create_summaries('conv1_with_dropout', conv1_dropout)
 
         with tf.name_scope('fc_layer'):
-            weights = self.variables['fc_weights']
-            bias = self.variables['fc_bias']
+            weights, bias = self._get_fc_params(rel_emb)
             batch_size = tf.shape(conv1_dropout)[0]
+
             fc_input = tf.reshape(conv1_dropout, [batch_size, -1])
 
             if self.concat_rel:
                 fc_input = tf.concat([fc_input, tf.reshape(rel_emb, [-1, 200])], axis=1)
 
-            fc = tf.matmul(fc_input, weights) + bias
+            if self.context_rel is None:
+                fc = tf.matmul(fc_input, weights) + bias
+            else:
+                fc = tf.matmul(fc_input[:, None, :], weights)[:, 0, :] + bias
+
             fc_dropout = tf.nn.dropout(
                 fc, 1 - (self.output_dropout * is_train_float))
             fc_bn = tf.layers.batch_normalization(

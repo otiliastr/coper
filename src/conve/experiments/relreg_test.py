@@ -19,7 +19,7 @@ from ..models.bilinear_reg import BiLinearReg
 
 LOGGER = logging.getLogger(__name__)
 
-DATA_LOADER = FB15k237Loader()#FB15k237Loader()
+DATA_LOADER = UMLSLoader()#FB15k237Loader()
 
 beta = 1.001
 DATASET = 'FB15k237'
@@ -34,7 +34,7 @@ REG_WEIGHT = 0.0
 EPSILON = 0.1
 USE_BALL = False
 
-DEVICE = '/CPU:0'
+DEVICE = '/GPU:0'
 MAX_STEPS = 10000000
 LOG_STEPS = 100
 SUMMARY_STEPS = None
