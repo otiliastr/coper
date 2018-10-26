@@ -26,6 +26,66 @@ def _create_summaries(name, tensor):
         tf.summary.histogram('histogram', tensor)
 
 
+def batch_gather(params, indices, name=None):
+    """Gather slices from `params` according to `indices` with leading batch dims.
+    This operation assumes that the leading dimensions of `indices` are dense,
+    and the gathers on the axis corresponding to the last dimension of `indices`.
+    More concretely it computes:
+    result[i1, ..., in] = params[i1, ..., in-1, indices[i1, ..., in]]
+    Therefore `params` should be a Tensor of shape [A1, ..., AN, B1, ..., BM],
+    `indices` should be a Tensor of shape [A1, ..., AN-1, C] and `result` will be
+    a Tensor of size `[A1, ..., AN-1, C, B1, ..., BM]`.
+    In the case in which indices is a 1D tensor, this operation is equivalent to
+    `tf.gather`.
+    See also `tf.gather` and `tf.gather_nd`.
+    Args:
+      params: A Tensor. The tensor from which to gather values.
+      indices: A Tensor. Must be one of the following types: int32, int64. Index
+          tensor. Must be in range `[0, params.shape[axis]`, where `axis` is the
+          last dimension of `indices` itself.
+      name: A name for the operation (optional).
+    Returns:
+      A Tensor. Has the same type as `params`.
+    Raises:
+      ValueError: if `indices` has an unknown shape.
+    """
+
+    with tf.name_scope(name):
+        indices = tf.convert_to_tensor(indices, name="indices")
+        params = tf.convert_to_tensor(params, name="params")
+        indices_shape = tf.shape(indices)
+        params_shape = tf.shape(params)
+        ndims = indices.shape.ndims
+        if ndims is None:
+            raise ValueError("batch_gather does not allow indices with unknown "
+                             "shape.")
+        batch_indices = indices
+        accum_dim_value = 1
+        for dim in range(ndims-1, 0, -1):
+            dim_value = params_shape[dim-1]
+            accum_dim_value *= params_shape[dim]
+            dim_indices = tf.range(0, dim_value, 1)
+            dim_indices *= accum_dim_value
+            dim_shape = tf.stack([1] * (dim - 1) + [dim_value] + [1] * (ndims - dim),
+                              axis=0)
+            batch_indices += tf.reshape(dim_indices, dim_shape)
+
+        flat_indices = tf.reshape(batch_indices, [-1])
+        outer_shape = params_shape[ndims:]
+        flat_inner_shape = tf.reduce_prod(params_shape[:ndims], [0], False)
+
+        flat_params = tf.reshape(
+            params, tf.concat([[flat_inner_shape], outer_shape], axis=0))
+        flat_result = tf.gather(flat_params, flat_indices)
+        result = tf.reshape(flat_result, tf.concat([indices_shape, outer_shape], axis=0))
+        final_shape = indices.get_shape()[:ndims-1].merge_with(
+            params.get_shape()[:ndims -1])
+        final_shape = final_shape.concatenate(indices.get_shape()[ndims-1])
+        final_shape = final_shape.concatenate(params.get_shape()[ndims:])
+        result.set_shape(final_shape)
+        return result
+
+
 class ConvE(object):
     def __init__(self, model_descriptors):
         self.concat_rel = model_descriptors.get('concat_rel', False)
@@ -162,7 +222,7 @@ class ConvE(object):
         self.eval_prediction_vector = self._create_predictions(eval_e1_emb, eval_rel_emb)
         self.eval_predictions = self._compute_likelihoods(self.eval_prediction_vector)
 
-        filtered_targets = tf.batch_gather(self.e2_multi, self.obj_lookup_values)
+        filtered_targets = batch_gather(self.e2_multi, self.obj_lookup_values)
         self.collective_loss = self._create_loss(self.predictions, filtered_targets)
 
         # The following control dependency is needed in order for batch

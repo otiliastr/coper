@@ -198,7 +198,7 @@ class _DataLoader(Loader):
             .prefetch(prefetch_buffer_size)
         """
         
-        return conve_data, #relreg_data
+        return conve_data #relreg_data
 
     def dev_dataset(self,
                     directory,
@@ -286,18 +286,30 @@ class _DataLoader(Loader):
         wrong_e2s = tf.where(tf.equal(e2_multi, zero))[:, 0]
         correct_e2s = tf.random_shuffle(correct_e2s)
         wrong_e2s = tf.random_shuffle(wrong_e2s)
-        num_positives = tf.reduce_sum(e2_multi)#tf.cast(correct_e2s.shape[0], tf.float32)
 
-        # Collect the positive labels.
-        num_positives_needed = 1.0 / (1.0 + prop_negatives) * num_labels
-        num_positives = tf.cast(tf.minimum(num_positives, num_positives_needed), tf.int32)
-        correct_e2s = correct_e2s[:num_positives]
+        num_positives = tf.size(correct_e2s)
+        num_negatives = tf.size(wrong_e2s)
 
-        # Collect the negative labels.
-        num_negatives = num_labels - num_positives
-        wrong_e2s = wrong_e2s[:num_negatives]
+        num_positives_needed = int(1.0 / (1.0 + prop_negatives) * num_labels)
 
-        indexes = tf.concat([correct_e2s, wrong_e2s], axis = 0)
+        def _less_positives():
+            num_neg = num_labels - num_positives
+            return tf.concat([
+                correct_e2s[:num_positives],
+                wrong_e2s[:num_neg]], axis = 0)
+
+        def _more_positives():
+            num_negatives_needed = num_labels - num_positives_needed
+            num_neg = tf.minimum(num_negatives, num_negatives_needed)
+            num_positives = num_labels - num_neg
+            return tf.concat([
+                correct_e2s[:num_positives],
+                wrong_e2s[:num_neg]], axis = 0)
+
+        indexes = tf.cond(
+            tf.less_equal(num_positives, num_positives_needed),
+            _less_positives,
+            _more_positives)
         lookup_values = tf.cast(indexes, tf.int32)
         
         if not is_reg:
