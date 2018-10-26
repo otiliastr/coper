@@ -403,7 +403,7 @@ class ConvE(object):
             fc_input = tf.reshape(conv1_dropout, [batch_size, -1])
 
             if self.concat_rel:
-                fc_input = tf.concat([fc_input, tf.reshape(rel_emb, [-1, 200])], axis=1)
+                fc_input = tf.concat([fc_input, rel_emb], axis=1)
 
             if self.context_rel_out is None:
                 fc = tf.matmul(fc_input, weights) + bias
