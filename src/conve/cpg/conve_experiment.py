@@ -11,16 +11,16 @@ from ..evaluation.metrics import ranking_and_hits
 
 LOGGER = logging.getLogger(__name__)
 
-DATA_LOADER = UMLSLoader()
+DATA_LOADER = FB15k237Loader()
 
 ENT_EMB_SIZE = 200
-REL_EMB_SIZE = 50
-CONCAT_REL = False     # Set to `False` for plain ConvE
+REL_EMB_SIZE = 100
+CONCAT_REL = True      # Set to `False` for plain ConvE
 CONTEXT_REL_CONV = []  # Set to `None` for plain ConvE
 CONTEXT_REL_OUT = None # Set to `None` for plain ConvE
 
 CONTEXT_REL_DROPOUT = 0.5
-CONTEXT_REL_USE_BATCH_NORM = False
+CONTEXT_REL_USE_BATCH_NORM = True
 
 INPUT_DROPOUT = 0.2
 FEATURE_MAP_DROPOUT = 0.3

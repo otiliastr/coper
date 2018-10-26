@@ -126,7 +126,7 @@ class _DataLoader(Loader):
             conve_data = conve_data.map(
                 lambda sample: self._sample_negatives(
                     sample=sample,
-                    prop_negatives=2.0,
+                    prop_negatives=1.0,
                     num_labels=100))
 
         conve_data = conve_data \
