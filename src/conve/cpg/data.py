@@ -464,7 +464,7 @@ class _ConvEDataLoader(_DataLoader):
     def __init__(self, dataset_name):
         url = 'https://github.com/TimDettmers/ConvE/raw/master'
         filetypes = ['train', 'valid', 'test']
-        super(_DataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes)
+        super(_ConvEDataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes)
         e1 = entity_ids[sample['e1']]
         e2 = entity_ids[sample['e2']]
         rel = relation_ids[sample['rel']]
@@ -491,7 +491,7 @@ class _MinervaDataLoader(_DataLoader):
         url = 'https://raw.githubusercontent.com/shehzaadzd/MINERVA/master/datasets/data_preprocessed/%s' % dataset_name
         filenames = ['train.txt', 'dev.txt', 'test.txt']
         filetypes = ['train', 'dev', 'test']
-        super(_DataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes)
+        super(_MinervaDataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes)
 
 
 class NationsLoader(_ConvEDataLoader):
