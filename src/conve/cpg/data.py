@@ -301,14 +301,15 @@ class _DataLoader(Loader):
         directory = os.path.join(directory, self.dataset_name)
         self.maybe_extract(directory, buffer_size)
 
-        # One more directory is created due to the archive extraction.
-        directory = os.path.join(directory, self.dataset_name)
         # Load and preprocess the data.
         full_graph = {}  # Maps from (e1, rel) to set of e2 values.
         graphs = {}  # Maps from filename to dictionaries like labels.
         files = ['%s.txt' % f for f in self.filetypes]
         for f in files:
             graphs[f] = {}
+            if not os.path.exists(os.path.join(directory, f)):
+                # One more directory is created due to the archive extraction.
+                directory = os.path.join(directory, self.dataset_name)
             with open(os.path.join(directory, f), 'r') as handle:
                 for line in handle:
                     e1, rel, e2 = line.split('\t')
