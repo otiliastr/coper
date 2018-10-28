@@ -15,13 +15,14 @@ from tqdm import tqdm
 
 __all__ = [
     'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader',
-    'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader']
+    'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader', 
+    'CountriesS1', 'CountriesS2', 'CountriesS3', 'NELL995']
 
 logger = logging.getLogger(__name__)
 
 
 class Loader(six.with_metaclass(abc.ABCMeta, object)):
-    def __init__(self, url, filenames):
+    def __init__(self, url, filenames, dataset_name):
         self.url = url
         self.filenames = filenames
 
@@ -67,10 +68,9 @@ class Loader(six.with_metaclass(abc.ABCMeta, object)):
 
 
 class _DataLoader(Loader):
-    def __init__(self, dataset_name):
-        self.dataset_name = dataset_name
-        url = 'https://github.com/TimDettmers/ConvE/raw/master'
-        super(_DataLoader, self).__init__(url, [dataset_name + '.tar.gz'])
+    def __init__(self, url, filenames, dataset_name, filetypes=['train', 'dev', 'test']):
+        self.filetypes = filetypes
+        super(_DataLoader, self).__init__(url, filenames, dataset_name)
 
         # TODO: This is a bad way of "leaking" this information because it may be incomplete when querried.
         self.num_ent = None
@@ -126,7 +126,7 @@ class _DataLoader(Loader):
             conve_data = conve_data.map(
                 lambda sample: self._sample_negatives(
                     sample=sample,
-                    prop_negatives=1.0,
+                    prop_negatives=10.0,
                     num_labels=100))
 
         conve_data = conve_data \
@@ -304,7 +304,7 @@ class _DataLoader(Loader):
         # Load and preprocess the data.
         full_graph = {}  # Maps from (e1, rel) to set of e2 values.
         graphs = {}  # Maps from filename to dictionaries like labels.
-        files = ['train.txt', 'valid.txt', 'test.txt']
+        files = ['%s.txt' % f for f in self.filetypes]
         for f in files:
             graphs[f] = {}
             with open(os.path.join(directory, f), 'r') as handle:
@@ -336,9 +336,9 @@ class _DataLoader(Loader):
         e1rel_to_e2_dev = os.path.join(directory, 'e1rel_to_e2_dev.json')
         e1rel_to_e2_test = os.path.join(directory, 'e1rel_to_e2_test.json')
         e1rel_to_e2_full = os.path.join(directory, 'e1rel_to_e2_full.json')
-        self._write_graph(e1rel_to_e2_train, graphs['train.txt'])
-        self._write_graph(e1rel_to_e2_dev, graphs['valid.txt'], full_graph)
-        self._write_graph(e1rel_to_e2_test, graphs['test.txt'], full_graph)
+        self._write_graph(e1rel_to_e2_train, graphs[files[0]])
+        self._write_graph(e1rel_to_e2_dev, graphs[files[1]], full_graph)
+        self._write_graph(e1rel_to_e2_test, graphs[files[2]], full_graph)
         self._write_graph(e1rel_to_e2_full, full_graph, full_graph)
 
         return {
@@ -460,37 +460,95 @@ class _DataLoader(Loader):
         return tf.train.Example(features=features)
 
 
-class NationsLoader(_DataLoader):
+class _ConvEDataLoader(_DataLoader):
+    def __init__(self, dataset_name):
+        url = 'https://github.com/TimDettmers/ConvE/raw/master'
+        filetypes = ['train', 'valid', 'test']
+        super(_DataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes)
+        e1 = entity_ids[sample['e1']]
+        e2 = entity_ids[sample['e2']]
+        rel = relation_ids[sample['rel']]
+        e2_multi1 = [entity_ids[e]
+                     for e in sample['e2_multi1'].split(' ')
+                     if e != 'None']
+
+        def _int64(values):
+            return tf.train.Feature(
+                int64_list=tf.train.Int64List(value=values))
+
+        features = tf.train.Features(feature={
+            'e1': _int64([e1]),
+            'e2': _int64([e2]),
+            'rel': _int64([rel]),
+            'e2_multi1': _int64(e2_multi1),
+            'is_inverse': _int64([sample['rel'].endswith('_reverse')])})
+
+        return tf.train.Example(features=features)
+
+
+class _MinervaDataLoader(_DataLoader):
+    def __init__(self, dataset_name):
+        url = 'https://raw.githubusercontent.com/shehzaadzd/MINERVA/master/datasets/data_preprocessed/%s' % dataset_name
+        filenames = ['train.txt', 'dev.txt', 'test.txt']
+        filetypes = ['train', 'dev', 'test']
+        super(_DataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes)
+
+
+class NationsLoader(_ConvEDataLoader):
     def __init__(self):
         dataset_name = 'nations'
         super(NationsLoader, self).__init__(dataset_name)
 
 
-class UMLSLoader(_DataLoader):
+class UMLSLoader(_ConvEDataLoader):
     def __init__(self):
         dataset_name = 'umls'
         super(UMLSLoader, self).__init__(dataset_name)
 
 
-class KinshipLoader(_DataLoader):
+class KinshipLoader(_ConvEDataLoader):
     def __init__(self):
         dataset_name = 'kinship'
         super(KinshipLoader, self).__init__(dataset_name)
 
 
-class WN18RRLoader(_DataLoader):
+class WN18RRLoader(_ConvEDataLoader):
     def __init__(self):
         dataset_name = 'WN18RR'
         super(WN18RRLoader, self).__init__(dataset_name)
 
 
-class YAGO310Loader(_DataLoader):
+class YAGO310Loader(_ConvEDataLoader):
     def __init__(self):
         dataset_name = 'YAGO3-10'
         super(YAGO310Loader, self).__init__(dataset_name)
 
 
-class FB15k237Loader(_DataLoader):
+class FB15k237Loader(_ConvEDataLoader):
     def __init__(self):
         dataset_name = 'FB15k-237'
         super(FB15k237Loader, self).__init__(dataset_name)
+
+
+class CountriesS1(_MinervaDataLoader):
+    def __init__(self):
+        dataset_name = 'countries_S1'
+        super(CountriesS1, self).__init__(dataset_name)
+
+
+class CountriesS2(_MinervaDataLoader):
+    def __init__(self):
+        dataset_name = 'countries_S2'
+        super(CountriesS2, self).__init__(dataset_name)
+
+
+class CountriesS3(_MinervaDataLoader):
+    def __init__(self):
+        dataset_name = 'countries_S3'
+        super(CountriesS3, self).__init__(dataset_name)
+
+
+class NELL995(_MinervaDataLoader):
+    def __init__(self):
+        dataset_name = 'nell-995'
+        super(NELL995, self).__init__(dataset_name)
