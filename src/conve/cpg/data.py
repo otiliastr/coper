@@ -41,6 +41,7 @@ class Loader(six.with_metaclass(abc.ABCMeta, object)):
             buffer_size (int, optional): Buffer size to use while downloading.
         """
         self.maybe_download(directory, buffer_size)
+        extracted = False
         for filename in self.filenames:
             if filename.endswith('.tar.gz'):
                 path = os.path.join(directory, filename)
@@ -49,6 +50,9 @@ class Loader(six.with_metaclass(abc.ABCMeta, object)):
                     logger.info('Extracting file: %s', path)
                     with tarfile.open(path, 'r:*') as handle:
                         handle.extractall(path=extracted_path)
+                extracted = True
+        return extracted
+        
 
     def maybe_download(self, directory, buffer_size=1024 * 1024):
         """Downloads the required dataset files, if needed.
@@ -299,7 +303,9 @@ class _DataLoader(Loader):
 
         # Download and potentially extract all needed files.
         directory = os.path.join(directory, self.dataset_name)
-        self.maybe_extract(directory, buffer_size)
+        if self.maybe_extract(directory, buffer_size):
+            # One more directory is created due to the archive extraction.
+            directory = os.path.join(directory, self.dataset_name)
 
         # Load and preprocess the data.
         full_graph = {}  # Maps from (e1, rel) to set of e2 values.
@@ -307,9 +313,6 @@ class _DataLoader(Loader):
         files = ['%s.txt' % f for f in self.filetypes]
         for f in files:
             graphs[f] = {}
-            if not os.path.exists(os.path.join(directory, f)):
-                # One more directory is created due to the archive extraction.
-                directory = os.path.join(directory, self.dataset_name)
             with open(os.path.join(directory, f), 'r') as handle:
                 for line in handle:
                     e1, rel, e2 = line.split('\t')
