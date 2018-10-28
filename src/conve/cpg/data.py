@@ -465,25 +465,6 @@ class _ConvEDataLoader(_DataLoader):
         url = 'https://github.com/TimDettmers/ConvE/raw/master'
         filetypes = ['train', 'valid', 'test']
         super(_ConvEDataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes)
-        e1 = entity_ids[sample['e1']]
-        e2 = entity_ids[sample['e2']]
-        rel = relation_ids[sample['rel']]
-        e2_multi1 = [entity_ids[e]
-                     for e in sample['e2_multi1'].split(' ')
-                     if e != 'None']
-
-        def _int64(values):
-            return tf.train.Feature(
-                int64_list=tf.train.Int64List(value=values))
-
-        features = tf.train.Features(feature={
-            'e1': _int64([e1]),
-            'e2': _int64([e2]),
-            'rel': _int64([rel]),
-            'e2_multi1': _int64(e2_multi1),
-            'is_inverse': _int64([sample['rel'].endswith('_reverse')])})
-
-        return tf.train.Example(features=features)
 
 
 class _MinervaDataLoader(_DataLoader):
