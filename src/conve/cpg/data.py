@@ -25,6 +25,7 @@ class Loader(six.with_metaclass(abc.ABCMeta, object)):
     def __init__(self, url, filenames, dataset_name):
         self.url = url
         self.filenames = filenames
+        self.dataset_name = dataset_name
 
     @abc.abstractmethod
     def load_and_preprocess(self, directory, buffer_size=1024 * 1024):
