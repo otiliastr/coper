@@ -15,8 +15,9 @@ from tqdm import tqdm
 
 __all__ = [
     'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader',
-    'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader', 
-    'CountriesS1', 'CountriesS2', 'CountriesS3', 'NELL995']
+    'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader',
+    'CountriesS1Loader', 'CountriesS2Loader',
+    'CountriesS3Loader', 'NELL995Loader']
 
 logger = logging.getLogger(__name__)
 
@@ -512,25 +513,25 @@ class FB15k237Loader(_ConvEDataLoader):
         super(FB15k237Loader, self).__init__(dataset_name)
 
 
-class CountriesS1(_MinervaDataLoader):
+class CountriesS1Loader(_MinervaDataLoader):
     def __init__(self):
         dataset_name = 'countries_S1'
-        super(CountriesS1, self).__init__(dataset_name)
+        super(CountriesS1Loader, self).__init__(dataset_name)
 
 
-class CountriesS2(_MinervaDataLoader):
+class CountriesS2Loader(_MinervaDataLoader):
     def __init__(self):
         dataset_name = 'countries_S2'
-        super(CountriesS2, self).__init__(dataset_name)
+        super(CountriesS2Loader, self).__init__(dataset_name)
 
 
-class CountriesS3(_MinervaDataLoader):
+class CountriesS3Loader(_MinervaDataLoader):
     def __init__(self):
         dataset_name = 'countries_S3'
-        super(CountriesS3, self).__init__(dataset_name)
+        super(CountriesS3Loader, self).__init__(dataset_name)
 
 
-class NELL995(_MinervaDataLoader):
+class NELL995Loader(_MinervaDataLoader):
     def __init__(self):
         dataset_name = 'nell-995'
-        super(NELL995, self).__init__(dataset_name)
+        super(NELL995Loader, self).__init__(dataset_name)
