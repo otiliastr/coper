@@ -15,8 +15,8 @@ from tqdm import tqdm
 
 __all__ = [
     'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader',
-    'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader',
-    'CountriesS1Loader', 'CountriesS2Loader',
+    'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader', 
+    'CountriesS1Loader', 'CountriesS2Loader', 
     'CountriesS3Loader', 'NELL995Loader']
 
 logger = logging.getLogger(__name__)
@@ -474,7 +474,7 @@ class _MinervaDataLoader(_DataLoader):
         url = 'https://raw.githubusercontent.com/shehzaadzd/MINERVA/master/datasets/data_preprocessed/%s' % dataset_name
         filenames = ['train.txt', 'dev.txt', 'test.txt']
         filetypes = ['train', 'dev', 'test']
-        super(_MinervaDataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes)
+        super(_MinervaDataLoader, self).__init__(url, filenames, dataset_name, filetypes)
 
 
 class NationsLoader(_ConvEDataLoader):
