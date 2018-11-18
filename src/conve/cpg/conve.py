@@ -284,7 +284,7 @@ class ConvE(object):
         conv_in_height = 10
         conv_in_width = self.ent_emb_size // 10
         if self.context_rel_conv is None and self.context_rel_out is None:
-            conv_in_width += self.rel_emb_size // 10
+            conv_in_height += 10
         conv_out_height = math.ceil(float(conv_in_height - self.conv_filter_height + 1))
         conv_out_width = math.ceil(float(conv_in_width - self.conv_filter_width + 1))
 
