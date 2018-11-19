@@ -20,18 +20,23 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
     session.run(data_iterator.initializer)
     mr, mrr, hits = ranking_and_hits(model, eval_path, data_iterator_handle, name, session)
 
+    metrics = {'mr': mr, 'mrr': mrr}
+
     if cfg.eval.summary_steps is not None:
         summary = tf.Summary()
         for hits_level, hits_value in hits.items():
             summary.value.add(tag=name+'/hits@'+str(hits_level), simple_value=hits_value)
+            metrics['hits@'+str(hits_level)] = hits_value
         summary.value.add(tag=name+'/mrr', simple_value=mrr)
         summary.value.add(tag=name+'/mr', simple_value=mr)
         summary_writer.add_summary(summary, step)
         summary_writer.flush()
-    return mr, mrr, hits
+
+    return metrics
+
 
 # Parameters.
-use_cpg = False
+use_cpg = True
 save_best_embeddings = True
 
 # Load data.
@@ -149,8 +154,9 @@ if __name__ == '__main__':
     dev_eval_iterator_handle = session.run(dev_eval_iterator.string_handle())
     test_eval_iterator_handle = session.run(test_eval_iterator.string_handle())
 
-    best_mrr_dev = -np.inf
-    mrr_test_at_best_dev = -np.inf
+    validation_metric = cfg.eval.validation_metric
+    best_metric_dev = -np.inf
+    metric_test_at_best_dev = -np.inf
     best_iter = None
     for step in range(cfg.training.max_steps):
         feed_dict = {
@@ -174,17 +180,17 @@ if __name__ == '__main__':
             if cfg.eval.eval_on_train:
                 _evaluate(train_eval_iterator, train_eval_iterator_handle, 'train_evaluation', summary_writer, step)
             if cfg.eval.eval_on_dev:
-                _, mrr_dev, _ = _evaluate(
+                metrics_dev = _evaluate(
                     dev_eval_iterator, dev_eval_iterator_handle, 'dev_evaluation', summary_writer, step)
             if cfg.eval.eval_on_test:
-                _, mrr_test, _ = _evaluate(
+                metrics_test = _evaluate(
                     test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, step)
-            if best_mrr_dev < mrr_dev:
-                best_mrr_dev = mrr_dev
-                mrr_test_at_best_dev = mrr_test
+            if best_metric_dev < metrics_dev[validation_metric]:
+                best_metric_dev = metrics_dev[validation_metric]
+                metric_test_at_best_dev = metrics_test[validation_metric]
                 best_iter = step
-                logger.info('Best dev MRR so far is %.2f. Test MRR at best dev: %.2f.',
-                            best_mrr_dev, mrr_test_at_best_dev)
+                logger.info('Best dev %s so far is %.2f. Test %s at best dev: %.2f.',
+                            validation_metric, best_metric_dev, validation_metric, metric_test_at_best_dev)
                 if save_best_embeddings:
                     # Save relation and entity embeddings at the best validation point.
                     rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
@@ -194,5 +200,5 @@ if __name__ == '__main__':
             logger.info('Step %d. Saving checkpoint at %s...', step, ckpt_path)
             saver.save(session, ckpt_path)
 
-    logger.info('Best dev MRR is %.2f at iteration %d. Test MRR at best dev: %.2f.',
-                best_iter, best_mrr_dev, mrr_test_at_best_dev)
+    logger.info('Best dev %s is %.2f at iteration %d. Test %s at best dev: %.2f.',
+                validation_metric, best_iter, best_metric_dev, validation_metric, metric_test_at_best_dev)
