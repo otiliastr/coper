@@ -1,0 +1,29 @@
+model:
+  entity_embedding_size: 200
+  relation_embedding_size: 200
+  concat_rel: True           # Set to `False` for plain ConvE, 'True' for CPG on output layer.
+  input_dropout: 0.2
+  feature_map_dropout: 0.3
+  output_dropout: 0.2
+  label_smoothing_epsilon: 0.1
+context:
+  context_rel_conv:          # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
+  context_rel_out: []        # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
+  context_rel_dropout: 0.2
+  context_rel_use_batch_norm: True
+training:
+  learning_rate: 0.001
+  batch_size: 512
+  device: '/GPU:0'
+  max_steps: 2000
+eval:
+  log_steps: 50
+  ckpt_steps: 1000
+  eval_steps: 50
+  summary_steps: 50
+  eval_on_train: False
+  eval_on_dev: True
+  eval_on_test: True
+  add_loss_summaries: True
+  add_variable_summaries: False
+  add_tensor_summaries: False
