@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import logging
+import numpy as np
 import os
 import tensorflow as tf
 import yaml
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
-    logger.info('Running %s...' % name)
+    logger.info('Running %s at step %d...', name, step)
     session.run(data_iterator.initializer)
     mr, mrr, hits = ranking_and_hits(model, eval_path, data_iterator_handle, name, session)
 
@@ -26,6 +27,7 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
         summary.value.add(tag=name+'/mr', simple_value=mr)
         summary_writer.add_summary(summary, step)
         summary_writer.flush()
+    return mr, mrr, hits
 
 # Parameters.
 use_cpg = True
@@ -35,7 +37,7 @@ data_loader = data.NationsLoader()
 
 # Load configuration parameters.
 model_descr = 'cpg' if use_cpg else 'conve'
-config_path = 'qa_cpg/configs/config_kinship_%s.yaml' % model_descr
+config_path = 'qa_cpg/configs/config_%s_%s.yaml' % (data_loader.dataset_name, model_descr)
 with open(config_path, 'r') as file:
     cfg = yaml.load(file)
 print(cfg)
@@ -48,11 +50,12 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}'.format(
     cfg.model.entity_embedding_size,
     cfg.model.relation_embedding_size,
     cfg.training.batch_size)
+# Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
 model_name += suffix
 
 # Create directories for saving downloaded data, summaries, logs and checkpoints.
-working_dir = os.path.join(os.getcwd(), 'temp')
+working_dir = os.path.join(os.getcwd(), 'temp', data_loader.dataset_name)
 data_dir = os.path.join(working_dir, 'data')
 log_dir = os.path.join(working_dir, 'models', model_name, 'logs')
 summaries_dir = os.path.join(working_dir, 'summaries', model_name)
@@ -142,6 +145,9 @@ if __name__ == '__main__':
     dev_eval_iterator_handle = session.run(dev_eval_iterator.string_handle())
     test_eval_iterator_handle = session.run(test_eval_iterator.string_handle())
 
+    best_mrr_dev = -np.inf
+    mrr_test_at_best_dev = -np.inf
+    best_iter = None
     for step in range(cfg.training.max_steps):
         feed_dict = {
             model.is_train: True,
@@ -164,10 +170,19 @@ if __name__ == '__main__':
             if cfg.eval.eval_on_train:
                 _evaluate(train_eval_iterator, train_eval_iterator_handle, 'train_evaluation', summary_writer, step)
             if cfg.eval.eval_on_dev:
-                _evaluate(dev_eval_iterator, dev_eval_iterator_handle, 'dev_evaluation', summary_writer, step)
+                _, mrr_dev, _ = _evaluate(
+                    dev_eval_iterator, dev_eval_iterator_handle, 'dev_evaluation', summary_writer, step)
             if cfg.eval.eval_on_test:
-                _evaluate(test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, step)
+                _, mrr_test, _ = _evaluate(
+                    test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, step)
+            if best_mrr_dev < mrr_dev:
+                best_mrr_dev = mrr_dev
+                mrr_test_at_best_dev = mrr_test
+                best_iter = step
 
-        if step % cfg.eval.ckpt_steps == 0:
-            logger.info('Saving checkpoint at %s.', ckpt_path)
+        if step % cfg.eval.ckpt_steps == 0 and step > 0:
+            logger.info('Step %d. Saving checkpoint at %s...', step, ckpt_path)
             saver.save(session, ckpt_path)
+
+    logger.info('Best dev MRR is %.2f at iteration %d. Test MRR at best dev: %.2f.' %
+                (best_iter, best_mrr_dev, mrr_test_at_best_dev))

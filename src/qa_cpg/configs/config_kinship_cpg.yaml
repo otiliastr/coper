@@ -1,7 +1,7 @@
 model:
   entity_embedding_size: 200
   relation_embedding_size: 200
-  concat_rel: True        # Set to `False` for plain ConvE, 'True' for CPG on output layer.
+  concat_rel: True           # Set to `False` for plain ConvE, 'True' for CPG on output layer.
   input_dropout: 0.2
   feature_map_dropout: 0.3
   output_dropout: 0.2
@@ -20,7 +20,6 @@ eval:
   log_steps: 50
   ckpt_steps: 1000
   eval_steps: 50
-  log_loss: 100
   summary_steps: 50
   eval_on_train: False
   eval_on_dev: True

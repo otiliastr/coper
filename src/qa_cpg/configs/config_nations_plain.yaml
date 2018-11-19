@@ -17,10 +17,10 @@ training:
   device: '/GPU:0'
   max_steps: 50000
 eval:
-  log_steps: 50
+  log_steps: 10
   ckpt_steps: 1000
-  eval_steps: 50
-  summary_steps: 50
+  eval_steps: 10
+  summary_steps: 10
   eval_on_train: False
   eval_on_dev: True
   eval_on_test: True
