@@ -15,7 +15,7 @@ training:
   learning_rate: 0.001
   batch_size: 512
   device: '/GPU:0'
-  max_steps: 50000
+  max_steps: 1000
 eval:
   log_steps: 10
   ckpt_steps: 1000

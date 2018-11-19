@@ -36,7 +36,7 @@ use_cpg = True
 data_loader = data.NationsLoader()
 
 # Load configuration parameters.
-model_descr = 'cpg' if use_cpg else 'conve'
+model_descr = 'cpg' if use_cpg else 'plain'
 config_path = 'qa_cpg/configs/config_%s_%s.yaml' % (data_loader.dataset_name, model_descr)
 with open(config_path, 'r') as file:
     cfg = yaml.load(file)
