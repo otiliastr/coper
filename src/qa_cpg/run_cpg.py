@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import logging
 import numpy as np
 import os
+import pickle
 import tensorflow as tf
 import yaml
 
@@ -30,7 +31,8 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
     return mr, mrr, hits
 
 # Parameters.
-use_cpg = True
+use_cpg = False
+save_best_embeddings = True
 
 # Load data.
 data_loader = data.NationsLoader()
@@ -64,6 +66,8 @@ os.makedirs(ckpt_dir, exist_ok=True)
 ckpt_path = os.path.join(ckpt_dir, 'model_weights.ckpt')
 eval_path = os.path.join(working_dir, 'evaluation', model_name)
 os.makedirs(eval_path, exist_ok=True)
+if save_best_embeddings:
+    embed_file = os.path.join(eval_path, 'best_embeddings.ckpt')
 
 if __name__ == '__main__':
     data_loader.create_tf_record_files(data_dir)
@@ -179,10 +183,16 @@ if __name__ == '__main__':
                 best_mrr_dev = mrr_dev
                 mrr_test_at_best_dev = mrr_test
                 best_iter = step
+                logger.info('Best dev MRR so far is %.2f. Test MRR at best dev: %.2f.',
+                            best_mrr_dev, mrr_test_at_best_dev)
+                if save_best_embeddings:
+                    # Save relation and entity embeddings at the best validation point.
+                    rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
+                    pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
 
         if step % cfg.eval.ckpt_steps == 0 and step > 0:
             logger.info('Step %d. Saving checkpoint at %s...', step, ckpt_path)
             saver.save(session, ckpt_path)
 
-    logger.info('Best dev MRR is %.2f at iteration %d. Test MRR at best dev: %.2f.' %
-                (best_iter, best_mrr_dev, mrr_test_at_best_dev))
+    logger.info('Best dev MRR is %.2f at iteration %d. Test MRR at best dev: %.2f.',
+                best_iter, best_mrr_dev, mrr_test_at_best_dev)
