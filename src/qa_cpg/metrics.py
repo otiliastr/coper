@@ -8,7 +8,7 @@ import tensorflow as tf
 
 __all__ = ['ranking_and_hits']
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def _write_data_to_file(file_path, data):
@@ -20,22 +20,20 @@ def _write_data_to_file(file_path, data):
         handle.write(str(data) + "\n")
 
 
-def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=None):
+def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=None, hits_to_compute=(1, 3, 5, 10, 20),
+                     enable_write_to_file=False):
     os.makedirs(results_dir, exist_ok=True)
-    LOGGER.info('')
-    LOGGER.info('-' * 50)
-    LOGGER.info(name)
-    LOGGER.info('-' * 50)
-    LOGGER.info('')
-    hits = []
+    logger.info('')
+    logger.info('-' * 50)
+    logger.info(name)
+    logger.info('-' * 50)
+    logger.info('')
+
+    hits = {hits_level: [] for hits_level in hits_to_compute}
     ranks = []
-    for i in range(10):
-        hits.append([])
 
     stopped = False
-    tot_seen = 0
-    tot_predicted = 0
-    tot_samples = 0
+    count = 0
     while not stopped:
         try:
             e1, e2, rel, e2_multi1, pred1, pred_vec = \
@@ -53,12 +51,12 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
             target_values = pred1[np.arange(0, len(pred1)), e2]
             pred1[e2_multi1 == 1] = -np.inf
             pred1[np.arange(0, len(pred1)), e2] = target_values
-            tot_samples += e1.shape[0]
+            count += e1.shape[0]
             for i in range(len(e1)):
                 pred1_args = np.argsort(-pred1[i])
-                rank = int(np.where(pred1_args == e2[i])[0])
+                rank = int(np.where(pred1_args == e2[i])[0]) + 1
                 ranks.append(rank + 1)
-                for hits_level in range(10):
+                for hits_level in hits_to_compute:
                     if rank <= hits_level:
                         hits[hits_level].append(1.0)
                     else:
@@ -67,18 +65,28 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
         except tf.errors.OutOfRangeError:
             stopped = True
 
-    for i in range(10):
-        # write hits to respective files
-        hits_at_path = os.path.join(results_dir, 'hits_at_{}.txt'.format(i + 1))
-        _write_data_to_file(hits_at_path, np.mean(hits[i]))
+    logger.info('Evaluated %d samples.' % count)
 
-        LOGGER.info('Hits @%d: %10.6f', i + 1, np.mean(hits[i]))
+    # Save results.
+    for hits_level in hits_to_compute:
+        hits_value = np.mean(hits[hits_level])
+        logger.info('Hits @%d: %10.6f', hits_level, hits_value)
+        hits[hits_level] = hits_value
+        # Write hits to respective files.
+        if enable_write_to_file:
+            hits_at_path = os.path.join(results_dir, 'hits_at_{}.txt'.format(hits_level))
+            _write_data_to_file(hits_at_path, hits_value)
 
-    # write mrrs to respective files
-    mean_rank = os.path.join(results_dir, 'mean_rank.txt')
-    mrr = os.path.join(results_dir, 'mrr.txt')
-    _write_data_to_file(mean_rank, np.mean(ranks))
-    _write_data_to_file(mrr, np.mean(1. / np.array(ranks)))
+    # Write MRR to respective files.
+    mr = np.mean(ranks)
+    mrr = np.mean(1. / np.array(ranks))
+    logging.info('Mean rank: %10.6f', mr)
+    logging.info('Mean reciprocal rank: %10.6f', mrr)
+    if enable_write_to_file:
+        path_mr = os.path.join(results_dir, 'mean_rank.txt')
+        path_mrr = os.path.join(results_dir, 'mrr.txt')
+        _write_data_to_file(path_mr, mr)
+        _write_data_to_file(path_mrr, mrr)
+    logging.info('-' * 50)
 
-    LOGGER.info('Mean rank: %10.6f', np.mean(ranks))
-    LOGGER.info('Mean reciprocal rank: %10.6f', np.mean(1. / np.array(ranks)))
+    return mr, mrr, hits

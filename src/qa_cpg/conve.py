@@ -7,7 +7,7 @@ import tensorflow as tf
 from functools import reduce
 from operator import mul
 
-from ..utilities.amsgrad import AMSGradOptimizer
+from .utils.amsgrad import AMSGradOptimizer
 
 __all__ = ['ConvE']
 

@@ -14,10 +14,8 @@ import tensorflow as tf
 from tqdm import tqdm
 
 __all__ = [
-    'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader',
-    'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader', 
-    'CountriesS1Loader', 'CountriesS2Loader', 
-    'CountriesS3Loader', 'NELL995Loader']
+    'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader', 'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader',
+    'CountriesS1Loader', 'CountriesS2Loader', 'CountriesS3Loader', 'NELL995Loader']
 
 logger = logging.getLogger(__name__)
 
