@@ -56,16 +56,18 @@ def plot_similarity(embed, embed_type, names, k=10, ignore_reverse=False):
         idx -= 1
     print('-' * 100)
 
-plot_heatmap = False
 
-# Provide an embeddings filename, otherwise compute filename automatically from model name inferred from config file.
+# Parameters.
 embeddings_filename = None
 relations_filename = None
 entities_filename = None
+plot_heatmap = False
+use_cpg = True
+data_loader = data.NationsLoader()
+
+# Provide an embeddings filename, otherwise compute filename automatically from model name inferred from config file.
 if embeddings_filename is None:
     logging.info('Computing filename automatically from model name inferred from config file...')
-    use_cpg = False
-    data_loader = data.NationsLoader()
 
     # Load configuration parameters.
     model_descr = 'cpg' if use_cpg else 'plain'
