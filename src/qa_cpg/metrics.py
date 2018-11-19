@@ -55,7 +55,7 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
             for i in range(len(e1)):
                 pred1_args = np.argsort(-pred1[i])
                 rank = int(np.where(pred1_args == e2[i])[0]) + 1
-                ranks.append(rank + 1)
+                ranks.append(rank)
                 for hits_level in hits_to_compute:
                     if rank <= hits_level:
                         hits[hits_level].append(1.0)
