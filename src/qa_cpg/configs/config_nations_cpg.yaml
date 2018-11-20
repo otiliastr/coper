@@ -16,6 +16,7 @@ training:
   batch_size: 512
   device: '/GPU:0'
   max_steps: 1000
+  prop_negatives: 10.0
 eval:
   validation_metric: hits@1  # Choose among: mr, mrr, hits@1, hits@10, hits@20.
   log_steps: 10

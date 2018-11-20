@@ -87,7 +87,8 @@ class _DataLoader(Loader):
                       num_parallel_readers=32,
                       num_parallel_batches=32,
                       buffer_size=1024 * 1024,
-                      prefetch_buffer_size=128):
+                      prefetch_buffer_size=128,
+                      prop_negatives=10.0):
         conve_parser, filenames = self.create_tf_record_files(
             directory, buffer_size=buffer_size)
 
@@ -130,7 +131,7 @@ class _DataLoader(Loader):
             conve_data = conve_data.map(
                 lambda sample: self._sample_negatives(
                     sample=sample,
-                    prop_negatives=10.0,
+                    prop_negatives=prop_negatives,
                     num_labels=100))
 
         conve_data = conve_data \

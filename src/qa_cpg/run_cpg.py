@@ -40,7 +40,7 @@ use_cpg = True
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.NationsLoader()
+data_loader = data.KinshipLoader()
 
 # Load configuration parameters.
 model_descr = 'cpg' if use_cpg else 'plain'
@@ -51,12 +51,13 @@ print(cfg)
 cfg = AttributeDict(cfg)
 
 # Compose model name based on config params.
-model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}'.format(
+model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}'.format(
     model_descr,
     data_loader.dataset_name,
     cfg.model.entity_embedding_size,
     cfg.model.relation_embedding_size,
-    cfg.training.batch_size)
+    cfg.training.batch_size,
+    cfg.training.prop_negatives)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
 model_name += suffix
@@ -108,7 +109,8 @@ if __name__ == '__main__':
         batch_size=cfg.training.batch_size,
         include_inv_relations=True,
         buffer_size=1024,
-        prefetch_buffer_size=16)
+        prefetch_buffer_size=16,
+        prop_negatives=cfg.training.prop_negatives)
     train_eval_dataset = data_loader.eval_dataset(
         directory=data_dir,
         dataset_type='train',
