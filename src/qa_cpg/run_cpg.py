@@ -157,8 +157,8 @@ if __name__ == '__main__':
     test_eval_iterator_handle = session.run(test_eval_iterator.string_handle())
 
     validation_metric = cfg.eval.validation_metric
-    best_metric_dev = -np.inf
-    metric_test_at_best_dev = -np.inf
+    best_metrics_dev = {validation_metric: -np.inf}
+    metrics_test_at_best_dev = {validation_metric: -np.inf}
     best_iter = None
     for step in range(cfg.training.max_steps):
         feed_dict = {
@@ -187,20 +187,24 @@ if __name__ == '__main__':
             if cfg.eval.eval_on_test:
                 metrics_test = _evaluate(
                     test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, step)
-            if best_metric_dev < metrics_dev[validation_metric]:
-                best_metric_dev = metrics_dev[validation_metric]
-                metric_test_at_best_dev = metrics_test[validation_metric]
-                best_iter = step
-                if save_best_embeddings:
-                    # Save relation and entity embeddings at the best validation point.
-                    rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
-                    pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
-            logger.info('Best dev %s so far is %.2f at step %d. Test %s at best dev: %.2f.',
-                        validation_metric, best_metric_dev, best_iter, validation_metric, metric_test_at_best_dev)
+            if cfg.eval.eval_on_dev and cfg.eval.eval_on_test:
+                if best_metrics_dev[validation_metric] < metrics_dev[validation_metric]:
+                    best_metrics_dev = metrics_dev
+                    metrics_test_at_best_dev = metrics_test
+                    best_iter = step
+                    if save_best_embeddings:
+                        # Save relation and entity embeddings at the best validation point.
+                        rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
+                        pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
+                logger.info('Best dev %s so far is at step %d. Best dev metrics: %s',
+                            validation_metric, best_iter, str(best_metrics_dev))
+                logger.info('Test metrics at best dev: %s', str(metrics_test_at_best_dev))
 
         if step % cfg.eval.ckpt_steps == 0 and step > 0:
             logger.info('Step %d. Saving checkpoint at %s...', step, ckpt_path)
             saver.save(session, ckpt_path)
 
-    logger.info('Best dev %s is %.2f at iteration %d. Test %s at best dev: %.2f.',
-                validation_metric, best_iter, best_metric_dev, validation_metric, metric_test_at_best_dev)
+    if cfg.eval.eval_on_dev and cfg.eval.eval_on_test:
+        logger.info('Best dev %s so far is at step %d. Best dev metrics: %s',
+                    validation_metric, best_iter, str(best_metrics_dev))
+        logger.info('Test metrics at best dev: %s', str(metrics_test_at_best_dev))
