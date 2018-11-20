@@ -1,5 +1,6 @@
 class AttributeDict(object):
     def __init__(self, d):
+        d = d.copy()
         # Convert all nested dictionaries into AttrDict.
         for k, v in d.items():
             if isinstance(v, dict):

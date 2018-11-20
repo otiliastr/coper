@@ -40,15 +40,15 @@ use_cpg = True
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.KinshipLoader()
+data_loader = data.NationsLoader()
 
 # Load configuration parameters.
 model_descr = 'cpg' if use_cpg else 'plain'
 config_path = 'qa_cpg/configs/config_%s_%s.yaml' % (data_loader.dataset_name, model_descr)
 with open(config_path, 'r') as file:
-    cfg = yaml.load(file)
-print(cfg)
-cfg = AttributeDict(cfg)
+    cfg_dict = yaml.load(file)
+print(cfg_dict)
+cfg = AttributeDict(cfg_dict)
 
 # Compose model name based on config params.
 model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}'.format(
@@ -72,8 +72,15 @@ os.makedirs(ckpt_dir, exist_ok=True)
 ckpt_path = os.path.join(ckpt_dir, 'model_weights.ckpt')
 eval_path = os.path.join(working_dir, 'evaluation', model_name)
 os.makedirs(eval_path, exist_ok=True)
+config_save_dir = os.path.join(working_dir, 'configs', model_name)
+os.makedirs(config_save_dir, exist_ok=True)
+config_save_path = os.path.join(config_save_dir, 'config.yml')
 if save_best_embeddings:
     embed_file = os.path.join(eval_path, 'best_embeddings.ckpt')
+
+# Save the config to file, to keep track of running configuration for the results.
+with open(config_save_path, 'w') as outfile:
+    yaml.dump(cfg_dict, outfile, default_flow_style=False)
 
 if __name__ == '__main__':
     data_loader.create_tf_record_files(data_dir)
