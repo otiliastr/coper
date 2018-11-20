@@ -185,7 +185,7 @@ if __name__ == '__main__':
                 metrics_dev = _evaluate(
                     dev_eval_iterator, dev_eval_iterator_handle, 'dev_evaluation', summary_writer, step)
             if cfg.eval.eval_on_test:
-                metrics_test = _evaluate(q
+                metrics_test = _evaluate(
                     test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, step)
             if best_metric_dev < metrics_dev[validation_metric]:
                 best_metric_dev = metrics_dev[validation_metric]
