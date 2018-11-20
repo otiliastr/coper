@@ -185,18 +185,18 @@ if __name__ == '__main__':
                 metrics_dev = _evaluate(
                     dev_eval_iterator, dev_eval_iterator_handle, 'dev_evaluation', summary_writer, step)
             if cfg.eval.eval_on_test:
-                metrics_test = _evaluate(
+                metrics_test = _evaluate(q
                     test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, step)
             if best_metric_dev < metrics_dev[validation_metric]:
                 best_metric_dev = metrics_dev[validation_metric]
                 metric_test_at_best_dev = metrics_test[validation_metric]
                 best_iter = step
-                logger.info('Best dev %s so far is %.2f. Test %s at best dev: %.2f.',
-                            validation_metric, best_metric_dev, validation_metric, metric_test_at_best_dev)
                 if save_best_embeddings:
                     # Save relation and entity embeddings at the best validation point.
                     rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
                     pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
+            logger.info('Best dev %s so far is %.2f at step %d. Test %s at best dev: %.2f.',
+                        validation_metric, best_metric_dev, best_iter, validation_metric, metric_test_at_best_dev)
 
         if step % cfg.eval.ckpt_steps == 0 and step > 0:
             logger.info('Step %d. Saving checkpoint at %s...', step, ckpt_path)
