@@ -50,7 +50,6 @@ class Loader(six.with_metaclass(abc.ABCMeta, object)):
                         handle.extractall(path=extracted_path)
                 extracted = True
         return extracted
-        
 
     def maybe_download(self, directory, buffer_size=1024 * 1024):
         """Downloads the required dataset files, if needed.
@@ -72,8 +71,9 @@ class Loader(six.with_metaclass(abc.ABCMeta, object)):
 
 
 class _DataLoader(Loader):
-    def __init__(self, url, filenames, dataset_name, filetypes=['train', 'dev', 'test']):
+    def __init__(self, url, filenames, dataset_name, filetypes=['train', 'dev', 'test'],  needs_test_set_cleaning=False):
         self.filetypes = filetypes
+        self.needs_test_set_cleaning = needs_test_set_cleaning
         super(_DataLoader, self).__init__(url, filenames, dataset_name)
 
         # TODO: This is a bad way of "leaking" this information because it may be incomplete when querried.
@@ -341,9 +341,27 @@ class _DataLoader(Loader):
         e1rel_to_e2_dev = os.path.join(directory, 'e1rel_to_e2_dev.json')
         e1rel_to_e2_test = os.path.join(directory, 'e1rel_to_e2_test.json')
         e1rel_to_e2_full = os.path.join(directory, 'e1rel_to_e2_full.json')
+
+        # Potentially remove from the test set the entities that do not appear in train.
+        if self.needs_test_set_cleaning:
+            assert 'train.txt' in graphs
+            allowed_entities = set()
+            allowed_relations = set()
+            for key, value in six.iteritems(graphs['train.txt']):
+                e1, rel = key
+                e2_multi = list(value)
+                allowed_entities.add(e1)
+                allowed_entities.update(e2_multi)
+                allowed_relations.add(rel)
+        else:
+            allowed_entities = None
+            allowed_relations = None
+
         self._write_graph(e1rel_to_e2_train, graphs[files[0]])
-        self._write_graph(e1rel_to_e2_dev, graphs[files[1]], full_graph)
-        self._write_graph(e1rel_to_e2_test, graphs[files[2]], full_graph)
+        self._write_graph(e1rel_to_e2_dev, graphs[files[1]], full_graph,
+                          allowed_entities=allowed_entities, allowed_relations=allowed_relations)
+        self._write_graph(e1rel_to_e2_test, graphs[files[2]], full_graph,
+                          allowed_entities=allowed_entities, allowed_relations=allowed_relations)
         self._write_graph(e1rel_to_e2_full, full_graph, full_graph)
 
         return {
@@ -353,7 +371,7 @@ class _DataLoader(Loader):
             'full': e1rel_to_e2_full}
 
     @staticmethod
-    def _write_graph(filename, graph, labels=None):
+    def _write_graph(filename, graph, labels=None, allowed_entities=None, allowed_relations=None):
         with open(filename, 'w') as handle:
             for key, value in six.iteritems(graph):
                 if labels is None:
@@ -365,8 +383,14 @@ class _DataLoader(Loader):
                     handle.write(json.dumps(sample) + '\n')
                 else:
                     e1, rel = key
+                    if allowed_entities is not None and e1 not in allowed_entities:
+                        continue
+                    if allowed_relations is not None and rel not in allowed_relations:
+                        continue
                     e2_multi1 = ' '.join(list(labels[key]))
                     for e2 in value:
+                        if allowed_entities is not None and e2 not in allowed_entities:
+                            continue
                         sample = {
                             'e1': e1,
                             'e2': e2,
@@ -473,11 +497,11 @@ class _ConvEDataLoader(_DataLoader):
 
 
 class _MinervaDataLoader(_DataLoader):
-    def __init__(self, dataset_name):
+    def __init__(self, dataset_name, needs_test_set_cleaning=False):
         url = 'https://raw.githubusercontent.com/shehzaadzd/MINERVA/master/datasets/data_preprocessed/%s' % dataset_name
         filenames = ['train.txt', 'dev.txt', 'test.txt']
         filetypes = ['train', 'dev', 'test']
-        super(_MinervaDataLoader, self).__init__(url, filenames, dataset_name, filetypes)
+        super(_MinervaDataLoader, self).__init__(url, filenames, dataset_name, filetypes, needs_test_set_cleaning)
 
 
 class NationsLoader(_ConvEDataLoader):
@@ -537,4 +561,5 @@ class CountriesS3Loader(_MinervaDataLoader):
 class NELL995Loader(_MinervaDataLoader):
     def __init__(self):
         dataset_name = 'nell-995'
-        super(NELL995Loader, self).__init__(dataset_name)
+        # NELL contains some test entities that do not appear during training. We remove those.
+        super(NELL995Loader, self).__init__(dataset_name, needs_test_set_cleaning=True)
