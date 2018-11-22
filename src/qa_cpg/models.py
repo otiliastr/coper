@@ -294,7 +294,7 @@ class ConvE(object):
 
         if self.context_rel_out is not None:
             fc_weights = ContextualParameterGenerator(
-                context_size=[self.rel_emb_size] + self.context_rel_out, 
+                context_size=[self.rel_emb_size] + self.context_rel_out,
                 name='fc_weights',
                 dtype=tf.float32,
                 shape=[fc_input_size, self.ent_emb_size],

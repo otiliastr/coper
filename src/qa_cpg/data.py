@@ -88,7 +88,8 @@ class _DataLoader(Loader):
                       num_parallel_batches=32,
                       buffer_size=1024 * 1024,
                       prefetch_buffer_size=128,
-                      prop_negatives=10.0):
+                      prop_negatives=10.0,
+                      num_labels=100):
         conve_parser, filenames = self.create_tf_record_files(
             directory, buffer_size=buffer_size)
 
@@ -128,11 +129,12 @@ class _DataLoader(Loader):
              
         do_negative_sample = True
         if do_negative_sample:
+            assert num_labels > prop_negatives, 'Parameter `num_labels` needs to be larger than `prop_negatives`.'
             conve_data = conve_data.map(
                 lambda sample: self._sample_negatives(
                     sample=sample,
                     prop_negatives=prop_negatives,
-                    num_labels=100))
+                    num_labels=num_labels))
 
         conve_data = conve_data \
             .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000)) \

@@ -36,11 +36,11 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-use_cpg = True
+use_cpg = False
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.NationsLoader()
+data_loader = data.NELL995Loader()
 
 # Load configuration parameters.
 model_descr = 'cpg' if use_cpg else 'plain'
@@ -51,13 +51,14 @@ print(cfg_dict)
 cfg = AttributeDict(cfg_dict)
 
 # Compose model name based on config params.
-model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}'.format(
+model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}'.format(
     model_descr,
     data_loader.dataset_name,
     cfg.model.entity_embedding_size,
     cfg.model.relation_embedding_size,
     cfg.training.batch_size,
-    cfg.training.prop_negatives)
+    cfg.training.prop_negatives,
+    cfg.training.num_labels)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
 model_name += suffix
@@ -117,7 +118,8 @@ if __name__ == '__main__':
         include_inv_relations=True,
         buffer_size=1024,
         prefetch_buffer_size=16,
-        prop_negatives=cfg.training.prop_negatives)
+        prop_negatives=cfg.training.prop_negatives,
+        num_labels=cfg.training.num_labels)
     train_eval_dataset = data_loader.eval_dataset(
         directory=data_dir,
         dataset_type='train',

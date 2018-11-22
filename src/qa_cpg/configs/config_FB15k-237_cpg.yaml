@@ -1,7 +1,7 @@
 model:
   entity_embedding_size: 200
   relation_embedding_size: 200
-  concat_rel: True           # Set to `False` for plain ConvE, 'True' for CPG on output layer.
+  concat_rel: False          # Set to `False` for plain ConvE, 'True' only if you want the relation to be concatenated in in the projection/output layer.
   input_dropout: 0.2
   feature_map_dropout: 0.3
   output_dropout: 0.2
@@ -17,6 +17,7 @@ training:
   device: '/GPU:0'
   max_steps: 100000
   prop_negatives: 1.0
+  num_labels: 100            # Total number of labels considered during training when doing negative sampling. Must be > prop_negatives.
 eval:
   validation_metric: hits@1  # Choose among: mr, mrr, hits@1, hits@10, hits@20.
   log_steps: 100
