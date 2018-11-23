@@ -5,7 +5,6 @@
 
 # Temporary files.
 temp
-src/pickles
 
 # Byte-compiled / optimized / DLL files
 *.py[cod]
