@@ -131,7 +131,7 @@ class _DataLoader(Loader):
             conve_data = conve_data.filter(filter_inv_relations)
         conve_data = conve_data.map(remove_is_inverse)
 
-        do_negative_sample = True
+        do_negative_sample = False
         if do_negative_sample:
             conve_data = conve_data.map(self._find_correct)
 
@@ -147,6 +147,8 @@ class _DataLoader(Loader):
                     sample=sample,
                     prop_negatives=prop_negatives,
                     num_labels=num_labels))
+        else:
+            conve_data = conve_data.map(self._add_lookup_values)
 
         conve_data = conve_data \
             .batch(batch_size) \
@@ -211,7 +213,7 @@ class _DataLoader(Loader):
         e1 = sample['e1']
         e2 = sample['e2']
         rel = sample['rel']
-        e2_multi= sample['e2_multi1']
+        e2_multi = sample['e2_multi1']
         correct_e2s = sample['correct_e2s']
         wrong_e2s = sample['wrong_e2s']
 
@@ -244,6 +246,20 @@ class _DataLoader(Loader):
             _more_positives)
         lookup_values = tf.cast(indexes, tf.int32)
 
+        return {
+                'e1': e1,
+                'e2': e2,
+                'rel': rel,
+                'e2_multi': e2_multi,
+                'lookup_values': lookup_values}
+
+    @staticmethod
+    def _add_lookup_values(sample):
+        e1 = sample['e1']
+        e2 = sample['e2']
+        rel = sample['rel']
+        e2_multi = sample['e2_multi1']
+        lookup_values = tf.range(e2_multi.shape.as_list[0])
         return {
                 'e1': e1,
                 'e2': e2,
