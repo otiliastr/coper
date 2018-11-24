@@ -195,15 +195,6 @@ class _DataLoader(Loader):
             .batch(batch_size) \
             .prefetch(prefetch_buffer_size)
 
-    @staticmethod
-    def _find_correct(sample):
-        e2_multi= sample['e2_multi1']
-        zero = tf.constant(0, dtype=tf.float32)
-        one = tf.constant(1, dtype=tf.float32)
-        sample['correct_e2s'] = tf.where(tf.equal(e2_multi, one))[:, 0]
-        sample['wrong_e2s'] = tf.where(tf.equal(e2_multi, zero))[:, 0]
-        return sample
-
     def _sample_negatives(self, sample, prop_negatives, num_labels):
         e1 = sample['e1']
         e2 = sample['e2']
@@ -219,11 +210,11 @@ class _DataLoader(Loader):
             num_neg = num_labels - num_positives
             wrong_e2s = tf.nn.uniform_candidate_sampler(
                 true_classes=correct_e2s[None, :],
-                num_true=tf.contrib.util.constant_value(tf.size(correct_e2s)),
+                num_true=num_labels,
                 num_sampled=num_neg,
                 unique=True,
                 range_max=self.num_ent)
-            return tf.concat([correct_e2s, wrong_e2s], axis=0)
+            return tf.concat([correct_e2s, wrong_e2s[:num_neg]], axis=0)
 
         def _more_positives():
             num_negatives_needed = num_labels - num_positives_needed
@@ -231,11 +222,11 @@ class _DataLoader(Loader):
             num_positives = num_labels - num_neg
             wrong_e2s = tf.nn.uniform_candidate_sampler(
                 true_classes=correct_e2s[None, :],
-                num_true=tf.contrib.util.constant_value(tf.size(correct_e2s)),
+                num_true=num_labels,
                 num_sampled=num_neg,
                 unique=True,
                 range_max=self.num_ent)
-            return tf.concat([correct_e2s[:num_positives], wrong_e2s], axis=0)
+            return tf.concat([correct_e2s[:num_positives], wrong_e2s[:num_neg]], axis=0)
 
         indexes = tf.cond(
             tf.less_equal(num_positives, num_positives_needed),
