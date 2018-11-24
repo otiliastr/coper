@@ -102,13 +102,11 @@ class _DataLoader(Loader):
 
         def map_fn(sample):
             sample = conve_parser(sample)
-            e2_multi1 = tf.to_float(tf.sparse_to_indicator(
-                sample['e2_multi1'], self.num_ent))
             return {
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi1': e2_multi1,
+                'e2_multi1': sample['e2_multi1'],
                 'is_inverse': tf.cast(sample['is_inverse'], tf.bool)}
 
         def filter_inv_relations(sample):
@@ -125,28 +123,26 @@ class _DataLoader(Loader):
             .interleave(tf.data.TFRecordDataset,
                         cycle_length=num_parallel_readers,
                         block_length=batch_size) \
-            .map(map_fn, num_parallel_calls=num_parallel_batches)
+            .map(map_fn)
 
         if not include_inv_relations:
             conve_data = conve_data.filter(filter_inv_relations)
         conve_data = conve_data.map(remove_is_inverse)
-
-        do_negative_sample = False
-        if do_negative_sample:
-            conve_data = conve_data.map(self._find_correct)
 
         if cache:
             conve_data = conve_data.cache()
         
         conve_data = conve_data.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))
 
+        do_negative_sample = True
         if do_negative_sample:
             assert num_labels > prop_negatives, 'Parameter `num_labels` needs to be larger than `prop_negatives`.'
             conve_data = conve_data.map(
                 lambda sample: self._sample_negatives(
                     sample=sample,
                     prop_negatives=prop_negatives,
-                    num_labels=num_labels))
+                    num_labels=num_labels), 
+                num_parallel_calls=num_parallel_batches)
         else:
             conve_data = conve_data.map(self._add_lookup_values)
 
@@ -208,43 +204,49 @@ class _DataLoader(Loader):
         sample['wrong_e2s'] = tf.where(tf.equal(e2_multi, zero))[:, 0]
         return sample
 
-    @staticmethod
-    def _sample_negatives(sample, prop_negatives, num_labels):
+    def _sample_negatives(self, sample, prop_negatives, num_labels):
         e1 = sample['e1']
         e2 = sample['e2']
         rel = sample['rel']
-        e2_multi = sample['e2_multi1']
-        correct_e2s = sample['correct_e2s']
-        wrong_e2s = sample['wrong_e2s']
+        correct_e2s = sample['e2_multi1']
 
         correct_e2s = tf.random_shuffle(correct_e2s)
-        wrong_e2s = tf.random_shuffle(wrong_e2s)
-
         num_positives = tf.size(correct_e2s)
-        num_negatives = tf.size(wrong_e2s)
-
         num_positives_needed = int(1.0 / (1.0 + prop_negatives) * num_labels)
         print('num_positives_needed: ', num_positives_needed)
 
         def _less_positives():
             num_neg = num_labels - num_positives
-            return tf.concat([
-                correct_e2s[:num_positives],
-                wrong_e2s[:num_neg]], axis=0)
+            wrong_e2s = tf.random.uniform_candidate_sampler(
+                true_classes=correct_e2s[None, :],
+                num_true=tf.size(correct_e2s),
+                num_sampled=num_neg,
+                unique=True,
+                range_max=self.num_ent)
+            return tf.concat([correct_e2s, wrong_e2s], axis=0)
 
         def _more_positives():
             num_negatives_needed = num_labels - num_positives_needed
-            num_neg = tf.minimum(num_negatives, num_negatives_needed)
+            num_neg = tf.minimum(self.num_ent - num_positives, num_negatives_needed)
             num_positives = num_labels - num_neg
-            return tf.concat([
-                correct_e2s[:num_positives],
-                wrong_e2s[:num_neg]], axis=0)
+            wrong_e2s = tf.random.uniform_candidate_sampler(
+                true_classes=correct_e2s[None, :],
+                num_true=tf.size(correct_e2s),
+                num_sampled=num_neg,
+                unique=True,
+                range_max=self.num_ent)
+            return tf.concat([correct_e2s[:num_positives], wrong_e2s], axis=0)
 
         indexes = tf.cond(
             tf.less_equal(num_positives, num_positives_needed),
             _less_positives,
             _more_positives)
         lookup_values = tf.cast(indexes, tf.int32)
+
+        e2_multi = tf.sparse_to_dense(
+            indices=sample['e2_multi1'],
+            output_shape=[self.num_ent],
+            sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]], tf.float32)
 
         return {
                 'e1': e1,
@@ -258,8 +260,12 @@ class _DataLoader(Loader):
         e1 = sample['e1']
         e2 = sample['e2']
         rel = sample['rel']
-        e2_multi = sample['e2_multi1']
+        e2_multi = tf.sparse_to_dense(
+            indices=sample['e2_multi1'],
+            output_shape=[self.num_ent],
+            sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]], tf.float32)
         lookup_values = tf.range(e2_multi.shape.as_list[0])
+        
         return {
                 'e1': e1,
                 'e2': e2,
@@ -330,7 +336,7 @@ class _DataLoader(Loader):
                 'e1': tf.FixedLenFeature([], tf.int64),
                 'e2': tf.FixedLenFeature([], tf.int64),
                 'rel': tf.FixedLenFeature([], tf.int64),
-                'e2_multi1': tf.VarLenFeature(tf.int64),
+                'e2_multi1': tf.FixedLenFeature([-1], tf.int64),
                 'is_inverse': tf.FixedLenFeature([], tf.int64)}
             return tf.parse_single_example(r, features=features)
 
