@@ -11,6 +11,8 @@ import six
 import requests
 import tensorflow as tf
 
+from tensorflow.python.ops.inplace_ops import inplace_update
+
 from tqdm import tqdm
 
 __all__ = [
@@ -141,7 +143,7 @@ class _DataLoader(Loader):
                 lambda sample: self._sample_negatives(
                     sample=sample,
                     prop_negatives=prop_negatives,
-                    num_labels=num_labels), 
+                    num_labels=num_labels),
                 num_parallel_calls=num_parallel_batches)
         else:
             conve_data = conve_data.map(self._add_lookup_values)
@@ -165,12 +167,18 @@ class _DataLoader(Loader):
 
         def map_fn(sample):
             sample = parser(sample)
-            e2_multi1 = tf.to_float(tf.sparse_to_indicator(sample['e2_multi1'], self.num_ent))
+            
+            e2_multi = tf.zeros([self.num_ent], tf.float32)
+            e2_multi = inplace_update(
+                x=e2_multi, 
+                i=sample['e2_multi1'], 
+                v=tf.ones(tf.shape(sample['e2_multi1']), tf.float32))
+            
             return {
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi1': e2_multi1,
+                'e2_multi1': e2_multi,
                 'is_inverse': tf.cast(sample['is_inverse'], tf.bool)}
 
         def filter_inv_relations(sample):
@@ -202,58 +210,103 @@ class _DataLoader(Loader):
         correct_e2s = sample['e2_multi1']
 
         correct_e2s = tf.random_shuffle(correct_e2s)
+        wrong_e2s = tf.range(self.num_ent, dtype=tf.int64)
+
         num_positives = tf.size(correct_e2s)
+        num_negatives = tf.size(wrong_e2s)
+
         num_positives_needed = int(1.0 / (1.0 + prop_negatives) * num_labels)
         print('num_positives_needed: ', num_positives_needed)
 
         def _less_positives():
             num_neg = num_labels - num_positives
-            wrong_e2s = tf.nn.uniform_candidate_sampler(
-                true_classes=correct_e2s[None, :],
-                num_true=num_labels,
-                num_sampled=num_neg,
-                unique=True,
-                range_max=self.num_ent)
-            return tf.concat([correct_e2s, wrong_e2s[:num_neg]], axis=0)
+            indexes = tf.concat([
+                correct_e2s[:num_positives],
+                wrong_e2s[:num_neg]], axis=0)
+            values = tf.concat([
+                tf.ones([num_positives]), 
+                tf.zeros([num_neg])], axis=0)
+            return indexes, values
 
         def _more_positives():
             num_negatives_needed = num_labels - num_positives_needed
-            num_neg = tf.minimum(self.num_ent - num_positives, num_negatives_needed)
-            num_positives = num_labels - num_neg
-            wrong_e2s = tf.nn.uniform_candidate_sampler(
-                true_classes=correct_e2s[None, :],
-                num_true=num_labels,
-                num_sampled=num_neg,
-                unique=True,
-                range_max=self.num_ent)
-            return tf.concat([correct_e2s[:num_positives], wrong_e2s[:num_neg]], axis=0)
+            num_neg = tf.minimum(num_negatives, num_negatives_needed)
+            num_pos = num_labels - num_neg
+            indexes = tf.concat([
+                correct_e2s[:num_pos],
+                wrong_e2s[:num_neg]], axis=0)
+            values = tf.concat([
+                tf.ones([num_pos]), 
+                tf.zeros([num_neg])], axis=0)
+            return indexes, values
 
-        indexes = tf.cond(
+        indexes, values = tf.cond(
             tf.less_equal(num_positives, num_positives_needed),
             _less_positives,
             _more_positives)
         lookup_values = tf.cast(indexes, tf.int32)
 
-        e2_multi = tf.sparse_to_dense(
-            indices=sample['e2_multi1'],
-            output_shape=[self.num_ent],
-            sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]], tf.float32))
-
         return {
                 'e1': e1,
                 'e2': e2,
                 'rel': rel,
-                'e2_multi': e2_multi,
+                'e2_multi': values,
                 'lookup_values': lookup_values}
+
+        # correct_e2s = tf.random_shuffle(correct_e2s)
+        # num_positives = tf.size(correct_e2s)
+        # num_positives_needed = int(1.0 / (1.0 + prop_negatives) * num_labels)
+        # print('num_positives_needed: ', num_positives_needed)
+
+        # def _less_positives():
+        #     num_neg = num_labels - num_positives
+        #     wrong_e2s, _, _ = tf.nn.uniform_candidate_sampler(
+        #         true_classes=correct_e2s[None, :],
+        #         num_true=num_labels,
+        #         num_sampled=num_labels,
+        #         unique=True,
+        #         range_max=self.num_ent)
+        #     return tf.concat([correct_e2s, wrong_e2s[:num_neg]], axis=0)
+
+        # def _more_positives():
+        #     num_negatives_needed = num_labels - num_positives_needed
+        #     num_neg = tf.minimum(self.num_ent - num_positives, num_negatives_needed)
+        #     num_pos = num_labels - num_neg
+        #     wrong_e2s, _, _ = tf.nn.uniform_candidate_sampler(
+        #         true_classes=correct_e2s[None, :],
+        #         num_true=num_labels,
+        #         num_sampled=num_labels,
+        #         unique=True,
+        #         range_max=self.num_ent)
+        #     return tf.concat([correct_e2s[:num_pos], wrong_e2s[:num_neg]], axis=0)
+
+        # indexes = tf.cond(
+        #     tf.less_equal(num_positives, num_positives_needed),
+        #     _less_positives,
+        #     _more_positives)
+        # lookup_values = tf.cast(indexes, tf.int32)
+
+        # e2_multi = tf.sparse.to_dense(tf.SparseTensor(
+        #     indices=sample['e2_multi1'],
+        #     values=tf.ones([tf.shape(sample['e2_multi1'])[0]], tf.float32),
+        #     dense_shape=[self.num_ent]))
+
+        # return {
+        #         'e1': e1,
+        #         'e2': e2,
+        #         'rel': rel,
+        #         'e2_multi': e2_multi,
+        #         'lookup_values': lookup_values}
 
     def _add_lookup_values(self, sample):
         e1 = sample['e1']
         e2 = sample['e2']
         rel = sample['rel']
-        e2_multi = tf.sparse_to_dense(
-            indices=sample['e2_multi1'],
-            output_shape=[self.num_ent],
-            sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]], tf.float32))
+        e2_multi = tf.zeros([self.num_ent], tf.float32)
+        e2_multi = inplace_update(
+            x=e2_multi,
+            i=sample['e2_multi1'],
+            v=tf.ones(tf.shape(sample['e2_multi1']), tf.float32))
         lookup_values = tf.range(e2_multi.shape.as_list()[0])
 
         return {
