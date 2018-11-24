@@ -255,8 +255,7 @@ class _DataLoader(Loader):
                 'e2_multi': e2_multi,
                 'lookup_values': lookup_values}
 
-    @staticmethod
-    def _add_lookup_values(sample):
+    def _add_lookup_values(self, sample):
         e1 = sample['e1']
         e2 = sample['e2']
         rel = sample['rel']
@@ -336,7 +335,7 @@ class _DataLoader(Loader):
                 'e1': tf.FixedLenFeature([], tf.int64),
                 'e2': tf.FixedLenFeature([], tf.int64),
                 'rel': tf.FixedLenFeature([], tf.int64),
-                'e2_multi1': tf.FixedLenFeature([-1], tf.int64),
+                'e2_multi1': tf.FixedLenSequenceFeature([], tf.int64),
                 'is_inverse': tf.FixedLenFeature([], tf.int64)}
             return tf.parse_single_example(r, features=features)
 
