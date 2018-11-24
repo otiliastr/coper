@@ -219,7 +219,7 @@ class _DataLoader(Loader):
             num_neg = num_labels - num_positives
             wrong_e2s = tf.nn.uniform_candidate_sampler(
                 true_classes=correct_e2s[None, :],
-                num_true=tf.size(correct_e2s),
+                num_true=tf.contrib.util.constant_value(tf.size(correct_e2s)),
                 num_sampled=num_neg,
                 unique=True,
                 range_max=self.num_ent)
@@ -231,7 +231,7 @@ class _DataLoader(Loader):
             num_positives = num_labels - num_neg
             wrong_e2s = tf.nn.uniform_candidate_sampler(
                 true_classes=correct_e2s[None, :],
-                num_true=tf.size(correct_e2s),
+                num_true=tf.contrib.util.constant_value(tf.size(correct_e2s)),
                 num_sampled=num_neg,
                 unique=True,
                 range_max=self.num_ent)
