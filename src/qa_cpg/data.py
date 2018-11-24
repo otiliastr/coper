@@ -91,7 +91,7 @@ class _DataLoader(Loader):
                       num_parallel_readers=32,
                       num_parallel_batches=32,
                       buffer_size=1024 * 1024,
-                      prefetch_buffer_size=128,
+                      prefetch_buffer_size=10,
                       prop_negatives=10.0,
                       num_labels=100,
                       cache=False):
@@ -160,7 +160,7 @@ class _DataLoader(Loader):
                      batch_size,
                      include_inv_relations=True,
                      buffer_size=1024 * 1024,
-                     prefetch_buffer_size=128):
+                     prefetch_buffer_size=10):
         parser, filenames = self.create_tf_record_files(
             directory, buffer_size=buffer_size)
         filenames = filenames[dataset_type]
@@ -262,7 +262,7 @@ class _DataLoader(Loader):
 
     def create_tf_record_files(self,
                                directory,
-                               max_records_per_file=10000,
+                               max_records_per_file=1000000,
                                buffer_size=1024 * 1024):
         logger.info(
             'Creating TF record files for the \'%s\' dataset.',
