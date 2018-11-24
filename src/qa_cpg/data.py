@@ -71,8 +71,12 @@ class Loader(six.with_metaclass(abc.ABCMeta, object)):
 
 
 class _DataLoader(Loader):
-    def __init__(self, url, filenames, dataset_name, filetypes=['train', 'dev', 'test'],  needs_test_set_cleaning=False):
+    def __init__(self, url, filenames, dataset_name, filetypes=['train', 'dev', 'test'],  needs_test_set_cleaning=False,
+                 add_reverse_per_filetype=None):
         self.filetypes = filetypes
+        if add_reverse_per_filetype is None:
+            add_reverse_per_filetype = [True for _ in range(len(filetypes))]
+        self.add_reverse_per_filetype = add_reverse_per_filetype
         self.needs_test_set_cleaning = needs_test_set_cleaning
         super(_DataLoader, self).__init__(url, filenames, dataset_name)
 
@@ -204,12 +208,13 @@ class _DataLoader(Loader):
         num_negatives = tf.size(wrong_e2s)
 
         num_positives_needed = int(1.0 / (1.0 + prop_negatives) * num_labels)
+        print('num_positives_needed: ', num_positives_needed)
 
         def _less_positives():
             num_neg = num_labels - num_positives
             return tf.concat([
                 correct_e2s[:num_positives],
-                wrong_e2s[:num_neg]], axis = 0)
+                wrong_e2s[:num_neg]], axis=0)
 
         def _more_positives():
             num_negatives_needed = num_labels - num_positives_needed
@@ -217,7 +222,7 @@ class _DataLoader(Loader):
             num_positives = num_labels - num_neg
             return tf.concat([
                 correct_e2s[:num_positives],
-                wrong_e2s[:num_neg]], axis = 0)
+                wrong_e2s[:num_neg]], axis=0)
 
         indexes = tf.cond(
             tf.less_equal(num_positives, num_positives_needed),
@@ -259,6 +264,7 @@ class _DataLoader(Loader):
         tf_record_filenames = {}
         for filetype in filetypes:
             count = 0
+            total = 0
             file_index = 0
             filenames = glob.glob(os.path.join(
                 directory, '{0}-{1}.tfrecords'.format(filetype, '*')))
@@ -276,6 +282,7 @@ class _DataLoader(Loader):
                             sample, entity_ids, relation_ids)
                         tf_records_writer.write(record.SerializeToString())
                         count += 1
+                        total += 1
                         if count >= max_records_per_file:
                             tf_records_writer.close()
                             count = 0
@@ -286,6 +293,7 @@ class _DataLoader(Loader):
                             tf_record_filenames[filetype].append(filename)
                             tf_records_writer = tf.python_io.TFRecordWriter(filename)
                 tf_records_writer.close()
+            print('Total records in %s: %d' % (filetype, total))
 
         def conve_tf_record_parser(r):
             features = {
@@ -312,7 +320,7 @@ class _DataLoader(Loader):
         full_graph = {}  # Maps from (e1, rel) to set of e2 values.
         graphs = {}  # Maps from filename to dictionaries like labels.
         files = ['%s.txt' % f for f in self.filetypes]
-        for f in files:
+        for i, f in enumerate(files):
             graphs[f] = {}
             with open(os.path.join(directory, f), 'r') as handle:
                 for line in handle:
@@ -336,7 +344,8 @@ class _DataLoader(Loader):
                     full_graph[(e1, rel)].add(e2)
                     full_graph[(e2, rel_reverse)].add(e1)
                     graphs[f][(e1, rel)].add(e2)
-                    graphs[f][(e2, rel_reverse)].add(e1)
+                    if self.add_reverse_per_filetype[i]:
+                        graphs[f][(e2, rel_reverse)].add(e1)
 
         # Write preprocessed files in a standardized JSON format.
         e1rel_to_e2_train = os.path.join(directory, 'e1rel_to_e2_train.json')
@@ -386,12 +395,15 @@ class _DataLoader(Loader):
                 else:
                     e1, rel = key
                     if allowed_entities is not None and e1 not in allowed_entities:
+                        print('Skipping e1 %50s.' % e1)
                         continue
                     if allowed_relations is not None and rel not in allowed_relations:
+                        print('Skipping rel %50s.' % rel)
                         continue
                     e2_multi1 = ' '.join(list(labels[key]))
                     for e2 in value:
                         if allowed_entities is not None and e2 not in allowed_entities:
+                            print('Skipping e2 %50s.' % e2)
                             continue
                         sample = {
                             'e1': e1,
@@ -495,7 +507,9 @@ class _ConvEDataLoader(_DataLoader):
     def __init__(self, dataset_name):
         url = 'https://github.com/TimDettmers/ConvE/raw/master'
         filetypes = ['train', 'valid', 'test']
-        super(_ConvEDataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes)
+        add_reverse_per_filetype = [True, False, False]
+        super(_ConvEDataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes,
+                                               add_reverse_per_filetype=add_reverse_per_filetype)
 
 
 class _MinervaDataLoader(_DataLoader):
@@ -503,7 +517,9 @@ class _MinervaDataLoader(_DataLoader):
         url = 'https://raw.githubusercontent.com/shehzaadzd/MINERVA/master/datasets/data_preprocessed/%s' % dataset_name
         filenames = ['train.txt', 'dev.txt', 'test.txt']
         filetypes = ['train', 'dev', 'test']
-        super(_MinervaDataLoader, self).__init__(url, filenames, dataset_name, filetypes, needs_test_set_cleaning)
+        add_reverse_per_filetype = [True, False, False]
+        super(_MinervaDataLoader, self).__init__(url, filenames, dataset_name, filetypes, needs_test_set_cleaning,
+                                                 add_reverse_per_filetype=add_reverse_per_filetype)
 
 
 class NationsLoader(_ConvEDataLoader):
@@ -564,4 +580,4 @@ class NELL995Loader(_MinervaDataLoader):
     def __init__(self):
         dataset_name = 'nell-995'
         # NELL contains some test entities that do not appear during training. We remove those.
-        super(NELL995Loader, self).__init__(dataset_name, needs_test_set_cleaning=True)
+        super(NELL995Loader, self).__init__(dataset_name, needs_test_set_cleaning=False)
