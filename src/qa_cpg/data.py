@@ -125,18 +125,21 @@ class _DataLoader(Loader):
             .interleave(tf.data.TFRecordDataset,
                         cycle_length=num_parallel_readers,
                         block_length=batch_size) \
-            .map(lambda s: map_fn(s), num_parallel_calls=num_parallel_batches)
+            .map(map_fn, num_parallel_calls=num_parallel_batches)
 
         if not include_inv_relations:
             conve_data = conve_data.filter(filter_inv_relations)
         conve_data = conve_data.map(remove_is_inverse)
 
+        do_negative_sample = True
+        if do_negative_sample:
+            conve_data = conve_data.map(_find_correct)
+
         if cache:
             conve_data = conve_data.cache()
         
         conve_data = conve_data.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))
-             
-        do_negative_sample = True
+
         if do_negative_sample:
             assert num_labels > prop_negatives, 'Parameter `num_labels` needs to be larger than `prop_negatives`.'
             conve_data = conve_data.map(
@@ -195,16 +198,23 @@ class _DataLoader(Loader):
             .prefetch(prefetch_buffer_size)
 
     @staticmethod
+    def _find_correct(sample):
+        e2_multi= sample['e2_multi1']
+        zero = tf.constant(0, dtype=tf.float32)
+        one = tf.constant(1, dtype=tf.float32)
+        sample['correct_e2s'] = tf.where(tf.equal(e2_multi, one))[:, 0]
+        sample['wrong_e2s'] = tf.where(tf.equal(e2_multi, zero))[:, 0]
+        return sample
+
+    @staticmethod
     def _sample_negatives(sample, prop_negatives, num_labels):
         e1 = sample['e1']
         e2 = sample['e2']
         rel = sample['rel']
         e2_multi= sample['e2_multi1']
-        
-        zero = tf.constant(0, dtype=tf.float32)
-        one = tf.constant(1, dtype=tf.float32)
-        correct_e2s = tf.where(tf.equal(e2_multi, one))[:, 0]
-        wrong_e2s = tf.where(tf.equal(e2_multi, zero))[:, 0]
+        correct_e2s = sample['correct_e2s']
+        wrong_e2s = sample['wrong_e2s']
+
         correct_e2s = tf.random_shuffle(correct_e2s)
         wrong_e2s = tf.random_shuffle(wrong_e2s)
 
