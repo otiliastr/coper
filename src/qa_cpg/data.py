@@ -168,10 +168,11 @@ class _DataLoader(Loader):
         def map_fn(sample):
             sample = parser(sample)
             
-            e2_multi = tf.sparse.to_dense(tf.SparseTensor(
-                indices=sample['e2_multi1'][:, None],
-                values=tf.ones([tf.shape(sample['e2_multi1'])[0]]),
-                dense_shape=[self.num_ent]), validate_indices=False)
+            e2_multi = tf.sparse_to_dense(
+                sparse_indices=sample['e2_multi1'][:, None],
+                sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]]),
+                output_shape=[self.num_ent], 
+                validate_indices=False)
             
             return {
                 'e1': sample['e1'],
@@ -205,10 +206,11 @@ class _DataLoader(Loader):
     def _sample_negatives(self, sample, prop_negatives, num_labels):
         correct_e2s = sample['e2_multi1']
         
-        e2s_dense = tf.sparse.to_dense(tf.SparseTensor(
-            indices=correct_e2s[:, None],
-            values=tf.ones([tf.shape(correct_e2s)[0]]),
-            dense_shape=[self.num_ent]), validate_indices=False)
+        e2s_dense = tf.sparse_to_dense(
+            sparse_indices=correct_e2s[:, None],
+            sparse_values=tf.ones([tf.shape(correct_e2s)[0]]),
+            output_shape=[self.num_ent], 
+            validate_indices=False)
         
         correct_e2s = tf.random_shuffle(correct_e2s)
         wrong_e2s = tf.random_shuffle(tf.range(self.num_ent, dtype=tf.int64))
@@ -260,10 +262,11 @@ class _DataLoader(Loader):
         e1 = sample['e1']
         e2 = sample['e2']
         rel = sample['rel']
-        e2_multi = tf.sparse.to_dense(tf.SparseTensor(
-            indices=sample['e2_multi1'][:, None],
-            values=tf.ones([tf.shape(sample['e2_multi1'])[0]]),
-            dense_shape=[self.num_ent]), validate_indices=False)
+        e2_multi = tf.sparse_to_dense(
+            sparse_indices=sample['e2_multi1'][:, None],
+            sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]]),
+            output_shape=[self.num_ent], 
+            validate_indices=False)
         lookup_values = tf.range(e2_multi.shape.as_list()[0])
 
         return {
