@@ -263,7 +263,7 @@ class _DataLoader(Loader):
         e2_multi = tf.sparse_to_dense(
             indices=sample['e2_multi1'],
             output_shape=[self.num_ent],
-            sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]], tf.float32)
+            sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]], tf.float32))
         lookup_values = tf.range(e2_multi.shape.as_list()[0])
 
         return {
