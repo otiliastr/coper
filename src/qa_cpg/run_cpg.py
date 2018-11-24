@@ -119,7 +119,8 @@ if __name__ == '__main__':
         buffer_size=1024,
         prefetch_buffer_size=16,
         prop_negatives=cfg.training.prop_negatives,
-        num_labels=cfg.training.num_labels)
+        num_labels=cfg.training.num_labels,
+        cache=cfg.training.cache_data)
     train_eval_dataset = data_loader.eval_dataset(
         directory=data_dir,
         dataset_type='train',

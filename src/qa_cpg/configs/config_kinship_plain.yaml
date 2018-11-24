@@ -18,6 +18,7 @@ training:
   max_steps: 50000
   prop_negatives: 10.0
   num_labels: 100            # Total number of labels considered during training when doing negative sampling. Must be > prop_negatives.
+  cache_data: True
 eval:
   validation_metric: hits@1  # Choose among: mr, mrr, hits@1, hits@10, hits@20.
   log_steps: 50

@@ -93,7 +93,8 @@ class _DataLoader(Loader):
                       buffer_size=1024 * 1024,
                       prefetch_buffer_size=128,
                       prop_negatives=10.0,
-                      num_labels=100):
+                      num_labels=100,
+                      cache=False):
         conve_parser, filenames = self.create_tf_record_files(
             directory, buffer_size=buffer_size)
 
@@ -128,8 +129,12 @@ class _DataLoader(Loader):
 
         if not include_inv_relations:
             conve_data = conve_data.filter(filter_inv_relations)
-   
         conve_data = conve_data.map(remove_is_inverse)
+
+        if cache:
+            conve_data = conve_data.cache()
+        
+        conve_data = conve_data.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))
              
         do_negative_sample = True
         if do_negative_sample:
@@ -141,7 +146,6 @@ class _DataLoader(Loader):
                     num_labels=num_labels))
 
         conve_data = conve_data \
-            .apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000)) \
             .batch(batch_size) \
             .prefetch(prefetch_buffer_size)
 
