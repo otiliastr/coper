@@ -217,7 +217,7 @@ class _DataLoader(Loader):
 
         def _less_positives():
             num_neg = num_labels - num_positives
-            wrong_e2s = tf.random.uniform_candidate_sampler(
+            wrong_e2s = tf.nn.uniform_candidate_sampler(
                 true_classes=correct_e2s[None, :],
                 num_true=tf.size(correct_e2s),
                 num_sampled=num_neg,
@@ -229,7 +229,7 @@ class _DataLoader(Loader):
             num_negatives_needed = num_labels - num_positives_needed
             num_neg = tf.minimum(self.num_ent - num_positives, num_negatives_needed)
             num_positives = num_labels - num_neg
-            wrong_e2s = tf.random.uniform_candidate_sampler(
+            wrong_e2s = tf.nn.uniform_candidate_sampler(
                 true_classes=correct_e2s[None, :],
                 num_true=tf.size(correct_e2s),
                 num_sampled=num_neg,
