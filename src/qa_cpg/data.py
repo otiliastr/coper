@@ -133,7 +133,7 @@ class _DataLoader(Loader):
 
         do_negative_sample = True
         if do_negative_sample:
-            conve_data = conve_data.map(_find_correct)
+            conve_data = conve_data.map(self._find_correct)
 
         if cache:
             conve_data = conve_data.cache()
