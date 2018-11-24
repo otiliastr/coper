@@ -210,7 +210,7 @@ class _DataLoader(Loader):
         correct_e2s = sample['e2_multi1']
 
         correct_e2s = tf.random_shuffle(correct_e2s)
-        wrong_e2s = tf.range(self.num_ent, dtype=tf.int64)
+        wrong_e2s = tf.random_shuffle(tf.range(self.num_ent, dtype=tf.int64))
 
         num_positives = tf.size(correct_e2s)
         num_negatives = tf.size(wrong_e2s)
