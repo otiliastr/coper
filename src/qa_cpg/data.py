@@ -335,7 +335,7 @@ class _DataLoader(Loader):
                 'e1': tf.FixedLenFeature([], tf.int64),
                 'e2': tf.FixedLenFeature([], tf.int64),
                 'rel': tf.FixedLenFeature([], tf.int64),
-                'e2_multi1': tf.FixedLenSequenceFeature([], tf.int64),
+                'e2_multi1': tf.FixedLenSequenceFeature([], tf.int64, allow_missing=True),
                 'is_inverse': tf.FixedLenFeature([], tf.int64)}
             return tf.parse_single_example(r, features=features)
 
