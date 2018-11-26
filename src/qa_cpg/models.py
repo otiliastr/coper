@@ -233,8 +233,7 @@ class ConvE(object):
         self.eval_prediction_vector = self._create_predictions(eval_e1_emb, eval_rel_emb)
         self.eval_predictions = self._compute_likelihoods(self.eval_prediction_vector)
 
-        filtered_targets = batch_gather(self.e2_multi, self.obj_lookup_values)
-        self.loss = self._create_loss(self.predictions, filtered_targets)
+        self.loss = self._create_loss(self.predictions, self.e2_multi)
 
         # The following control dependency is needed in order for batch
         # normalization to work correctly.
