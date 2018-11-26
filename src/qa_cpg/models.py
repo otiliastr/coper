@@ -215,7 +215,8 @@ class ConvE(object):
         self.eval_e2 = self.next_eval_sample['e2']
         self.eval_e2_multi = self.next_eval_sample['e2_multi1']
 
-        self.variables = self._create_variables()
+        with tf.variable_scope('variables', use_resource=True):
+            self.variables = self._create_variables()
 
         ent_emb = self.variables['ent_emb']
         rel_emb = self.variables['rel_emb']
