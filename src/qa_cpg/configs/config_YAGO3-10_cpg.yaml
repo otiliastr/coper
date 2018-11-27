@@ -13,11 +13,11 @@ context:
   context_rel_use_batch_norm: False
 training:
   learning_rate: 0.001
-  batch_size: 256
+  batch_size: 128
   device: '/GPU:0'
-  max_steps: 10000000
+  max_steps: 100000000
   prop_negatives: 1.0
-  num_labels: 10000            # Total number of labels considered during training when doing negative sampling. Must be > prop_negatives.
+  num_labels: 1000            # Total number of labels considered during training when doing negative sampling. Must be > prop_negatives.
   cache_data: True
 eval:
   validation_metric: hits@1  # Choose among: mr, mrr, hits@1, hits@10, hits@20.
