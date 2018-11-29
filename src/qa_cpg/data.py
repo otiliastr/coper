@@ -205,14 +205,15 @@ class _DataLoader(Loader):
 
     def _sample_negatives(self, sample, prop_negatives, num_labels):
         correct_e2s = sample['e2_multi1']
-        
         e2s_dense = tf.sparse_to_dense(
             sparse_indices=correct_e2s[:, None],
             sparse_values=tf.ones([tf.shape(correct_e2s)[0]]),
             output_shape=[self.num_ent], 
             validate_indices=False)
-        
+
         correct_e2s = tf.random_shuffle(correct_e2s)
+        # To make the code fast, we pick as negatives at random some entities, without removing the positives from the
+        # list. If some of these e2s happen to be positive, they will be supervised with their correct label.
         wrong_e2s = tf.random_shuffle(tf.range(self.num_ent, dtype=tf.int64))
 
         num_positives = tf.size(correct_e2s)
@@ -222,19 +223,24 @@ class _DataLoader(Loader):
         print('num_positives_needed: ', num_positives_needed)
 
         def _less_positives():
+            # We have less positives than requested, therefore fill with negatives up to `num_labels` elements.
             num_neg = num_labels - num_positives
             neg_indexes = wrong_e2s[:num_neg]
             indexes = tf.concat([
                 correct_e2s[:num_positives],
                 neg_indexes], axis=0)
+            # For each e2 in `indexes` use label 1 for positives, or the label given e2s_dense for the randomly sampled
+            # negatives (which is is most likely 0, but can be 1 if we happened to sample a positive e2).
             values = tf.concat([
                 tf.ones([num_positives]),
                 tf.gather(e2s_dense, neg_indexes)], axis=0)
             return indexes, values
 
         def _more_positives():
+            # We have more positives than requested, therefore select a random subset of them as positive.
             num_negatives_needed = num_labels - num_positives_needed
             num_neg = tf.minimum(num_negatives, num_negatives_needed)
+            # If we don't have enough negatives, fill the rest of the elements up to `num_labels` with positives.
             num_pos = num_labels - num_neg
             neg_indexes = wrong_e2s[:num_neg]
             indexes = tf.concat([
