@@ -36,11 +36,11 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-use_cpg = False
+use_cpg = True
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.NELL995Loader()
+data_loader = data.YAGO310Loader()
 
 # Load configuration parameters.
 model_descr = 'cpg' if use_cpg else 'plain'
