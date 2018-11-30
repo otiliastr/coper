@@ -61,7 +61,8 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}'.fo
     cfg.training.num_labels)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
-suffix += '-OneIter-BNTrainPlaceholder-bn_momentum_0.1'
+# suffix += '-OneIter-BNTrainPlaceholder-bn_momentum_0.1'
+suffix += '-test'
 model_name += suffix
 
 # Create directories for saving downloaded data, summaries, logs and checkpoints.
@@ -155,7 +156,9 @@ if __name__ == '__main__':
     logger.info('Number of relations: %d', data_loader.num_rel)
 
     # Create a TensorFlow session and start training.
-    session = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+    config = tf.ConfigProto(allow_soft_placement=True)
+    config.gpu_options.allow_growth = True
+    session = tf.Session(config=config)
     saver = tf.train.Saver()
     summary_writer = tf.summary.FileWriter(summaries_dir, session.graph)
 
