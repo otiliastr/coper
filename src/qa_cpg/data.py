@@ -108,7 +108,7 @@ class _DataLoader(Loader):
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi1': sample['e2_multi1'],
+                'e2_multi': sample['e2_multi'],
                 'is_inverse': tf.cast(sample['is_inverse'], tf.bool)}
 
         def filter_inv_relations(sample):
@@ -119,7 +119,7 @@ class _DataLoader(Loader):
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi1': sample['e2_multi1']}
+                'e2_multi': sample['e2_multi']}
 
         conve_data = tf.data.Dataset.from_tensor_slices(conve_files) \
             .interleave(tf.data.TFRecordDataset,
@@ -138,7 +138,8 @@ class _DataLoader(Loader):
 
         do_negative_sample = True
         if do_negative_sample:
-            assert num_labels > prop_negatives, 'Parameter `num_labels` needs to be larger than `prop_negatives`.'
+            assert num_labels <= self.num_ent, \
+                'Parameter `num_labels` needs to be at most the total number of entities.'
             conve_data = conve_data.map(
                 lambda sample: self._sample_negatives(
                     sample=sample,
@@ -169,16 +170,16 @@ class _DataLoader(Loader):
             sample = parser(sample)
             
             e2_multi = tf.sparse_to_dense(
-                sparse_indices=sample['e2_multi1'][:, None],
-                sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]]),
+                sparse_indices=sample['e2_multi'][:, None],
+                sparse_values=tf.ones([tf.shape(sample['e2_multi'])[0]]),
                 output_shape=[self.num_ent], 
                 validate_indices=False)
-            
+
             return {
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi1': e2_multi,
+                'e2_multi': e2_multi,
                 'is_inverse': tf.cast(sample['is_inverse'], tf.bool)}
 
         def filter_inv_relations(sample):
@@ -189,7 +190,17 @@ class _DataLoader(Loader):
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi1': sample['e2_multi1']}
+                'e2_multi': sample['e2_multi']}
+
+        def add_fake_lookup_vals(sample):
+            # Add an empty `lookup_values` tensor to match the inputs in the training dataset and use a single iterator.
+            lookup_values = tf.zeros(shape=(0,), dtype=tf.int32)
+            return {
+                'e1': sample['e1'],
+                'e2': sample['e2'],
+                'rel': sample['rel'],
+                'e2_multi': sample['e2_multi'],
+                'lookup_values': lookup_values}
 
         data = tf.data.Dataset.from_tensor_slices(filenames)\
             .flat_map(tf.data.TFRecordDataset)\
@@ -200,11 +211,12 @@ class _DataLoader(Loader):
 
         return data \
             .map(remove_is_inverse) \
+            .map(add_fake_lookup_vals)  \
             .batch(batch_size) \
             .prefetch(prefetch_buffer_size)
 
     def _sample_negatives(self, sample, prop_negatives, num_labels):
-        correct_e2s = sample['e2_multi1']
+        correct_e2s = sample['e2_multi']
         e2s_dense = tf.sparse_to_dense(
             sparse_indices=correct_e2s[:, None],
             sparse_values=tf.ones([tf.shape(correct_e2s)[0]]),
@@ -257,6 +269,11 @@ class _DataLoader(Loader):
             _more_positives)
         lookup_values = tf.cast(indexes, tf.int32)
 
+        # lookup_values = tf.Print(lookup_values,
+        #               [tf.shape(sample['e1']), tf.shape(sample['e2']), tf.shape(sample['e2_multi']), tf.shape(lookup_values)],
+        #               'e1 shape, e2  shape, e2 multi shape, lookup shape',
+        #               summarize=1000)
+
         return {
                 'e1': sample['e1'],
                 'e2': sample['e2'],
@@ -269,8 +286,8 @@ class _DataLoader(Loader):
         e2 = sample['e2']
         rel = sample['rel']
         e2_multi = tf.sparse_to_dense(
-            sparse_indices=sample['e2_multi1'][:, None],
-            sparse_values=tf.ones([tf.shape(sample['e2_multi1'])[0]]),
+            sparse_indices=sample['e2_multi'][:, None],
+            sparse_values=tf.ones([tf.shape(sample['e2_multi'])[0]]),
             output_shape=[self.num_ent], 
             validate_indices=False)
         lookup_values = tf.range(e2_multi.shape.as_list()[0])
@@ -345,7 +362,7 @@ class _DataLoader(Loader):
                 'e1': tf.FixedLenFeature([], tf.int64),
                 'e2': tf.FixedLenFeature([], tf.int64),
                 'rel': tf.FixedLenFeature([], tf.int64),
-                'e2_multi1': tf.FixedLenSequenceFeature([], tf.int64, allow_missing=True),
+                'e2_multi': tf.FixedLenSequenceFeature([], tf.int64, allow_missing=True),
                 'is_inverse': tf.FixedLenFeature([], tf.int64)}
             return tf.parse_single_example(r, features=features)
 
@@ -435,7 +452,7 @@ class _DataLoader(Loader):
                         'e1': key[0],
                         'e2': 'None',
                         'rel': key[1],
-                        'e2_multi1': ' '.join(list(value))}
+                        'e2_multi': ' '.join(list(value))}
                     handle.write(json.dumps(sample) + '\n')
                 else:
                     e1, rel = key
@@ -445,7 +462,7 @@ class _DataLoader(Loader):
                     if allowed_relations is not None and rel not in allowed_relations:
                         print('Skipping rel %50s.' % rel)
                         continue
-                    e2_multi1 = ' '.join(list(labels[key]))
+                    e2_multi = ' '.join(list(labels[key]))
                     for e2 in value:
                         if allowed_entities is not None and e2 not in allowed_entities:
                             print('Skipping e2 %50s.' % e2)
@@ -454,7 +471,7 @@ class _DataLoader(Loader):
                             'e1': e1,
                             'e2': e2,
                             'rel': rel,
-                            'e2_multi1': e2_multi1}
+                            'e2_multi': e2_multi}
                         handle.write(json.dumps(sample) + '\n')
 
     @staticmethod
@@ -498,7 +515,7 @@ class _DataLoader(Loader):
                     entities = set()
                     entities.add(sample['e1'])
                     entities.add(sample['e2'])
-                    entities.update(sample['e2_multi1'].split(' '))
+                    entities.update(sample['e2_multi'].split(' '))
                     for entity in entities:
                         if entity != 'None' and entity not in entity_ids:
                             entity_names[num_ent] = entity
@@ -530,8 +547,8 @@ class _DataLoader(Loader):
         e1 = entity_ids[sample['e1']]
         e2 = entity_ids[sample['e2']]
         rel = relation_ids[sample['rel']]
-        e2_multi1 = [entity_ids[e]
-                     for e in sample['e2_multi1'].split(' ')
+        e2_multi = [entity_ids[e]
+                     for e in sample['e2_multi'].split(' ')
                      if e != 'None']
 
         def _int64(values):
@@ -542,7 +559,7 @@ class _DataLoader(Loader):
             'e1': _int64([e1]),
             'e2': _int64([e2]),
             'rel': _int64([rel]),
-            'e2_multi1': _int64(e2_multi1),
+            'e2_multi': _int64(e2_multi),
             'is_inverse': _int64([sample['rel'].endswith('_reverse')])})
 
         return tf.train.Example(features=features)

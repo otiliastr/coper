@@ -36,24 +36,16 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
     count = 0
     while not stopped:
         try:
-            e1, e2, rel, e2_multi1, pred1, pred_vec = \
-                session.run(
-                    fetches=(
-                        model.next_eval_sample['e1'],
-                        model.next_eval_sample['e2'],
-                        model.next_eval_sample['rel'],
-                        model.next_eval_sample['e2_multi1'],
-                        model.eval_predictions,
-                        model.eval_prediction_vector),
-                    feed_dict={
-                        model.eval_iterator_handle: data_iterator_handle})
+            e1, e2, rel, e2_multi, pred = session.run(
+                (model.e1, model.e2, model.rel, model.e2_multi, model.predictions_all),
+                feed_dict={model.input_iterator_handle: data_iterator_handle})
 
-            target_values = pred1[np.arange(0, len(pred1)), e2]
-            pred1[e2_multi1 == 1] = -np.inf
-            pred1[np.arange(0, len(pred1)), e2] = target_values
+            target_values = pred[np.arange(0, len(pred)), e2]
+            pred[e2_multi == 1] = -np.inf
+            pred[np.arange(0, len(pred)), e2] = target_values
             count += e1.shape[0]
             for i in range(len(e1)):
-                pred1_args = np.argsort(-pred1[i])
+                pred1_args = np.argsort(-pred[i])
                 rank = int(np.where(pred1_args == e2[i])[0]) + 1
                 ranks.append(rank)
                 for hits_level in hits_to_compute:

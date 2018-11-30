@@ -36,11 +36,11 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-use_cpg = True
+use_cpg = False
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.YAGO310Loader()
+data_loader = data.NationsLoader()
 
 # Load configuration parameters.
 model_descr = 'cpg' if use_cpg else 'plain'
@@ -61,6 +61,7 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}'.fo
     cfg.training.num_labels)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
+suffix += '-OneIter-BNTrainPlaceholder-bn_momentum_0.1'
 model_name += suffix
 
 # Create directories for saving downloaded data, summaries, logs and checkpoints.
@@ -109,7 +110,8 @@ if __name__ == '__main__':
                 'batch_size': cfg.training.batch_size,
                 'add_loss_summaries': cfg.eval.add_loss_summaries,
                 'add_variable_summaries': cfg.eval.add_variable_summaries,
-                'add_tensor_summaries': cfg.eval.add_tensor_summaries})
+                'add_tensor_summaries': cfg.eval.add_tensor_summaries,
+                'batch_norm_momentum': 0.1})
 
     # Create dataset iterator initializers.
     train_dataset = data_loader.train_dataset(
