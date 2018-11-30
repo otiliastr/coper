@@ -16,15 +16,15 @@ training:
   batch_size: 512
   device: '/GPU:0'
   max_steps: 50000
-  prop_negatives: 1.0
+  prop_negatives: 10.0
   num_labels: 100            # Total number of labels considered during training when doing negative sampling. Must be > prop_negatives.
   cache_data: True
 eval:
   validation_metric: hits@1  # Choose among: mr, mrr, hits@1, hits@10, hits@20.
-  log_steps: 50
-  ckpt_steps: 1000
-  eval_steps: 10
-  summary_steps: 10
+  log_steps: 100
+  ckpt_steps: 10000
+  eval_steps: 100
+  summary_steps: 100
   eval_on_train: False
   eval_on_dev: True
   eval_on_test: True

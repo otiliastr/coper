@@ -36,11 +36,11 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-use_cpg = False
+use_cpg = True
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.NationsLoader()
+data_loader = data.UMLSLoader()
 
 # Load configuration parameters.
 model_descr = 'cpg' if use_cpg else 'plain'
@@ -61,8 +61,7 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}'.fo
     cfg.training.num_labels)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
-# suffix += '-OneIter-BNTrainPlaceholder-bn_momentum_0.1'
-suffix += '-test'
+suffix += '-OneIter-BNTrainPlaceholder-bn_momentum_0.99'
 model_name += suffix
 
 # Create directories for saving downloaded data, summaries, logs and checkpoints.
@@ -112,7 +111,7 @@ if __name__ == '__main__':
                 'add_loss_summaries': cfg.eval.add_loss_summaries,
                 'add_variable_summaries': cfg.eval.add_variable_summaries,
                 'add_tensor_summaries': cfg.eval.add_tensor_summaries,
-                'batch_norm_momentum': 0.1})
+                'batch_norm_momentum': 0.99})
 
     # Create dataset iterator initializers.
     train_dataset = data_loader.train_dataset(
