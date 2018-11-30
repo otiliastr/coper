@@ -2,7 +2,7 @@ model:
   entity_embedding_size: 200
   relation_embedding_size: 200
   concat_rel: False        # Set to `False` for plain ConvE.
-  input_dropout: 0.2
+  input_dropout: 0.2       # USED to be 0.2 in original conve, 0.3 in Salesforce.
   feature_map_dropout: 0.3
   output_dropout: 0.2
   label_smoothing_epsilon: 0.1
@@ -13,18 +13,18 @@ context:
   context_rel_use_batch_norm: True
 training:
   learning_rate: 0.001
-  batch_size: 512
+  batch_size: 256
   device: '/GPU:0'
   max_steps: 10000000
   prop_negatives: 100.0
-  num_labels: 101            # Total number of labels considered during training when doing negative sampling.
+  num_labels: 1000            # Total number of labels considered during training when doing negative sampling.
   cache_data: True
 eval:
   validation_metric: hits@1  # Choose among: mr, mrr, hits@1, hits@10, hits@20.
   log_steps: 100
   ckpt_steps: 10000000
-  eval_steps: 1000
-  summary_steps: 1000
+  eval_steps: 5000
+  summary_steps: 100
   eval_on_train: False
   eval_on_dev: True
   eval_on_test: True
