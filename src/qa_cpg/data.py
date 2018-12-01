@@ -139,9 +139,7 @@ class _DataLoader(Loader):
 
         if num_labels is not None:
             if one_positive_label_per_sample:
-                conve_data = conve_data.map(self._densify_e2_multi) \
-                    .map(self._add_shuffled_e2s) \
-                    .flat_map(
+                conve_data = conve_data.flat_map(
                         lambda sample: self._create_negative_sampling_dataset(
                             sample=sample,
                             num_negative_labels=num_labels-1))
@@ -276,32 +274,28 @@ class _DataLoader(Loader):
                 'e2_multi': tf.gather(e2s_dense, indexes),
                 'lookup_values': lookup_values}
 
-    def _densify_e2_multi(self, sample):
-        sample['e2_multi_dense'] = tf.sparse_to_dense(
+    def _create_negative_sampling_dataset(self, sample, num_negative_labels):
+        e2_multi_dense = tf.sparse_to_dense(
             sparse_indices=sample['e2_multi'][:, None],
             sparse_values=tf.ones([tf.shape(sample['e2_multi'])[0]]),
             output_shape=[self.num_ent],
             validate_indices=False)
-        return sample
 
-    def _add_shuffled_e2s(self, sample):
         # To make the code fast, we pick as negatives at 
         # random some entities, without removing the 
         # positives from the list. If some of these e2s 
         # happen to be positive, they will be supervised 
         # with their correct label.
-        sample['shuffled_e2s'] = tf.random_shuffle(
+        shuffled_e2s = tf.random_shuffle(
             tf.range(self.num_ent, dtype=tf.int64))
-        return sample
 
-    def _create_negative_sampling_dataset(self, sample, num_negative_labels):
         correct_e2s_shape = tf.shape(sample['e2_multi'])
         neg_start = tf.random.uniform(
             shape=correct_e2s_shape,
             maxval=self.num_ent-num_negative_labels,
             dtype=tf.int32)
         neg_indexes = tf.gather(
-            sample['shuffled_e2s'],
+            shuffled_e2s,
             neg_start[:, None] + tf.range(num_negative_labels))
         indexes = tf.concat([sample['e2_multi'][:, None], neg_indexes], axis=1)
 
@@ -310,7 +304,7 @@ class _DataLoader(Loader):
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi': tf.gather(sample['e2_multi_dense'], indexes),
+                'e2_multi': tf.gather(e2_multi_dense, indexes),
                 'lookup_values': tf.cast(indexes, tf.int32)}
 
         return tf.data.Dataset.from_tensor_slices(indexes).map(_to_sample)
