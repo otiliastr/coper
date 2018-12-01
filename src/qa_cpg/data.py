@@ -293,20 +293,16 @@ class _DataLoader(Loader):
             output_shape=[self.num_ent],
             validate_indices=False)
 
-        # To make the code fast, we pick as negatives at 
-        # random some entities, without removing the 
-        # positives from the list. If some of these e2s 
-        # happen to be positive, they will be supervised 
-        # with their correct label.
-        wrong_e2s = tf.random_shuffle(
-            tf.range(self.num_ent, dtype=tf.int64))
-
         def _sample_negatives(pos_label):
-            neg_start = tf.random.uniform(
-                shape=[],
-                maxval=self.num_ent-num_negative_labels, 
+            # To make the code fast, we pick as negatives at
+            # random some entities, without removing the
+            # positives from the list. If some of these e2s
+            # happen to be positive, they will be supervised
+            # with their correct label.
+            neg_indexes = tf.random.uniform(
+                shape=[num_negative_labels],
+                maxval=self.num_ent,
                 dtype=tf.int32)
-            neg_indexes = wrong_e2s[neg_start:neg_start+num_negative_labels]
             indexes = tf.concat([
                 pos_label[None],
                 neg_indexes], axis=0)
@@ -325,7 +321,7 @@ class _DataLoader(Loader):
                 'e2_multi': values,
                 'lookup_values': tf.cast(indexes, tf.int32)}
 
-        return tf.data.Dataset.from_tensor_slices(sample['e2_multi']) \
+        return tf.data.Dataset.from_tensor_slices(correct_e2s) \
             .map(_sample_negatives, num_parallel_calls=num_parallel_calls)
 
     def _add_lookup_values(self, sample):
