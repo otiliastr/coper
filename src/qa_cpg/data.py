@@ -139,10 +139,11 @@ class _DataLoader(Loader):
 
         if num_labels is not None:
             if one_positive_label_per_sample:
-                conve_data = conve_data.flat_map(
+                conve_data = conve_data.map(
                         lambda sample: self._create_negative_sampling_dataset(
                             sample=sample,
                             num_negative_labels=num_labels-1))
+                conve_data = conve_data.apply(tf.contrib.data.unbatch())
             else:
                 assert num_labels <= self.num_ent, \
                     'Parameter `num_labels` needs to be at most the total number of entities.'
@@ -298,16 +299,16 @@ class _DataLoader(Loader):
             shuffled_e2s,
             neg_start[:, None] + tf.range(num_negative_labels))
         indexes = tf.concat([sample['e2_multi'][:, None], neg_indexes], axis=1)
+        values = tf.gather(e2_multi_dense, indexes)
 
-        def _to_sample(indexes):
-            return {
-                'e1': sample['e1'],
-                'e2': sample['e2'],
-                'rel': sample['rel'],
-                'e2_multi': tf.gather(e2_multi_dense, indexes),
+        num_correct_e2s = correct_e2s_shape[0]
+
+        return {
+                'e1': tf.tile(sample['e1'], [num_correct_e2s]),
+                'e2': tf.tile(sample['e2'], [num_correct_e2s]),
+                'rel': tf.tile(sample['rel'], [num_correct_e2s]),
+                'e2_multi': values,
                 'lookup_values': tf.cast(indexes, tf.int32)}
-
-        return tf.data.Dataset.from_tensor_slices(indexes).map(_to_sample)
 
     def _add_lookup_values(self, sample):
         e1 = sample['e1']
