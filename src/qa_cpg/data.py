@@ -289,7 +289,7 @@ class _DataLoader(Loader):
             sparse_values=tf.ones([tf.shape(correct_e2s)[0]]),
             output_shape=[self.num_ent],
             validate_indices=False)
-        
+
         def _sample_negatives(pos_label):
             # To make the code fast, we pick as negatives at 
             # random some entities, without removing the 

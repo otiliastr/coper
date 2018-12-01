@@ -183,7 +183,7 @@ class ConvE(object):
                     'e1': [None],
                     'e2': [None],
                     'rel': [None],
-                    'e2_multi': [None, self.num_ent],
+                    'e2_multi': [None, None],
                     'lookup_values': [None, None]
                 })
 
@@ -269,7 +269,7 @@ class ConvE(object):
             conv1_bias = tf.get_variable(
                 name='conv1_bias', dtype=tf.float32,
                 shape=[self.conv_num_channels], initializer=tf.zeros_initializer())
-        
+
         # Calculating the size of the convolution layer output.
         conv_in_height = 10
         conv_in_width = self.ent_emb_size // 10
@@ -414,7 +414,7 @@ class ConvE(object):
                 _create_summaries('fc_result', fc)
                 _create_summaries('fc_with_dropout', fc_dropout)
                 _create_summaries('fc_with_batch_norm', fc_bn)
-        
+
         return fc_bn
 
     def _compute_likelihoods(self, predicted_e2_emb, name, ent_indices=None):
