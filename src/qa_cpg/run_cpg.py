@@ -36,6 +36,7 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
+one_positive_label_per_sample = True
 use_cpg = True
 save_best_embeddings = True
 
@@ -123,7 +124,8 @@ if __name__ == '__main__':
         prefetch_buffer_size=16,
         prop_negatives=cfg.training.prop_negatives,
         num_labels=cfg.training.num_labels,
-        cache=cfg.training.cache_data)
+        cache=cfg.training.cache_data,
+        one_positive_label_per_sample=one_positive_label_per_sample)
     train_eval_dataset = data_loader.eval_dataset(
         directory=data_dir,
         dataset_type='train',

@@ -96,7 +96,8 @@ class _DataLoader(Loader):
                       prefetch_buffer_size=10,
                       prop_negatives=10.0,
                       num_labels=100,
-                      cache=False):
+                      cache=False, 
+                      one_positive_label_per_sample=True):
         conve_parser, filenames = self.create_tf_record_files(
             directory, buffer_size=buffer_size)
 
@@ -133,18 +134,24 @@ class _DataLoader(Loader):
 
         if cache:
             conve_data = conve_data.cache()
-        
+
         conve_data = conve_data.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))
 
         if num_labels is not None:
-            assert num_labels <= self.num_ent, \
-                'Parameter `num_labels` needs to be at most the total number of entities.'
-            conve_data = conve_data.map(
-                lambda sample: self._sample_negatives(
-                    sample=sample,
-                    prop_negatives=prop_negatives,
-                    num_labels=num_labels),
-                num_parallel_calls=num_parallel_batches)
+            if one_positive_label_per_sample:
+                conve_data = conve_data.flat_map(
+                    lambda sample: self._create_negative_sampling_dataset(
+                        sample=sample,
+                        num_negative_labels=num_labels-1))
+            else:
+                assert num_labels <= self.num_ent, \
+                    'Parameter `num_labels` needs to be at most the total number of entities.'
+                conve_data = conve_data.map(
+                    lambda sample: self._sample_negatives(
+                        sample=sample,
+                        prop_negatives=prop_negatives,
+                        num_labels=num_labels),
+                    num_parallel_calls=num_parallel_batches)
         else:
             conve_data = conve_data.map(self._add_lookup_values)
 
@@ -203,7 +210,7 @@ class _DataLoader(Loader):
 
         data = tf.data.Dataset.from_tensor_slices(filenames)\
             .flat_map(tf.data.TFRecordDataset)\
-            .map(lambda s: map_fn(s))
+            .map(map_fn)
 
         if not include_inv_relations:
             data = data.filter(filter_inv_relations)
@@ -274,6 +281,45 @@ class _DataLoader(Loader):
                 'rel': sample['rel'],
                 'e2_multi': values,
                 'lookup_values': lookup_values}
+
+    def _create_negative_sampling_dataset(self, sample, num_negative_labels):
+        correct_e2s = sample['e2_multi']
+        e2s_dense = tf.sparse_to_dense(
+            sparse_indices=correct_e2s[:, None],
+            sparse_values=tf.ones([tf.shape(correct_e2s)[0]]),
+            output_shape=[self.num_ent],
+            validate_indices=False)
+        
+        def _sample_negatives(pos_label):
+            # To make the code fast, we pick as negatives at 
+            # random some entities, without removing the 
+            # positives from the list. If some of these e2s 
+            # happen to be positive, they will be supervised 
+            # with their correct label.
+            wrong_e2s = tf.random_shuffle(
+                tf.range(self.num_ent, dtype=tf.int64))
+            neg_indexes = wrong_e2s[:num_negative_labels]
+            indexes = tf.concat([
+                pos_label[None],
+                neg_indexes], axis=0)
+            # For each e2 in `indexes` use label 1 for 
+            # positives, or the label given e2s_dense for 
+            # the randomly sampled negatives (which is 
+            # most likely 0, but can be 1 if we happened to 
+            # sample a positive e2).
+            values = tf.concat([
+                tf.ones([1]),
+                tf.gather(e2s_dense, neg_indexes)], axis=0)
+            lookup_values = tf.cast(indexes, tf.int32)
+            return {
+                'e1': sample['e1'],
+                'e2': sample['e2'],
+                'rel': sample['rel'],
+                'e2_multi': values,
+                'lookup_values': lookup_values}
+
+        return tf.data.Dataset.from_tensor_slices(sample['e2_multi']) \
+            .map(_sample_negatives)
 
     def _add_lookup_values(self, sample):
         e1 = sample['e1']
