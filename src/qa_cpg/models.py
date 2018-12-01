@@ -29,66 +29,6 @@ def _create_summaries(name, tensor):
         tf.summary.histogram('histogram', tensor)
 
 
-def batch_gather(params, indices, name=None):
-    """Gather slices from `params` according to `indices` with leading batch dims.
-    This operation assumes that the leading dimensions of `indices` are dense,
-    and the gathers on the axis corresponding to the last dimension of `indices`.
-    More concretely it computes:
-    result[i1, ..., in] = params[i1, ..., in-1, indices[i1, ..., in]]
-    Therefore `params` should be a Tensor of shape [A1, ..., AN, B1, ..., BM],
-    `indices` should be a Tensor of shape [A1, ..., AN-1, C] and `result` will be
-    a Tensor of size `[A1, ..., AN-1, C, B1, ..., BM]`.
-    In the case in which indices is a 1D tensor, this operation is equivalent to
-    `tf.gather`.
-    See also `tf.gather` and `tf.gather_nd`.
-    Args:
-      params: A Tensor. The tensor from which to gather values.
-      indices: A Tensor. Must be one of the following types: int32, int64. Index
-          tensor. Must be in range `[0, params.shape[axis]`, where `axis` is the
-          last dimension of `indices` itself.
-      name: A name for the operation (optional).
-    Returns:
-      A Tensor. Has the same type as `params`.
-    Raises:
-      ValueError: if `indices` has an unknown shape.
-    """
-
-    with tf.name_scope(name):
-        indices = tf.convert_to_tensor(indices, name="indices")
-        params = tf.convert_to_tensor(params, name="params")
-        indices_shape = tf.shape(indices)
-        params_shape = tf.shape(params)
-        ndims = indices.shape.ndims
-        if ndims is None:
-            raise ValueError("batch_gather does not allow indices with unknown "
-                             "shape.")
-        batch_indices = indices
-        accum_dim_value = 1
-        for dim in range(ndims-1, 0, -1):
-            dim_value = params_shape[dim-1]
-            accum_dim_value *= params_shape[dim]
-            dim_indices = tf.range(0, dim_value, 1)
-            dim_indices *= accum_dim_value
-            dim_shape = tf.stack([1] * (dim - 1) + [dim_value] + [1] * (ndims - dim),
-                              axis=0)
-            batch_indices += tf.reshape(dim_indices, dim_shape)
-
-        flat_indices = tf.reshape(batch_indices, [-1])
-        outer_shape = params_shape[ndims:]
-        flat_inner_shape = tf.reduce_prod(params_shape[:ndims], [0], False)
-
-        flat_params = tf.reshape(
-            params, tf.concat([[flat_inner_shape], outer_shape], axis=0))
-        flat_result = tf.gather(flat_params, flat_indices)
-        result = tf.reshape(flat_result, tf.concat([indices_shape, outer_shape], axis=0))
-        final_shape = indices.get_shape()[:ndims-1].merge_with(
-            params.get_shape()[:ndims -1])
-        final_shape = final_shape.concatenate(indices.get_shape()[ndims-1])
-        final_shape = final_shape.concatenate(params.get_shape()[ndims:])
-        result.set_shape(final_shape)
-        return result
-
-
 class ContextualParameterGenerator(object):
     def __init__(self, context_size, name, dtype, shape, initializer, dropout=0.5, use_batch_norm=False,
                  batch_norm_momentum=0.99):
@@ -200,10 +140,8 @@ class ConvE(object):
 
         if self.use_negative_sampling:
             self.obj_lookup_values = self.next_input_sample['lookup_values']
-            targets = batch_gather(self.e2_multi, self.obj_lookup_values)
         else:
             self.obj_lookup_values = None
-            targets = self.e2_multi
 
         with tf.variable_scope('variables', use_resource=True):
             self.variables = self._create_variables()
@@ -224,7 +162,7 @@ class ConvE(object):
         # Compare the predicted e2 embedding with the embeddings of all e2 in the vocabulary.
         self.predictions_all = self._compute_likelihoods(self.predicted_e2_emb, 'predictions')
 
-        self.loss = self._create_loss(self.predictions_lookup, targets)
+        self.loss = self._create_loss(self.predictions_lookup, self.e2_multi)
 
         # The following control dependency is needed in order for batch
         # normalization to work correctly.

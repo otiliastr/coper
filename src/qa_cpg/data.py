@@ -139,11 +139,13 @@ class _DataLoader(Loader):
 
         if num_labels is not None:
             if one_positive_label_per_sample:
-                conve_data = conve_data.flat_map(
-                    lambda sample: self._create_negative_sampling_dataset(
-                        sample=sample,
-                        num_negative_labels=num_labels-1,
-                        num_parallel_calls=num_parallel_batches))
+                conve_data = conve_data.map(self._densify_e2_multi) \
+                    .map(self._add_shuffled_e2s) \
+                    .flat_map(
+                        lambda sample: self._create_negative_sampling_dataset(
+                            sample=sample,
+                            num_negative_labels=num_labels-1,
+                            num_parallel_calls=num_parallel_batches))
             else:
                 assert num_labels <= self.num_ent, \
                     'Parameter `num_labels` needs to be at most the total number of entities.'
@@ -272,39 +274,52 @@ class _DataLoader(Loader):
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi': e2s_dense,
+                'e2_multi': tf.gather(e2s_dense, indexes),
                 'lookup_values': lookup_values}
+
+    def _densify_e2_multi(self, sample):
+        sample['e2_multi_dense'] = tf.sparse_to_dense(
+            sparse_indices=sample['e2_multi'][:, None],
+            sparse_values=tf.ones([tf.shape(sample['e2_multi'])[0]]),
+            output_shape=[self.num_ent],
+            validate_indices=False)
+        return sample
+
+    def _add_shuffled_e2s(self, sample):
+        # To make the code fast, we pick as negatives at 
+        # random some entities, without removing the 
+        # positives from the list. If some of these e2s 
+        # happen to be positive, they will be supervised 
+        # with their correct label.
+        sample['shuffled_e2s'] = tf.random_shuffle(
+            tf.range(self.num_ent, dtype=tf.int64))
+        return sample
 
     def _create_negative_sampling_dataset(self, sample, num_negative_labels, num_parallel_calls):
         correct_e2s = sample['e2_multi']
-        e2s_dense = tf.sparse_to_dense(
-            sparse_indices=correct_e2s[:, None],
-            sparse_values=tf.ones([tf.shape(correct_e2s)[0]]),
-            output_shape=[self.num_ent],
-            validate_indices=False)
+        e2s_dense = sample['e2_multi_dense']
+        wrong_e2s = sample['shuffled_e2s']
 
         def _sample_negatives(pos_label):
-            # To make the code fast, we pick as negatives at
-            # random some entities, without removing the
-            # positives from the list. If some of these e2s
-            # happen to be positive, they will be supervised
-            # with their correct label.
-            neg_indexes = tf.random.uniform(
-                shape=[num_negative_labels],
-                maxval=self.num_ent,
-                dtype=tf.int64)
-            indexes = tf.concat([
+            neg_start = tf.random.uniform(
+                shape=[],
+                maxval=self.num_ent-num_negative_labels,
+                dtype=tf.int32)
+            neg_indexes = wrong_e2s[neg_start:neg_start+num_negative_labels]
+            return tf.concat([
                 pos_label[None],
                 neg_indexes], axis=0)
+
+        def _to_sample(indexes):
             return {
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi': e2s_dense,
+                'e2_multi': tf.gather(e2s_dense, indexes),
                 'lookup_values': tf.cast(indexes, tf.int32)}
 
-        return tf.data.Dataset.from_tensor_slices(correct_e2s) \
-            .map(_sample_negatives, num_parallel_calls=num_parallel_calls)
+        mapped = tf.map_fn(_sample_negatives, correct_e2s, parallel_iterations=num_parallel_calls)
+        return tf.data.Dataset.from_tensor_slices(mapped).map(_to_sample)
 
     def _add_lookup_values(self, sample):
         e1 = sample['e1']
