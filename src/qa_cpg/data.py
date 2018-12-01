@@ -290,22 +290,28 @@ class _DataLoader(Loader):
             output_shape=[self.num_ent],
             validate_indices=False)
 
+
+        # To make the code fast, we pick as negatives at 
+        # random some entities, without removing the 
+        # positives from the list. If some of these e2s 
+        # happen to be positive, they will be supervised 
+        # with their correct label.
+        wrong_e2s = tf.random_shuffle(
+            tf.range(self.num_ent, dtype=tf.int64))
+
         def _sample_negatives(pos_label):
-            # To make the code fast, we pick as negatives at 
-            # random some entities, without removing the 
-            # positives from the list. If some of these e2s 
-            # happen to be positive, they will be supervised 
-            # with their correct label.
-            wrong_e2s = tf.random_shuffle(
-                tf.range(self.num_ent, dtype=tf.int64))
-            neg_indexes = wrong_e2s[:num_negative_labels]
+            neg_start = tf.random.uniform(
+                shape=[], 
+                maxval=self.num_ent-num_negative_labels, 
+                dtype=tf.int32)
+            neg_indexes = wrong_e2s[neg_start:neg_start+num_negative_labels]
             indexes = tf.concat([
                 pos_label[None],
                 neg_indexes], axis=0)
-            # For each e2 in `indexes` use label 1 for 
-            # positives, or the label given e2s_dense for 
-            # the randomly sampled negatives (which is 
-            # most likely 0, but can be 1 if we happened to 
+            # For each e2 in `indexes` use label 1 for
+            # positives, or the label given e2s_dense for
+            # the randomly sampled negatives (which is
+            # most likely 0, but can be 1 if we happened to
             # sample a positive e2).
             values = tf.concat([
                 tf.ones([1]),
