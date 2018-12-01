@@ -93,6 +93,7 @@ if __name__ == '__main__':
         # better utilize GPUs while training.
         with tf.variable_scope('variables', use_resource=True):
             model = ConvE(model_descriptors={
+                'use_negative_sampling': cfg.training.num_labels is not None,
                 'label_smoothing_epsilon': cfg.model.label_smoothing_epsilon,
                 'num_ent': data_loader.num_ent,
                 'num_rel': data_loader.num_rel,

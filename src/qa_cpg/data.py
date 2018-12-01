@@ -136,8 +136,7 @@ class _DataLoader(Loader):
         
         conve_data = conve_data.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))
 
-        do_negative_sample = True
-        if do_negative_sample:
+        if num_labels is not None:
             assert num_labels <= self.num_ent, \
                 'Parameter `num_labels` needs to be at most the total number of entities.'
             conve_data = conve_data.map(
@@ -269,11 +268,6 @@ class _DataLoader(Loader):
             _more_positives)
         lookup_values = tf.cast(indexes, tf.int32)
 
-        # lookup_values = tf.Print(lookup_values,
-        #               [tf.shape(sample['e1']), tf.shape(sample['e2']), tf.shape(sample['e2_multi']), tf.shape(lookup_values)],
-        #               'e1 shape, e2  shape, e2 multi shape, lookup shape',
-        #               summarize=1000)
-
         return {
                 'e1': sample['e1'],
                 'e2': sample['e2'],
@@ -290,7 +284,7 @@ class _DataLoader(Loader):
             sparse_values=tf.ones([tf.shape(sample['e2_multi'])[0]]),
             output_shape=[self.num_ent], 
             validate_indices=False)
-        lookup_values = tf.range(e2_multi.shape.as_list()[0])
+        lookup_values = tf.zeros(shape=(0,), dtype=tf.int32)
 
         return {
                 'e1': e1,
