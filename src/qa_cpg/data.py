@@ -144,8 +144,7 @@ class _DataLoader(Loader):
                     .flat_map(
                         lambda sample: self._create_negative_sampling_dataset(
                             sample=sample,
-                            num_negative_labels=num_labels-1,
-                            num_parallel_calls=num_parallel_batches))
+                            num_negative_labels=num_labels-1))
             else:
                 assert num_labels <= self.num_ent, \
                     'Parameter `num_labels` needs to be at most the total number of entities.'
@@ -295,31 +294,26 @@ class _DataLoader(Loader):
             tf.range(self.num_ent, dtype=tf.int64))
         return sample
 
-    def _create_negative_sampling_dataset(self, sample, num_negative_labels, num_parallel_calls):
-        correct_e2s = sample['e2_multi']
-        e2s_dense = sample['e2_multi_dense']
-        wrong_e2s = sample['shuffled_e2s']
-
-        def _sample_negatives(pos_label):
-            neg_start = tf.random.uniform(
-                shape=[],
-                maxval=self.num_ent-num_negative_labels,
-                dtype=tf.int32)
-            neg_indexes = wrong_e2s[neg_start:neg_start+num_negative_labels]
-            return tf.concat([
-                pos_label[None],
-                neg_indexes], axis=0)
+    def _create_negative_sampling_dataset(self, sample, num_negative_labels):
+        correct_e2s_shape = tf.shape(sample['e2_multi'])
+        neg_start = tf.random.uniform(
+            shape=correct_e2s_shape,
+            maxval=self.num_ent-num_negative_labels,
+            dtype=tf.int32)
+        neg_indexes = tf.gather(
+            sample['shuffled_e2s'],
+            neg_start[:, None] + tf.range(num_negative_labels))
+        indexes = tf.concat([sample['e2_multi'][:, None], neg_indexes], axis=1)
 
         def _to_sample(indexes):
             return {
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi': tf.gather(e2s_dense, indexes),
+                'e2_multi': tf.gather(sample['e2_multi_dense'], indexes),
                 'lookup_values': tf.cast(indexes, tf.int32)}
 
-        mapped = tf.map_fn(_sample_negatives, correct_e2s, parallel_iterations=num_parallel_calls)
-        return tf.data.Dataset.from_tensor_slices(mapped).map(_to_sample)
+        return tf.data.Dataset.from_tensor_slices(indexes).map(_to_sample)
 
     def _add_lookup_values(self, sample):
         e1 = sample['e1']
