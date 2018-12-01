@@ -135,14 +135,16 @@ class _DataLoader(Loader):
         if cache:
             conve_data = conve_data.cache()
 
-        conve_data = conve_data.apply(tf.contrib.data.shuffle_and_repeat(buffer_size=1000))
+        conve_data = conve_data.repeat()
 
         if num_labels is not None:
             if one_positive_label_per_sample:
-                conve_data = conve_data.flat_map(
+                conve_data = conve_data.interleave(
                     lambda sample: self._create_negative_sampling_dataset(
                         sample=sample,
-                        num_negative_labels=num_labels-1))
+                        num_negative_labels=num_labels-1),
+                    cycle_length=num_parallel_batches,
+                    block_length=batch_size)
             else:
                 assert num_labels <= self.num_ent, \
                     'Parameter `num_labels` needs to be at most the total number of entities.'
@@ -154,6 +156,8 @@ class _DataLoader(Loader):
                     num_parallel_calls=num_parallel_batches)
         else:
             conve_data = conve_data.map(self._add_lookup_values)
+
+        conve_data = conve_data.shuffle(buffer_size=1000)
 
         conve_data = conve_data \
             .batch(batch_size) \
@@ -290,7 +294,6 @@ class _DataLoader(Loader):
             output_shape=[self.num_ent],
             validate_indices=False)
 
-
         # To make the code fast, we pick as negatives at 
         # random some entities, without removing the 
         # positives from the list. If some of these e2s 
@@ -301,7 +304,7 @@ class _DataLoader(Loader):
 
         def _sample_negatives(pos_label):
             neg_start = tf.random.uniform(
-                shape=[], 
+                shape=[],
                 maxval=self.num_ent-num_negative_labels, 
                 dtype=tf.int32)
             neg_indexes = wrong_e2s[neg_start:neg_start+num_negative_labels]
