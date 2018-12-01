@@ -247,15 +247,9 @@ class _DataLoader(Loader):
             # We have less positives than requested, therefore fill with negatives up to `num_labels` elements.
             num_neg = num_labels - num_positives
             neg_indexes = wrong_e2s[:num_neg]
-            indexes = tf.concat([
+            return tf.concat([
                 correct_e2s[:num_positives],
                 neg_indexes], axis=0)
-            # For each e2 in `indexes` use label 1 for positives, or the label given e2s_dense for the randomly sampled
-            # negatives (which is is most likely 0, but can be 1 if we happened to sample a positive e2).
-            values = tf.concat([
-                tf.ones([num_positives]),
-                tf.gather(e2s_dense, neg_indexes)], axis=0)
-            return indexes, values
 
         def _more_positives():
             # We have more positives than requested, therefore select a random subset of them as positive.
@@ -264,15 +258,11 @@ class _DataLoader(Loader):
             # If we don't have enough negatives, fill the rest of the elements up to `num_labels` with positives.
             num_pos = num_labels - num_neg
             neg_indexes = wrong_e2s[:num_neg]
-            indexes = tf.concat([
+            return tf.concat([
                 correct_e2s[:num_pos],
                 neg_indexes], axis=0)
-            values = tf.concat([
-                tf.ones([num_pos]),
-                tf.gather(e2s_dense, neg_indexes)], axis=0)
-            return indexes, values
 
-        indexes, values = tf.cond(
+        indexes = tf.cond(
             tf.less_equal(num_positives, num_positives_needed),
             _less_positives,
             _more_positives)
@@ -282,7 +272,7 @@ class _DataLoader(Loader):
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi': values,
+                'e2_multi': e2s_dense,
                 'lookup_values': lookup_values}
 
     def _create_negative_sampling_dataset(self, sample, num_negative_labels, num_parallel_calls):
@@ -306,19 +296,11 @@ class _DataLoader(Loader):
             indexes = tf.concat([
                 pos_label[None],
                 neg_indexes], axis=0)
-            # For each e2 in `indexes` use label 1 for
-            # positives, or the label given e2s_dense for
-            # the randomly sampled negatives (which is
-            # most likely 0, but can be 1 if we happened to
-            # sample a positive e2).
-            values = tf.concat([
-                tf.ones([1]),
-                tf.gather(e2s_dense, neg_indexes)], axis=0)
             return {
                 'e1': sample['e1'],
                 'e2': sample['e2'],
                 'rel': sample['rel'],
-                'e2_multi': values,
+                'e2_multi': e2s_dense,
                 'lookup_values': tf.cast(indexes, tf.int32)}
 
         return tf.data.Dataset.from_tensor_slices(correct_e2s) \

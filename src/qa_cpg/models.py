@@ -169,7 +169,8 @@ class ConvE(object):
 
         # Build the graph.
         with tf.device('/CPU:0'):
-            self.input_iterator_handle = tf.placeholder(tf.string, shape=[], name='input_iterator_handle')
+            self.input_iterator_handle = tf.placeholder(
+                tf.string, shape=[], name='input_iterator_handle')
             self.input_iterator = tf.data.Iterator.from_string_handle(
                 self.input_iterator_handle,
                 output_types={
@@ -199,8 +200,10 @@ class ConvE(object):
 
         if self.use_negative_sampling:
             self.obj_lookup_values = self.next_input_sample['lookup_values']
+            targets = batch_gather(self.e2_multi, self.obj_lookup_values)
         else:
             self.obj_lookup_values = None
+            targets = self.e2_multi
 
         with tf.variable_scope('variables', use_resource=True):
             self.variables = self._create_variables()
@@ -221,7 +224,7 @@ class ConvE(object):
         # Compare the predicted e2 embedding with the embeddings of all e2 in the vocabulary.
         self.predictions_all = self._compute_likelihoods(self.predicted_e2_emb, 'predictions')
 
-        self.loss = self._create_loss(self.predictions_lookup, self.e2_multi)
+        self.loss = self._create_loss(self.predictions_lookup, targets)
 
         # The following control dependency is needed in order for batch
         # normalization to work correctly.
