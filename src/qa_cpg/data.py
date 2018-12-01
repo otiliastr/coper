@@ -304,9 +304,9 @@ class _DataLoader(Loader):
         num_correct_e2s = correct_e2s_shape[0]
 
         return {
-                'e1': tf.tile(sample['e1'], [num_correct_e2s]),
-                'e2': tf.tile(sample['e2'], [num_correct_e2s]),
-                'rel': tf.tile(sample['rel'], [num_correct_e2s]),
+                'e1': tf.tile(sample['e1'][None], [num_correct_e2s]),
+                'e2': tf.tile(sample['e2'][None], [num_correct_e2s]),
+                'rel': tf.tile(sample['rel'][None], [num_correct_e2s]),
                 'e2_multi': values,
                 'lookup_values': tf.cast(indexes, tf.int32)}
 
