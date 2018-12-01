@@ -302,7 +302,7 @@ class _DataLoader(Loader):
             neg_indexes = tf.random.uniform(
                 shape=[num_negative_labels],
                 maxval=self.num_ent,
-                dtype=tf.int32)
+                dtype=tf.int64)
             indexes = tf.concat([
                 pos_label[None],
                 neg_indexes], axis=0)
