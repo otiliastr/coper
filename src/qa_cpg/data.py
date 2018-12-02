@@ -142,7 +142,8 @@ class _DataLoader(Loader):
                 conve_data = conve_data.map(
                         lambda sample: self._create_negative_sampling_dataset(
                             sample=sample,
-                            num_negative_labels=num_labels-1))
+                            num_negative_labels=num_labels-1),
+                    num_parallel_calls=num_parallel_batches)
                 conve_data = conve_data.apply(tf.contrib.data.unbatch())
             else:
                 assert num_labels <= self.num_ent, \
