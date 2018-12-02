@@ -59,7 +59,7 @@ class ContextualParameterGenerator(object):
             generated_value = tf.matmul(generated_value, projection)
             if self.use_batch_norm:
                 generated_value = tf.layers.batch_normalization(
-                    generated_value, momentum=self.batch_norm_momentum, scale=True, reuse=tf.AUTO_REUSE,
+                    generated_value, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
                     training=is_train, fused=True, name='%s/CPG/Projection%d/BatchNorm' % (self.name, i))
             generated_value = tf.nn.relu(generated_value)
             generated_value = tf.nn.dropout(
@@ -318,7 +318,7 @@ class ConvE(object):
                     strides=[1, 1, 1, 1], padding='VALID')
                 conv1_plus_bias = conv1 + bias
             conv1_bn = tf.layers.batch_normalization(
-                conv1_plus_bias, momentum=self.batch_norm_momentum, scale=False, reuse=tf.AUTO_REUSE,
+                conv1_plus_bias, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
                 training=self.is_train, fused=True, name='Conv1BN')
             conv1_relu = tf.nn.relu(conv1_bn)
             conv1_dropout = tf.nn.dropout(
@@ -348,7 +348,7 @@ class ConvE(object):
             fc_dropout = tf.nn.dropout(
                 fc, 1 - (self.output_dropout * is_train_float))
             fc_bn = tf.layers.batch_normalization(
-                fc_dropout, momentum=self.batch_norm_momentum, scale=False, reuse=tf.AUTO_REUSE,
+                fc_dropout, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
                 training=self.is_train, fused=True, name='FCBN')
 
             if self._tensor_summaries:
