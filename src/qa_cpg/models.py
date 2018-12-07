@@ -260,7 +260,6 @@ class ConvE(object):
             fc_bias = tf.get_variable(
                 name='fc_bias', dtype=tf.float32,
                 shape=[self.ent_emb_size], initializer=tf.zeros_initializer())
-
         pred_bias = tf.get_variable(
             name='pred_bias', dtype=tf.float32, 
             shape=[self.num_ent], initializer=tf.zeros_initializer())
@@ -384,11 +383,13 @@ class ConvE(object):
                 ent_emb = self.variables['ent_emb']
                 ent_emb_t = tf.transpose(ent_emb)
                 predictions = tf.matmul(predicted_e2_emb, ent_emb_t, name=name)
+                predictions += self.variables['pred_bias']
             else:
                 ent_emb = tf.gather(self.variables['ent_emb'], ent_indices) # Returns shape [BatchSize, NumSamples, EmbSize]
                 ent_emb_t = tf.transpose(ent_emb, [0, 2, 1])
                 predictions = tf.matmul(predicted_e2_emb[:, None, :], ent_emb_t, name=name)[:, 0, :]
-            predictions += self.variables['pred_bias']
+                pred_bias = tf.gather(self.variables['pred_bias'], ent_indices)
+                predictions += pred_bias
             if self._tensor_summaries:
                 _create_summaries('predictions', predictions)
         return predictions
