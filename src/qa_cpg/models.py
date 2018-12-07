@@ -379,10 +379,9 @@ class ConvE(object):
 
     def _create_loss(self, predictions, targets):
         with tf.name_scope('loss'):
+            targets = ((1 - self.label_smoothing_epsilon) * targets) + (1.0 / self.num_ent)
             loss = tf.reduce_sum(
-                tf.losses.sigmoid_cross_entropy(
-                    targets, predictions,
-                    label_smoothing=self.label_smoothing_epsilon),
+                tf.losses.sigmoid_cross_entropy(targets, predictions),
                 name='loss')
 
             if self._loss_summaries:
