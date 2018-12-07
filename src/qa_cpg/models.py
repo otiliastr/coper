@@ -299,11 +299,11 @@ class ConvE(object):
         else:
             stacked_emb = e1_emb
 
-        stacked_emb = tf.layers.batch_normalization(
-            stacked_emb, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
-            training=self.is_train, fused=True, name='StackedEmbBN')
-        stacked_emb = tf.nn.dropout(
-            stacked_emb, 1 - (self.input_dropout * is_train_float))
+        # stacked_emb = tf.layers.batch_normalization(
+        #     stacked_emb, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
+        #     training=self.is_train, fused=True, name='StackedEmbBN')
+        # stacked_emb = tf.nn.dropout(
+        #     stacked_emb, 1 - (self.input_dropout * is_train_float))
 
         with tf.name_scope('conv1'):
             weights, bias = self._get_conv_params(rel_emb, self.is_train)
@@ -319,9 +319,10 @@ class ConvE(object):
                     input=stacked_emb, filter=weights,
                     strides=[1, 1, 1, 1], padding='VALID')
                 conv1_plus_bias = conv1 + bias
-            conv1_bn = tf.layers.batch_normalization(
-                conv1_plus_bias, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
-                training=self.is_train, fused=True, name='Conv1BN')
+            # conv1_bn = tf.layers.batch_normalization(
+            #     conv1_plus_bias, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
+            #     training=self.is_train, fused=True, name='Conv1BN')
+            conv1_bn = conv1_plus_bias
             conv1_relu = tf.nn.relu(conv1_bn)
             conv1_dropout = tf.nn.dropout(
                 conv1_relu, 1 - (self.hidden_dropout * is_train_float))
@@ -352,6 +353,7 @@ class ConvE(object):
             fc_bn = tf.layers.batch_normalization(
                 fc_dropout, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
                 training=self.is_train, fused=True, name='FCBN')
+            fc_bn = tf.nn.relu(fc_bn)
 
             if self._tensor_summaries:
                 _create_summaries('fc_result', fc)
