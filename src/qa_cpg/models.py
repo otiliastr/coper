@@ -168,7 +168,9 @@ class ConvE(object):
         # normalization to work correctly.
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
-            self.train_op = optimizer.minimize(self.loss)
+            gradients, variables = zip(*optimizer.compute_gradients(self.loss))
+            gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
+            self.train_op = optimizer.apply_gradients(zip(gradients, variables))
         self.summaries = tf.summary.merge_all()
 
     def _create_variables(self):
