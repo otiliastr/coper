@@ -31,13 +31,14 @@ def _create_summaries(name, tensor):
 
 class ContextualParameterGenerator(object):
     def __init__(self, context_size, name, dtype, shape, initializer, dropout=0.5, use_batch_norm=False,
-                 batch_norm_momentum=0.99):
+                 batch_norm_momentum=0.99, batch_norm_train_stats=False):
         self.name = name
         self.dtype = dtype
         self.shape = shape
         self.dropout = dropout
         self.use_batch_norm = use_batch_norm
         self.batch_norm_momentum = batch_norm_momentum
+        self.batch_norm_train_stats = batch_norm_train_stats
         self.num_elements = reduce(mul, self.shape, 1)
 
         # Create the projection matrices.
@@ -58,9 +59,10 @@ class ContextualParameterGenerator(object):
         for i, projection in enumerate(self.projections[:-1]):
             generated_value = tf.matmul(generated_value, projection)
             if self.use_batch_norm:
+                is_train_batch_norm = is_train if self.batch_norm_train_stats else False
                 generated_value = tf.layers.batch_normalization(
                     generated_value, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
-                    training=is_train, fused=True, name='%s/CPG/Projection%d/BatchNorm' % (self.name, i))
+                    training=is_train_batch_norm, fused=True, name='%s/CPG/Projection%d/BatchNorm' % (self.name, i))
             generated_value = tf.nn.relu(generated_value)
             generated_value = tf.nn.dropout(
                 generated_value, 1 - (self.dropout * tf.cast(is_train, tf.float32)))
@@ -99,6 +101,7 @@ class ConvE(object):
         self.output_dropout = model_descriptors['output_dropout']
 
         self.batch_norm_momentum = model_descriptors.get('batch_norm_momentum', 0.1)
+        self.batch_norm_train_stats = model_descriptors.get('batch_norm_train_stats', False)
 
         self._loss_summaries = model_descriptors['add_loss_summaries']
         self._variable_summaries = model_descriptors['add_variable_summaries']
@@ -194,7 +197,8 @@ class ConvE(object):
                 dropout=self.context_rel_dropout,
                 use_batch_norm=self.context_rel_use_batch_norm,
                 initializer=tf.contrib.layers.xavier_initializer(),
-                batch_norm_momentum=self.batch_norm_momentum)
+                batch_norm_momentum=self.batch_norm_momentum,
+                batch_norm_train_stats=self.batch_norm_train_stats)
             conv1_bias = ContextualParameterGenerator(
                 context_size=[self.rel_emb_size] + self.context_rel_conv,
                 name='conv1_bias',
@@ -203,7 +207,8 @@ class ConvE(object):
                 dropout=self.context_rel_dropout,
                 use_batch_norm=self.context_rel_use_batch_norm,
                 initializer=tf.zeros_initializer(),
-                batch_norm_momentum=self.batch_norm_momentum)
+                batch_norm_momentum=self.batch_norm_momentum,
+                batch_norm_train_stats=self.batch_norm_train_stats)
         else:
             conv1_weights = tf.get_variable(
                 name='conv1_weights', dtype=tf.float32,
@@ -235,7 +240,8 @@ class ConvE(object):
                 dropout=self.context_rel_dropout,
                 use_batch_norm=self.context_rel_use_batch_norm,
                 initializer=tf.contrib.layers.xavier_initializer(),
-                batch_norm_momentum=self.batch_norm_momentum)
+                batch_norm_momentum=self.batch_norm_momentum,
+                batch_norm_train_stats=self.batch_norm_train_stats)
             fc_bias = ContextualParameterGenerator(
                 context_size=[self.rel_emb_size] + self.context_rel_out, 
                 name='fc_bias', 
@@ -244,7 +250,8 @@ class ConvE(object):
                 dropout=self.context_rel_dropout,
                 use_batch_norm=self.context_rel_use_batch_norm,
                 initializer=tf.zeros_initializer(),
-                batch_norm_momentum=self.batch_norm_momentum)
+                batch_norm_momentum=self.batch_norm_momentum,
+                batch_norm_train_stats=self.batch_norm_train_stats)
         else:
             fc_weights = tf.get_variable(
                 name='fc_weights', dtype=tf.float32,
@@ -292,6 +299,7 @@ class ConvE(object):
         e1_emb = tf.reshape(e1_emb, [-1, 10, self.ent_emb_size // 10, 1])
 
         is_train_float = tf.cast(self.is_train, tf.float32)
+        is_train_batch_norm = self.is_train if self.batch_norm_train_stats else False
 
         if self.context_rel_conv is None and self.context_rel_out is None:
             reshaped_rel_emb = tf.reshape(rel_emb, [-1, 10, self.rel_emb_size // 10, 1])
@@ -301,7 +309,7 @@ class ConvE(object):
 
         # stacked_emb = tf.layers.batch_normalization(
         #     stacked_emb, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
-        #     training=self.is_train, fused=True, name='StackedEmbBN')
+        #     training=is_train_batch_norm, fused=True, name='StackedEmbBN')
         # stacked_emb = tf.nn.dropout(
         #     stacked_emb, 1 - (self.input_dropout * is_train_float))
 
@@ -321,7 +329,7 @@ class ConvE(object):
                 conv1_plus_bias = conv1 + bias
             # conv1_bn = tf.layers.batch_normalization(
             #     conv1_plus_bias, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
-            #     training=self.is_train, fused=True, name='Conv1BN')
+            #     training=is_train_batch_norm, fused=True, name='Conv1BN')
             conv1_bn = conv1_plus_bias
             conv1_relu = tf.nn.relu(conv1_bn)
             conv1_dropout = tf.nn.dropout(
@@ -352,7 +360,7 @@ class ConvE(object):
                 fc, 1 - (self.output_dropout * is_train_float))
             fc_bn = tf.layers.batch_normalization(
                 fc_dropout, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
-                training=self.is_train, fused=True, name='FCBN')
+                training=is_train_batch_norm, fused=True, name='FCBN')
             fc_bn = tf.nn.relu(fc_bn)
 
             if self._tensor_summaries:
