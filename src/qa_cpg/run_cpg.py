@@ -36,7 +36,6 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-one_positive_label_per_sample = True
 use_cpg = True
 save_best_embeddings = True
 
@@ -52,17 +51,19 @@ print(cfg_dict)
 cfg = AttributeDict(cfg_dict)
 
 # Compose model name based on config params.
-model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}'.format(
+model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl-bn_momentum_{}'.format(
     model_descr,
     data_loader.dataset_name,
     cfg.model.entity_embedding_size,
     cfg.model.relation_embedding_size,
     cfg.training.batch_size,
     cfg.training.prop_negatives,
-    cfg.training.num_labels)
+    cfg.training.num_labels,
+    cfg.training.one_positive_label_per_sample,
+    cfg.model.batch_norm_momentum)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
-suffix += '-OneIter-BNTrainPlaceholder-bn_momentum_0.99'
+suffix += ''
 model_name += suffix
 
 # Create directories for saving downloaded data, summaries, logs and checkpoints.
@@ -113,7 +114,8 @@ if __name__ == '__main__':
                 'add_loss_summaries': cfg.eval.add_loss_summaries,
                 'add_variable_summaries': cfg.eval.add_variable_summaries,
                 'add_tensor_summaries': cfg.eval.add_tensor_summaries,
-                'batch_norm_momentum': 0.99})
+                'batch_norm_momentum': cfg.model.batch_norm_momentum,
+                'batch_norm_train_stats': cfg.model.batch_norm_train_stats})
 
     # Create dataset iterator initializers.
     train_dataset = data_loader.train_dataset(
@@ -125,7 +127,7 @@ if __name__ == '__main__':
         prop_negatives=cfg.training.prop_negatives,
         num_labels=cfg.training.num_labels,
         cache=cfg.training.cache_data,
-        one_positive_label_per_sample=one_positive_label_per_sample)
+        one_positive_label_per_sample=cfg.training.one_positive_label_per_sample)
     train_eval_dataset = data_loader.eval_dataset(
         directory=data_dir,
         dataset_type='train',
