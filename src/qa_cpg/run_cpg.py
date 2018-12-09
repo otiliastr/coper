@@ -41,7 +41,7 @@ save_best_embeddings = True
 
 # Load data.
 data_loader = data.UMLSLoader()
-# data_loader = data.NELL995Loader(is_test=True, needs_test_set_cleaning=True)
+# data_loader = data.NELL995Loader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
 model_descr = 'cpg' if use_cpg else 'plain'
@@ -52,7 +52,7 @@ print(cfg_dict)
 cfg = AttributeDict(cfg_dict)
 
 # Compose model name based on config params.
-model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl-bn_momentum_{}'.format(
+model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}'.format(
     model_descr,
     data_loader.dataset_name,
     cfg.model.entity_embedding_size,
@@ -64,9 +64,10 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-One
     cfg.model.batch_norm_momentum)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
-suffix += '' if use_cpg else ''
+suffix += '-CLEAN' if data_loader.dataset_name.startswith('nell-995') and data_loader.needs_test_set_cleaning else ''
 suffix += ''
 model_name += suffix
+logger.info('Model name: %s', model_name)
 
 # Create directories for saving downloaded data, summaries, logs and checkpoints.
 working_dir = os.path.join(os.getcwd(), 'temp', data_loader.dataset_name)
@@ -204,6 +205,7 @@ if __name__ == '__main__':
         # Evaluate, if necessary.
         if step % cfg.eval.eval_steps == 0:
             # Perform evaluation.
+            logger.info('Evaluating model with name %s ...', model_name)
             if cfg.eval.eval_on_train:
                 _evaluate(train_eval_iterator, train_eval_iterator_handle, 'train_evaluation', summary_writer, step)
             if cfg.eval.eval_on_dev:

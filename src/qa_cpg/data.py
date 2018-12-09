@@ -670,6 +670,8 @@ class CountriesS3Loader(_MinervaDataLoader):
 class NELL995Loader(_MinervaDataLoader):
     def __init__(self, is_test=False, needs_test_set_cleaning=False):
         dataset_name = 'nell-995'
+        self.is_test = is_test
+        self.needs_test_set_cleaning = needs_test_set_cleaning
         if is_test:
             dataset_name += '-test'
         # NELL contains some test entities that do not appear during training. We remove those.
