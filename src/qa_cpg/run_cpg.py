@@ -41,6 +41,7 @@ save_best_embeddings = True
 
 # Load data.
 data_loader = data.UMLSLoader()
+# data_loader = data.NELL995Loader(is_test=True, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
 model_descr = 'cpg' if use_cpg else 'plain'
@@ -63,6 +64,7 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-One
     cfg.model.batch_norm_momentum)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
+suffix += '' if use_cpg else ''
 suffix += ''
 model_name += suffix
 
@@ -87,7 +89,7 @@ with open(config_save_path, 'w') as outfile:
     yaml.dump(cfg_dict, outfile, default_flow_style=False)
 
 if __name__ == '__main__':
-    data_loader.create_tf_record_files(data_dir)
+    data_loader.maybe_create_tf_record_files(data_dir)
 
     # Create the model.
     with tf.device(cfg.training.device):
@@ -118,6 +120,7 @@ if __name__ == '__main__':
                 'batch_norm_train_stats': cfg.model.batch_norm_train_stats})
 
     # Create dataset iterator initializers.
+    logger.info('Creating train dataset...')
     train_dataset = data_loader.train_dataset(
         directory=data_dir,
         batch_size=cfg.training.batch_size,
@@ -128,6 +131,7 @@ if __name__ == '__main__':
         num_labels=cfg.training.num_labels,
         cache=cfg.training.cache_data,
         one_positive_label_per_sample=cfg.training.one_positive_label_per_sample)
+    logger.info('Creating train eval dataset...')
     train_eval_dataset = data_loader.eval_dataset(
         directory=data_dir,
         dataset_type='train',
@@ -135,6 +139,7 @@ if __name__ == '__main__':
         include_inv_relations=False,
         buffer_size=1024,
         prefetch_buffer_size=16)
+    logger.info('Creating dev dataset...')
     dev_eval_dataset = data_loader.eval_dataset(
         directory=data_dir,
         dataset_type='dev',
@@ -142,6 +147,7 @@ if __name__ == '__main__':
         include_inv_relations=False,
         buffer_size=1024,
         prefetch_buffer_size=16)
+    logger.info('Creating test dataset...')
     test_eval_dataset = data_loader.eval_dataset(
         directory=data_dir,
         dataset_type='test',

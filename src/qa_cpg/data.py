@@ -98,7 +98,7 @@ class _DataLoader(Loader):
                       num_labels=100,
                       cache=False, 
                       one_positive_label_per_sample=True):
-        conve_parser, filenames = self.create_tf_record_files(
+        conve_parser, filenames = self.maybe_create_tf_record_files(
             directory, buffer_size=buffer_size)
 
         conve_files = filenames['train']
@@ -172,7 +172,7 @@ class _DataLoader(Loader):
                      include_inv_relations=True,
                      buffer_size=1024 * 1024,
                      prefetch_buffer_size=10):
-        parser, filenames = self.create_tf_record_files(
+        parser, filenames = self.maybe_create_tf_record_files(
             directory, buffer_size=buffer_size)
         filenames = filenames[dataset_type]
 
@@ -292,7 +292,7 @@ class _DataLoader(Loader):
             tf.range(self.num_ent, dtype=tf.int64))
 
         correct_e2s_shape = tf.shape(sample['e2_multi'])
-        neg_start = tf.random.uniform(
+        neg_start = tf.random_uniform(
             shape=correct_e2s_shape,
             maxval=self.num_ent-num_negative_labels,
             dtype=tf.int32)
@@ -338,13 +338,11 @@ class _DataLoader(Loader):
         self.num_rel = len(relation_ids) - 1
         return json_files, entity_ids, relation_ids
 
-    def create_tf_record_files(self,
-                               directory,
-                               max_records_per_file=1000000,
-                               buffer_size=1024 * 1024):
-        logger.info(
-            'Creating TF record files for the \'%s\' dataset.',
-            self.dataset_name)
+    def maybe_create_tf_record_files(self,
+                                     directory,
+                                     max_records_per_file=1000000,
+                                     buffer_size=1024 * 1024):
+        logger.info('Creating TF record files for the \'%s\' dataset.', self.dataset_name)
 
         # We first load the entity and relation ID maps and handle missing
         # entries using -1 as their index.
@@ -352,18 +350,18 @@ class _DataLoader(Loader):
         directory = os.path.dirname(json_files['full'])
         logger.info('The directory is {}'.format(directory))
 
+        # Create tfrecords.
         filetypes = ['train', 'dev', 'test']
         tf_record_filenames = {}
         for filetype in filetypes:
             count = 0
             total = 0
             file_index = 0
-            filenames = glob.glob(os.path.join(
-                directory, '{0}-{1}.tfrecords'.format(filetype, '*')))
+            filenames = glob.glob(os.path.join(directory, '{0}-{1}.tfrecords'.format(filetype, '*')))
             tf_record_filenames[filetype] = filenames
+            # First check if they exist, and rewrite only if they don't.
             if len(filenames) == 0:
-                filename = os.path.join(
-                    directory, '{0}-{1}.tfrecords'.format(filetype, file_index))
+                filename = os.path.join(directory, '{0}-{1}.tfrecords'.format(filetype, file_index))
                 logger.info('Writing to file: {}'.format(filename))
                 tf_record_filenames[filetype] = [filename]
                 tf_records_writer = tf.python_io.TFRecordWriter(filename)
@@ -385,7 +383,9 @@ class _DataLoader(Loader):
                             tf_record_filenames[filetype].append(filename)
                             tf_records_writer = tf.python_io.TFRecordWriter(filename)
                 tf_records_writer.close()
-            print('Total records in %s: %d' % (filetype, total))
+                print('Total records in %s: %d' % (filetype, total))
+            else:
+                logger.info('Tfrecords files exist for `%s`. We are not recreating them!' % filetype)
 
         def conve_tf_record_parser(r):
             features = {
@@ -403,7 +403,6 @@ class _DataLoader(Loader):
             'Loading and preprocessing the \'%s\' dataset.', self.dataset_name)
 
         # Download and potentially extract all needed files.
-        directory = os.path.join(directory, self.dataset_name)
         if self.maybe_extract(directory, buffer_size):
             # One more directory is created due to the archive extraction.
             directory = os.path.join(directory, self.dataset_name)
@@ -448,6 +447,7 @@ class _DataLoader(Loader):
         # Potentially remove from the test set the entities that do not appear in train.
         if self.needs_test_set_cleaning:
             assert 'train.txt' in graphs
+            logging.info('Skipping questions in dev and test that contain entities or relations not present in train...')
             allowed_entities = set()
             allowed_relations = set()
             for key, value in six.iteritems(graphs['train.txt']):
@@ -465,7 +465,8 @@ class _DataLoader(Loader):
                           allowed_entities=allowed_entities, allowed_relations=allowed_relations)
         self._write_graph(e1rel_to_e2_test, graphs[files[2]], full_graph,
                           allowed_entities=allowed_entities, allowed_relations=allowed_relations)
-        self._write_graph(e1rel_to_e2_full, full_graph, full_graph)
+        self._write_graph(e1rel_to_e2_full, full_graph, full_graph,
+                          allowed_entities=allowed_entities, allowed_relations=allowed_relations)
 
         return {
             'train': e1rel_to_e2_train,
@@ -477,25 +478,22 @@ class _DataLoader(Loader):
     def _write_graph(filename, graph, labels=None, allowed_entities=None, allowed_relations=None):
         with open(filename, 'w') as handle:
             for key, value in six.iteritems(graph):
+                e1, rel = key
                 if labels is None:
                     sample = {
-                        'e1': key[0],
+                        'e1': e1,
                         'e2': 'None',
-                        'rel': key[1],
+                        'rel': rel,
                         'e2_multi': ' '.join(list(value))}
                     handle.write(json.dumps(sample) + '\n')
                 else:
-                    e1, rel = key
                     if allowed_entities is not None and e1 not in allowed_entities:
-                        print('Skipping e1 %50s.' % e1)
                         continue
                     if allowed_relations is not None and rel not in allowed_relations:
-                        print('Skipping rel %50s.' % rel)
                         continue
                     e2_multi = ' '.join(list(labels[key]))
                     for e2 in value:
                         if allowed_entities is not None and e2 not in allowed_entities:
-                            print('Skipping e2 %50s.' % e2)
                             continue
                         sample = {
                             'e1': e1,
@@ -503,6 +501,7 @@ class _DataLoader(Loader):
                             'rel': rel,
                             'e2_multi': e2_multi}
                         handle.write(json.dumps(sample) + '\n')
+            handle.flush()
 
     @staticmethod
     def _assign_ids(json_files):
@@ -669,7 +668,9 @@ class CountriesS3Loader(_MinervaDataLoader):
 
 
 class NELL995Loader(_MinervaDataLoader):
-    def __init__(self):
+    def __init__(self, is_test=False, needs_test_set_cleaning=False):
         dataset_name = 'nell-995'
+        if is_test:
+            dataset_name += '-test'
         # NELL contains some test entities that do not appear during training. We remove those.
-        super(NELL995Loader, self).__init__(dataset_name, needs_test_set_cleaning=False)
+        super(NELL995Loader, self).__init__(dataset_name, needs_test_set_cleaning=needs_test_set_cleaning)
