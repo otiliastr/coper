@@ -15,6 +15,29 @@ from qa_cpg.utils.dict_with_attributes import AttributeDict
 logger = logging.getLogger(__name__)
 
 
+def get_model_name(cfg, data_loader):
+    model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}'.format(
+        model_descr,
+        data_loader.dataset_name,
+        cfg.model.entity_embedding_size,
+        cfg.model.relation_embedding_size,
+        cfg.training.batch_size,
+        cfg.training.prop_negatives,
+        cfg.training.num_labels,
+        cfg.training.one_positive_label_per_sample,
+        cfg.model.batch_norm_momentum)
+    # Add more CPG-specific params to the model name.
+    suffix = ''
+    if use_cpg:
+        suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm)
+        if cfg.context.context_rel_out is not None and len(cfg.context.context_rel_out) > 0:
+            suffix += '-context_sz_' + '_'.join([str(sz) for sz in cfg.context.context_rel_out])
+    suffix += '-CLEAN' if data_loader.dataset_name.startswith('nell-995') and data_loader.needs_test_set_cleaning else ''
+    suffix += ''
+    model_name += suffix
+    return model_name
+
+
 def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
     logger.info('Running %s at step %d...', name, step)
     session.run(data_iterator.initializer)
@@ -52,21 +75,7 @@ print(cfg_dict)
 cfg = AttributeDict(cfg_dict)
 
 # Compose model name based on config params.
-model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}'.format(
-    model_descr,
-    data_loader.dataset_name,
-    cfg.model.entity_embedding_size,
-    cfg.model.relation_embedding_size,
-    cfg.training.batch_size,
-    cfg.training.prop_negatives,
-    cfg.training.num_labels,
-    cfg.training.one_positive_label_per_sample,
-    cfg.model.batch_norm_momentum)
-# Add more CPG-specific params to the model name.
-suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
-suffix += '-CLEAN' if data_loader.dataset_name.startswith('nell-995') and data_loader.needs_test_set_cleaning else ''
-suffix += ''
-model_name += suffix
+model_name = get_model_name(cfg, data_loader)
 logger.info('Model name: %s', model_name)
 
 # Create directories for saving downloaded data, summaries, logs and checkpoints.
