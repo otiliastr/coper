@@ -6,6 +6,8 @@ model:
   feature_map_dropout: 0.3
   output_dropout: 0.2
   label_smoothing_epsilon: 0.1
+  batch_norm_momentum: 0.1
+  batch_norm_train_stats: True # If true, during training, batch norm will use a moving average of train samples.
 context:
   context_rel_conv:        # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
   context_rel_out:         # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
@@ -18,7 +20,8 @@ training:
   max_steps: 10000000
   prop_negatives: 10.0
   num_labels: 100            # Total number of labels considered during training when doing negative sampling. Must be > prop_negatives.
-  cache_data: True
+  one_positive_label_per_sample: True  # If True, it uses one positive answer per sample, and fills up tp num_labels with negatives.
+  cache_data: False
 eval:
   validation_metric: hits@1  # Choose among: mr, mrr, hits@1, hits@10, hits@20.
   log_steps: 100

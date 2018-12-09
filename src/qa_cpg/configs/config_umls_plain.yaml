@@ -19,8 +19,8 @@ training:
   device: '/GPU:0'
   max_steps: 50000
   prop_negatives: 10.0
-  num_labels: 100            # Total number of labels considered during training when doing negative sampling. Must be > prop_negatives.
-  one_positive_label_per_sample: False  # If True, it uses one positive answer per sample, and fills up tp num_labels with negatives.
+  num_labels: 10            # Total number of labels considered during training when doing negative sampling. Must be > prop_negatives.
+  one_positive_label_per_sample: True  # If True, it uses one positive answer per sample, and fills up tp num_labels with negatives.
   cache_data: True
 eval:
   validation_metric: hits@1  # Choose among: mr, mrr, hits@1, hits@10, hits@20.
