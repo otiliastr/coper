@@ -224,6 +224,10 @@ class ConvE(object):
         if self.context_rel_conv is None and self.context_rel_out is None:
             conv_in_height += 10
             #conv_in_width += self.rel_emb_size // 10
+        elif self.context_rel_conv is None:
+            size = int(math.sqrt(self.ent_emb_size))
+            conv_in_height = size
+            conv_in_width = size
         conv_out_height = math.ceil(float(conv_in_height - self.conv_filter_height + 1))
         conv_out_width = math.ceil(float(conv_in_width - self.conv_filter_width + 1))
 
@@ -308,6 +312,9 @@ class ConvE(object):
         if self.context_rel_conv is None and self.context_rel_out is None:
             reshaped_rel_emb = tf.reshape(rel_emb, [-1, 10, self.rel_emb_size // 10, 1])
             stacked_emb = tf.concat([e1_emb, reshaped_rel_emb], 1)
+        elif self.context_rel_conv is None:
+            size = int(math.sqrt(self.ent_emb_size))
+            stacked_emb = tf.reshape(e1_emb, [-1, size, size, 1])
         else:
             stacked_emb = e1_emb
 
