@@ -143,6 +143,19 @@ parser.add_argument('--complex_state_dict_path', type=str, default='',
                     help='Path to the ComplEx network state dict (default: '')')
 parser.add_argument('--conve_state_dict_path', type=str, default='',
                     help='Path to the ConvE network state dict (default: '')')
+# CPG Option
+parser.add_argument('--cpg_conv_net', type=list, default=None,
+                    help='CPG convolution network architecture. None=Missing, []=Linear transform')
+parser.add_argument('--cpg_fc_net', type=list, default=None,
+                    help='CPG Fully Connected network architecture. None=Missing, []=Linear transform')
+parser.add_argument('--cpg_dropout', type=float, default=0.0,
+                    help='CPG dropout amount')
+parser.add_argument('--cpg_batch_norm', type=bool, default=False,
+                    help='Whether to include batch norm in CPG network')
+parser.add_argument('--cpg_batch_norm_momentum', type=float, default=.99,
+                    help='Amount of batch norm momentum for CPG network')
+parser.add_argument('--cpg_use_bias', type=bool, default=False,
+                    help='Whether to include bias in CPG network')
 
 # Policy Network
 parser.add_argument('--ff_dropout_rate', type=float, default=0.1,

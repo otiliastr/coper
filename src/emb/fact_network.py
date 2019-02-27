@@ -13,6 +13,8 @@ import copy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from functools import reduce
+from operator import mul
 
 
 class TripleE(nn.Module):
@@ -122,6 +124,7 @@ class ConvE(nn.Module):
         self.emb_2D_d2 = args.emb_2D_d2
         self.num_out_channels = args.num_out_channels
         self.w_d = args.kernel_size
+
         self.HiddenDropout = nn.Dropout(args.hidden_dropout_rate)
         self.FeatureDropout = nn.Dropout(args.feat_dropout_rate)
 
@@ -211,6 +214,196 @@ class DistMult(nn.Module):
         E2 = kg.get_entity_embeddings(e2)
         S = torch.sum(E1 * R * E2, dim=1, keepdim=True)
         S = F.sigmoid(S)
+        return S
+
+# Contextual Parameter Generator Class for ConvE and other methods
+# network_structure: dimensions of input to all hidden layers of network
+# - input is assumed to be first element of network_structure
+# - last element is assumed to be last hidden layer of network
+# output_shape: dimensions of the desired paired network parameters
+# dropout: probability for dropout
+# use_batch_norm: whether to use batch_norm
+# batch_norm_momentum: momentum for batchnorm
+# use_bias: whether CPG network should have bias
+class ContextualParameterGenerator(nn.Module):
+    def __init__(self, network_structure, output_shape, dropout, use_batch_norm=False,
+                 batch_norm_momentum=0.99, use_bias=False):
+        super(ContextualParameterGenerator, self).__init__()
+        self.network_structure = network_structure
+        self.output_shape = output_shape
+        self.dropout = dropout
+        self.use_batch_norm = use_batch_norm
+        self.use_bias = use_bias
+        self.flattened_output = reduce(mul, output_shape, 1)
+
+        self.projections = []
+        layer_input = network_structure[0]
+        for layer_output in self.network_structure[1:]:
+            self.projections.append(nn.Linear(layer_input, layer_output, bias=self.use_bias))
+            if use_batch_norm:
+                self.projections.append(nn.BatchNorm1d(num_features=layer_output,
+                                                       momentum=batch_norm_momentum))
+            self.projections.append(nn.ReLU())
+            self.projections.append(nn.Dropout(p=self.dropout))
+            layer_input = layer_output
+
+        self.projections.append(nn.Linear(layer_input, self.flattened_output, bias=self.use_bias))
+        self.network = nn.Sequential(*self.projections)
+
+    def forward(self, query_emb):
+        flat_params = self.network(query_emb)
+        params = flat_params.view([-1] + self.output_shape)
+        return params
+
+class CPG_ConvE(nn.Module):
+    def __init__(self, args, num_entities):
+        super(CPG_ConvE, self).__init__()
+        self.entity_dim = args.entity_dim
+        self.relation_dim = args.relation_dim
+        assert(args.emb_2D_d1 * args.emb_2D_d2 == args.entity_dim)
+        assert(args.emb_2D_d1 * args.emb_2D_d2 == args.relation_dim)
+        self.emb_2D_d1 = args.emb_2D_d1
+        self.emb_2D_d2 = args.emb_2D_d2
+        self.num_out_channels = args.num_out_channels
+        self.w_d = args.kernel_size
+
+        self.cpg_conv_net = args.cpg_conv_net
+        self.cpg_fc_net = args.cpg_fc_net
+        self.cpg_dropout = args.cpg_dropout
+        self.cpg_batch_norm = args.cpg_batch_norm
+        self.cpg_batch_norm_momentum = args.cpg_batch_norm_momentum
+        self.cpg_use_bias = args.cpg_use_bias
+
+
+        self.HiddenDropout = nn.Dropout(args.hidden_dropout_rate)
+        self.FeatureDropout = nn.Dropout(args.feat_dropout_rate)
+
+        # stride = 1, padding = 0, dilation = 1, groups = 1
+        if self.cpg_conv_net is None:
+            self.conv1 = nn.Conv2d(1, self.num_out_channels, (self.w_d, self.w_d), 1, 0)
+        self.bn0 = nn.BatchNorm2d(1)
+        self.bn1 = nn.BatchNorm2d(self.num_out_channels)
+        self.bn2 = nn.BatchNorm1d(self.entity_dim)
+        self.register_parameter('b', nn.Parameter(torch.zeros(num_entities)))
+        # ConvE baseline
+        if (self.cpg_conv_net is None) and (self.cpg_fc_net is None):
+            h_out = 2 * self.emb_2D_d1 - self.w_d + 1
+        # CPG-ConvE
+        else:
+            h_out = self.emb_2D_d1 - self.w_d + 1
+        w_out = self.emb_2D_d2 - self.w_d + 1
+        self.feat_dim = self.num_out_channels * h_out * w_out
+        if self.cpg_fc_net is None:
+            self.fc = nn.Linear(self.feat_dim, self.entity_dim)
+
+        if self.cpg_conv_net is not None:
+            self.conv_filter = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_conv_net,
+                                                            output_shape=[self.num_out_channels, 1, self.w_2, self.w_2],
+                                                            dropout=self.cpg_dropout,
+                                                            use_batch_norm=self.cpg_batch_norm,
+                                                            batch_norm_momentum=self.cpg_batch_norm_momentum,
+                                                            use_bias=self.cpg_use_bias)
+            self.conv_bias = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_conv_net,
+                                                          output_shape=self.num_out_channels,
+                                                          dropout=self.cpg_dropout,
+                                                          use_batch_norm=self.cpg_batch_norm,
+                                                          batch_norm_momentum=self.cpg_batch_norm_momentum,
+                                                          use_bias=self.cpg_use_bias)
+        if self.cpg_fc_net is not None:
+            self.fc_weights = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
+                                                           output_shape=[self.feat_dim, self.entity_dim],
+                                                           dropout=self.cpg_dropout,
+                                                           use_batch_norm=self.cpg_batch_norm,
+                                                           batch_norm_momentum=self.cpg_batch_norm_momentum,
+                                                           use_bias=self.cpg_use_bias)
+            self.fc_bias = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
+                                                        output_shape=[self.entity_dim],
+                                                        dropout=self.cpg_dropout,
+                                                        use_batch_norm=self.cpg_batch_norm,
+                                                        batch_norm_momentum=self.cpg_batch_norm_momentum,
+                                                        use_bias=self.cpg_use_bias)
+
+
+    def forward(self, e1, r, kg):
+        E1 = kg.get_entity_embeddings(e1).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
+        R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
+        E2 = kg.get_all_entity_embeddings()
+
+        if (self.cpg_fc_net is None) and (self.cpg_conv_net is None):
+            stacked_inputs = torch.cat([E1, R], 2)
+        else:
+            stacked_inputs = E1
+        stacked_inputs = self.bn0(stacked_inputs)
+
+        if self.cpg_conv_net is not None:
+            X = nn.functional.conv2d(input=stacked_inputs,
+                                     weight=self.conv_filter,
+                                     bias=self.conv_bias)
+        else:
+            X = self.conv1(stacked_inputs)
+        # X = self.bn1(X)
+        X = F.relu(X)
+        X = self.FeatureDropout(X)
+        X = X.view(-1, self.feat_dim)
+
+        if self.cpg_fc_net is not None:
+            X = nn.functional.linear(input=X,
+                                     weight=self.fc_weights,
+                                     bias=self.fc_bias)
+        else:
+            X = self.fc(X)
+        X = self.HiddenDropout(X)
+        X = self.bn2(X)
+        X = F.relu(X)
+        X = torch.mm(X, E2.transpose(1, 0))
+        X += self.b.expand_as(X)
+
+        S = F.sigmoid(X)
+        return S
+
+    def forward_fact(self, e1, r, e2, kg):
+        """
+        Compute network scores of the given facts.
+        :param e1: [batch_size]
+        :param r:  [batch_size]
+        :param e2: [batch_size]
+        :param kg:
+        """
+        # print(e1.size(), r.size(), e2.size())
+        # print(e1.is_contiguous(), r.is_contiguous(), e2.is_contiguous())
+        # print(e1.min(), r.min(), e2.min())
+        # print(e1.max(), r.max(), e2.max())
+        E1 = kg.get_entity_embeddings(e1).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
+        R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
+        E2 = kg.get_entity_embeddings(e2)
+        if (self.cpg_fc_net is None) and (self.cpg_conv_net is None):
+            stacked_inputs = torch.cat([E1, R], 2)
+        else:
+            stacked_inputs = E1
+        stacked_inputs = self.bn0(stacked_inputs)
+        if self.cpg_conv_net is not None:
+            X = nn.functional.conv2d(input=stacked_inputs,
+                                     weight=self.conv_filter,
+                                     bias=self.conv_bias)
+        else:
+            X = self.conv1(stacked_inputs)
+        # X = self.bn1(X)
+        X = F.relu(X)
+        X = self.FeatureDropout(X)
+        X = X.view(-1, self.feat_dim)
+        if self.cpg_fc_net is not None:
+            X = nn.functional.linear(input=X,
+                                     weight=self.fc_weights,
+                                     bias=self.fc_bias)
+        else:
+            X = self.fc(X)
+        X = self.HiddenDropout(X)
+        X = self.bn2(X)
+        X = F.relu(X)
+        X = torch.matmul(X.unsqueeze(1), E2.unsqueeze(2)).squeeze(2)
+        X += self.b[e2].unsqueeze(1)
+
+        S = F.sigmoid(X)
         return S
 
 def get_conve_nn_state_dict(state_dict):
