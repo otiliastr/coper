@@ -153,8 +153,8 @@ def initialize_model_directory(args, random_seed=None):
             args.cpg_conv_net,
             args.cpg_fc_net,
             args.cpg_use_bias,
-            args.batch_norm,
-            args.batch_norm_momentum)
+            args.cpg_batch_norm,
+            args.cpg_batch_norm_momentum)
     else:
         raise NotImplementedError
 
