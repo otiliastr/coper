@@ -19,5 +19,12 @@ grad_norm=0
 emb_dropout_rate=0.3
 beam_size=128
 
+cpg_conv_net=None
+cpg_fc_net=[]
+cpg_dropout=.4
+cpg_batch_norm=True
+cpg_batch_norm_momentum=.1
+cpg_use_bias=False
+
 num_negative_samples=100
 margin=0.5
