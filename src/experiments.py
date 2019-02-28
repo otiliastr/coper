@@ -232,7 +232,7 @@ def construct_model(args):
         fn = ConvE(args, kg.num_entities)
         lf = EmbeddingBasedMethod(args, kg, fn)
     elif args.model == 'cpg-conve':
-        fn = CPG_ConvE(args)
+        fn = CPG_ConvE(args, kg.num_entities)
         lf = EmbeddingBasedMethod(args, kg, fn)
     else:
         raise NotImplementedError
