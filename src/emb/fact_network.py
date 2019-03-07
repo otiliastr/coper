@@ -261,7 +261,7 @@ class CPG_ConvE(nn.Module):
         self.entity_dim = args.entity_dim
         self.relation_dim = args.relation_dim
         assert(args.emb_2D_d1 * args.emb_2D_d2 == args.entity_dim)
-        assert(args.emb_2D_d1 * args.emb_2D_d2 == args.relation_dim)
+        # assert(args.emb_2D_d1 * args.emb_2D_d2 == args.relation_dim)
         self.emb_2D_d1 = args.emb_2D_d1
         self.emb_2D_d2 = args.emb_2D_d2
         self.num_out_channels = args.num_out_channels
@@ -331,7 +331,7 @@ class CPG_ConvE(nn.Module):
         R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, emb_2D_d2)
         E2 = kg.get_all_entity_embeddings()
 
-        if (self.cpg_fc_net is None) and (self.cpg_conv_net is None):
+        if (self.cpg_fc_net is None) and (self.cpg_conv_net is None) and (self.entity_dim == self.relation_dim):
             stacked_inputs = torch.cat([E1, R], 2)
         else:
             stacked_inputs = E1
@@ -380,7 +380,7 @@ class CPG_ConvE(nn.Module):
         emb_2D_d2 = int(self.relation_dim / self.emb_2D_d1)
         R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, emb_2D_d2)
         E2 = kg.get_entity_embeddings(e2)
-        if (self.cpg_fc_net is None) and (self.cpg_conv_net is None):
+        if (self.cpg_fc_net is None) and (self.cpg_conv_net is None) and (self.relation_dim == self.entity_dim):
             stacked_inputs = torch.cat([E1, R], 2)
         else:
             stacked_inputs = E1
