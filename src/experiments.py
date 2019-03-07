@@ -573,7 +573,7 @@ def load_configs(config_path):
 
 def run_experiment(args):
     print('#' * 80)
-    print('cpg_fc_net: {} | cpg_conve_net: {}'.format(self.cpg_fc_net, self.cpg_conv_net))
+    print('cpg_fc_net: {} | cpg_conve_net: {}'.format(args.cpg_fc_net, args.cpg_conv_net))
     print('#' * 80)
     if args.test:
         if 'NELL' in args.data_dir:
