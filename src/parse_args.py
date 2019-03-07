@@ -123,11 +123,12 @@ parser.add_argument('--random_parameters', type=bool, default=False,
                     help='Inference with random parameters (default: False)')
 
 # Fact Network
+# TODO: remove hardcoded defaults. I.e. fix parser not reading arguments.
 parser.add_argument('--label_smoothing_epsilon', type=float, default=0.1,
                     help='epsilon used for label smoothing')
-parser.add_argument('--hidden_dropout_rate', type=float, default=0.3,
+parser.add_argument('--hidden_dropout_rate', type=float, default=0.5,
                     help='ConvE hidden layer dropout rate (default: 0.3)')
-parser.add_argument('--feat_dropout_rate', type=float, default=0.2,
+parser.add_argument('--feat_dropout_rate', type=float, default=0.5,
                     help='ConvE feature dropout rate (default: 0.2)')
 parser.add_argument('--emb_2D_d1', type=int, default=10,
                     help='ConvE embedding 2D shape dimension 1 (default: 10)')
@@ -144,15 +145,16 @@ parser.add_argument('--complex_state_dict_path', type=str, default='',
 parser.add_argument('--conve_state_dict_path', type=str, default='',
                     help='Path to the ConvE network state dict (default: '')')
 # CPG Option
+# TODO: remove hardcoded defaults. I.e. fix parser not reading arguments.
 parser.add_argument('--cpg_conv_net', type=list, default=None,
                     help='CPG convolution network architecture. None=Missing, []=Linear transform')
-parser.add_argument('--cpg_fc_net', type=list, default=None,
+parser.add_argument('--cpg_fc_net', type=list, default=[],
                     help='CPG Fully Connected network architecture. None=Missing, []=Linear transform')
-parser.add_argument('--cpg_dropout', type=float, default=0.0,
+parser.add_argument('--cpg_dropout', type=float, default=0.5,
                     help='CPG dropout amount')
-parser.add_argument('--cpg_batch_norm', type=bool, default=False,
+parser.add_argument('--cpg_batch_norm', type=bool, default=True,
                     help='Whether to include batch norm in CPG network')
-parser.add_argument('--cpg_batch_norm_momentum', type=float, default=.99,
+parser.add_argument('--cpg_batch_norm_momentum', type=float, default=.1,
                     help='Amount of batch norm momentum for CPG network')
 parser.add_argument('--cpg_use_bias', type=bool, default=False,
                     help='Whether to include bias in CPG network')
