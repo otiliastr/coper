@@ -23,8 +23,8 @@ fi
 
 cmd="python3 -m src.experiments \
     --data_dir $data_dir \
-    --gpu $gpu \
-    $ARGS"
+    --gpu $gpu"
+#    $ARGS
 #    $exp \
 #    --model $model \
 #    --bandwidth $bandwidth \
