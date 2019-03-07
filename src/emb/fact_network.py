@@ -362,6 +362,7 @@ class CPG_ConvE(nn.Module):
 
             X = X.matmul(self.fc_weights(R))
             X += self.fc_bias(R)
+            print("X shape: {}".format(X.size()))
         else:
             X = self.fc(X)
         X = self.HiddenDropout(X)
