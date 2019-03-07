@@ -253,6 +253,7 @@ class ContextualParameterGenerator(nn.Module):
     def forward(self, query_emb):
         flat_params = self.network(query_emb)
         params = flat_params.view([-1] + self.output_shape)
+        print('CPG shape: {}'.format(params.shape))
         return params
 
 class CPG_ConvE(nn.Module):
@@ -351,6 +352,7 @@ class CPG_ConvE(nn.Module):
         X = X.view(-1, self.feat_dim)
 
         if self.cpg_fc_net is not None:
+            print('fc_weights shape: {} | X shape: {}'.format(X.size(), self.fc_weights(R).size))
             X = nn.functional.linear(input=X,
                                      weight=self.fc_weights(R),
                                      bias=self.fc_bias(R))
