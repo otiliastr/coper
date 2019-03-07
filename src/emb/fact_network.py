@@ -357,9 +357,10 @@ class CPG_ConvE(nn.Module):
                                                                                   self.fc_weights(R).size(),
                                                                                   self.fc_bias(R).size()))
 
-            X = nn.functional.linear(input=X,
-                                     weight=self.fc_weights(R))
-            # torch expects bias to be 1D and broadcasts it. So we add bias indeoendently
+            # X = nn.functional.linear(input=X,
+            #                          weight=self.fc_weights(R))
+
+            X = X.matmul(self.fc_weights(R))
             X += self.fc_bias(R)
         else:
             X = self.fc(X)
