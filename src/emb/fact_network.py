@@ -253,7 +253,7 @@ class ContextualParameterGenerator(nn.Module):
     def forward(self, query_emb):
         flat_params = self.network(query_emb)
         params = flat_params.view([-1] + self.output_shape)
-        print('CPG shape: {}'.format(params.shape))
+        # print('CPG shape: {}'.format(params.shape))
         return params
 
 class CPG_ConvE(nn.Module):
@@ -331,9 +331,9 @@ class CPG_ConvE(nn.Module):
         emb_2D_d2 = int(self.relation_dim / self.emb_2D_d1)
         R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, emb_2D_d2)
         E2 = kg.get_all_entity_embeddings()
-        print('#'*80)
-        print('cpg_fc_net: {} | cpg_conve_net: {}'.format(self.cpg_fc_net, self.cpg_conv_net))
-        print('#' * 80)
+        # print('#'*80)
+        # print('cpg_fc_net: {} | cpg_conve_net: {}'.format(self.cpg_fc_net, self.cpg_conv_net))
+        # print('#' * 80)
         if (self.cpg_fc_net is None) and (self.cpg_conv_net is None) and (self.entity_dim == self.relation_dim):
             stacked_inputs = torch.cat([E1, R], 2)
         else:
@@ -353,18 +353,16 @@ class CPG_ConvE(nn.Module):
         X = X.view(-1, self.feat_dim)
 
         if self.cpg_fc_net is not None:
-            print('X shape: {} | fc_weights shape: {} | fc_bias shape: {}'.format(X.size(),
-                                                                                  self.fc_weights(R).size(),
-                                                                                  self.fc_bias(R).size()))
+            # print('X shape: {} | fc_weights shape: {} | fc_bias shape: {}'.format(X.size(),
+            #                                                                       self.fc_weights(R).size(),
+            #                                                                       self.fc_bias(R).size()))
 
             # X = nn.functional.linear(input=X,
             #                          weight=self.fc_weights(R))
             fc_weights = self.fc_weights(R)
             # X = X.matmul(fc_weights)
             X = torch.einsum('ij, ijk-> ik', X, fc_weights)
-            print("X shape after matmul: {}".format(X.size()))
             X += self.fc_bias(R)
-            print("X shape: {}".format(X.size()))
         else:
             X = self.fc(X)
         X = self.HiddenDropout(X)
@@ -410,9 +408,9 @@ class CPG_ConvE(nn.Module):
         X = self.FeatureDropout(X)
         X = X.view(-1, self.feat_dim)
         if self.cpg_fc_net is not None:
-            X = nn.functional.linear(input=X,
-                                     weight=self.fc_weights(R),
-                                     bias=self.fc_bias(R))
+            fc_weights = self.fc_weights(R)
+            X = torch.einsum('ij, ijk-> ik', X, fc_weights)
+            X += self.fc_bias(R)
         else:
             X = self.fc(X)
         X = self.HiddenDropout(X)
