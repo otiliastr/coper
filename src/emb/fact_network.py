@@ -337,6 +337,7 @@ class CPG_ConvE(nn.Module):
         if (self.cpg_fc_net is None) and (self.cpg_conv_net is None) and (self.entity_dim == self.relation_dim):
             stacked_inputs = torch.cat([E1, R], 2)
         else:
+            R = R.view(-1, self.relation_dim)
             stacked_inputs = E1
         stacked_inputs = self.bn0(stacked_inputs)
 
