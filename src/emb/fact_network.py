@@ -359,14 +359,15 @@ class CPG_ConvE(nn.Module):
 
             # X = nn.functional.linear(input=X,
             #                          weight=self.fc_weights(R))
-
-            X = X.matmul(self.fc_weights(R))
+            fc_weights = self.fc_weights(R)
+            X = X.matmul(self.fc_weights)
+            print("X shape before matmul: {} | fc_Weights shape: {}".format(X.size(), fc_weights))
+            print("X shape after matmul: {}".format(X.size()))
             X += self.fc_bias(R)
             print("X shape: {}".format(X.size()))
         else:
             X = self.fc(X)
         X = self.HiddenDropout(X)
-        print("X shape: {}".format(X.size()))
         X = self.bn2(X)
         X = F.relu(X)
         X = torch.mm(X, E2.transpose(1, 0))
