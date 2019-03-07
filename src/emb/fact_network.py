@@ -365,6 +365,7 @@ class CPG_ConvE(nn.Module):
         else:
             X = self.fc(X)
         X = self.HiddenDropout(X)
+        print("X shape: {}".format(X.size()))
         X = self.bn2(X)
         X = F.relu(X)
         X = torch.mm(X, E2.transpose(1, 0))
