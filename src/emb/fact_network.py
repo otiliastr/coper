@@ -388,8 +388,8 @@ class CPG_ConvE(nn.Module):
         stacked_inputs = self.bn0(stacked_inputs)
         if self.cpg_conv_net is not None:
             X = nn.functional.conv2d(input=stacked_inputs,
-                                     weight=self.conv_filter.generate(R),
-                                     bias=self.conv_bias.generate(R))
+                                     weight=self.conv_filter(R),
+                                     bias=self.conv_bias(R))
         else:
             X = self.conv1(stacked_inputs)
         # X = self.bn1(X)
@@ -398,8 +398,8 @@ class CPG_ConvE(nn.Module):
         X = X.view(-1, self.feat_dim)
         if self.cpg_fc_net is not None:
             X = nn.functional.linear(input=X,
-                                     weight=self.fc_weights.generate(R),
-                                     bias=self.fc_bias.generate(R))
+                                     weight=self.fc_weights(R),
+                                     bias=self.fc_bias(R))
         else:
             X = self.fc(X)
         X = self.HiddenDropout(X)
