@@ -361,7 +361,7 @@ class CPG_ConvE(nn.Module):
             #                          weight=self.fc_weights(R))
             fc_weights = self.fc_weights(R)
             X = X.matmul(fc_weights)
-            print("X shape before matmul: {} | fc_Weights shape: {}".format(X.size(), fc_weights))
+            print("X shape before matmul: {} | fc_Weights shape: {}".format(X.size(), fc_weights.size()))
             print("X shape after matmul: {}".format(X.size()))
             X += self.fc_bias(R)
             print("X shape: {}".format(X.size()))
