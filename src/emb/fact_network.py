@@ -298,7 +298,7 @@ class CPG_ConvE(nn.Module):
 
         if self.cpg_conv_net is not None:
             self.conv_filter = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_conv_net,
-                                                            output_shape=[self.num_out_channels, 1, self.w_2, self.w_2],
+                                                            output_shape=[self.num_out_channels, 1, self.w_d, self.w_d],
                                                             dropout=self.cpg_dropout,
                                                             use_batch_norm=self.cpg_batch_norm,
                                                             batch_norm_momentum=self.cpg_batch_norm_momentum,
@@ -330,7 +330,9 @@ class CPG_ConvE(nn.Module):
         emb_2D_d2 = int(self.relation_dim / self.emb_2D_d1)
         R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, emb_2D_d2)
         E2 = kg.get_all_entity_embeddings()
-
+        print('#'*80)
+        print('cpg_fc_net: {} | cpg_conve_net: {}'.format(self.cpg_fc_net, self.cpg_conv_net))
+        print('#' * 80)
         if (self.cpg_fc_net is None) and (self.cpg_conv_net is None) and (self.entity_dim == self.relation_dim):
             stacked_inputs = torch.cat([E1, R], 2)
         else:
@@ -339,8 +341,8 @@ class CPG_ConvE(nn.Module):
 
         if self.cpg_conv_net is not None:
             X = nn.functional.conv2d(input=stacked_inputs,
-                                     weight=self.conv_filter,
-                                     bias=self.conv_bias)
+                                     weight=self.conv_filter(R),
+                                     bias=self.conv_bias(R))
         else:
             X = self.conv1(stacked_inputs)
         # X = self.bn1(X)
@@ -350,8 +352,8 @@ class CPG_ConvE(nn.Module):
 
         if self.cpg_fc_net is not None:
             X = nn.functional.linear(input=X,
-                                     weight=self.fc_weights,
-                                     bias=self.fc_bias)
+                                     weight=self.fc_weights(R),
+                                     bias=self.fc_bias(R))
         else:
             X = self.fc(X)
         X = self.HiddenDropout(X)
