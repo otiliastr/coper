@@ -24,6 +24,8 @@ fi
 cmd="python3 -m src.experiments \
     --data_dir $data_dir \
     $exp \
+    --gpu $gpu \
+    $ARGS"
 #    --model $model \
 #    --bandwidth $bandwidth \
 #    --entity_dim $entity_dim \
@@ -53,8 +55,6 @@ cmd="python3 -m src.experiments \
 #    --num_paths_per_entity $num_paths_per_entity \
 #    $group_examples_by_query_flag \
 #    $use_action_space_bucketing_flag \
-    --gpu $gpu \
-    $ARGS"
 
 echo "Executing $cmd"
 
