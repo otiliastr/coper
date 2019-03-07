@@ -353,7 +353,10 @@ class CPG_ConvE(nn.Module):
         X = X.view(-1, self.feat_dim)
 
         if self.cpg_fc_net is not None:
-            print('fc_weights shape: {} | X shape: {}'.format(X.size(), self.fc_weights(R).size))
+            print('X shape: {} | fc_weights shape: {} | fc_bias shape: {}'.format(X.size(),
+                                                                                  self.fc_weights(R).size(),
+                                                                                  self.fc_bias(R).size()))
+
             X = nn.functional.linear(input=X,
                                      weight=self.fc_weights(R),
                                      bias=self.fc_bias(R))
