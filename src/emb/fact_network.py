@@ -326,7 +326,9 @@ class CPG_ConvE(nn.Module):
 
     def forward(self, e1, r, kg):
         E1 = kg.get_entity_embeddings(e1).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
-        R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
+        # possible that relation is no longer emb size 200
+        emb_2D_d2 = int(self.relation_dim / self.emb_2D_d1)
+        R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, emb_2D_d2)
         E2 = kg.get_all_entity_embeddings()
 
         if (self.cpg_fc_net is None) and (self.cpg_conv_net is None):
@@ -374,7 +376,9 @@ class CPG_ConvE(nn.Module):
         # print(e1.min(), r.min(), e2.min())
         # print(e1.max(), r.max(), e2.max())
         E1 = kg.get_entity_embeddings(e1).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
-        R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
+        # possible that relation is no longer emb size 200
+        emb_2D_d2 = int(self.relation_dim / self.emb_2D_d1)
+        R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, emb_2D_d2)
         E2 = kg.get_entity_embeddings(e2)
         if (self.cpg_fc_net is None) and (self.cpg_conv_net is None):
             stacked_inputs = torch.cat([E1, R], 2)
