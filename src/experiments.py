@@ -241,6 +241,7 @@ def construct_model(args):
 def train(lf):
     train_path = data_utils.get_train_path(args)
     dev_path = os.path.join(args.data_dir, 'dev.triples')
+    test_path = os.path.join(args.data_dir, 'test_triples')
     entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
     relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
     train_data = data_utils.load_triples(
@@ -252,9 +253,10 @@ def train(lf):
     else:
         seen_entities = set()
     dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path, seen_entities=seen_entities)
+    test_data = data_utils.load_triples(test_path, entity_index_path, relation_index_path, seen_entities=seen_entities)
     if args.checkpoint_path is not None:
         lf.load_checkpoint(args.checkpoint_path)
-    lf.run_train(train_data, dev_data)
+    lf.run_train(train_data, dev_data, test_data)
 
 def inference(lf):
     lf.batch_size = args.dev_batch_size

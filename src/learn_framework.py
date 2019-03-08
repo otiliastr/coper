@@ -62,7 +62,7 @@ class LFramework(nn.Module):
         print('--------------------------')
         print()
 
-    def run_train(self, train_data, dev_data):
+    def run_train(self, train_data, dev_data, test_data):
         self.print_all_model_parameters()
 
         if self.optim is None:
@@ -143,11 +143,12 @@ class LFramework(nn.Module):
                 self.eval()
                 self.batch_size = self.dev_batch_size
                 dev_scores = self.forward(dev_data, verbose=False)
-                print('Dev set performance: (correct evaluation)')
-                _, _, _, _, mrr = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.dev_objects, verbose=True)
+                print('Dev set performance: ')
+                _, _, _, _, mrr = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
                 metrics = mrr
-                print('Dev set performance: (include test set labels)')
-                src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
+                print('Test set performance: ')
+                test_scores = self.forward(test_data, verbose=False)
+                src.eval.hits_and_ranks(test_data, test_scores, self.kg.all_objects, verbose=True)
                 # Action dropout anneaking
                 if self.model.startswith('point'):
                     eta = self.action_dropout_anneal_interval
