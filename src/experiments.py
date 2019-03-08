@@ -241,7 +241,7 @@ def construct_model(args):
 def train(lf):
     train_path = data_utils.get_train_path(args)
     dev_path = os.path.join(args.data_dir, 'dev.triples')
-    test_path = os.path.join(args.data_dir, 'test_triples')
+    test_path = os.path.join(args.data_dir, 'test.triples')
     entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
     relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
     train_data = data_utils.load_triples(
