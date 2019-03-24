@@ -346,7 +346,7 @@ class CPG_ConvE(nn.Module):
             R = R.view(-1, self.relation_dim)
             stacked_inputs = E1
         stacked_inputs = self.bn0(stacked_inputs)
-        print('Batch+other stuff: {}'.format(stacked_inputs.size()))
+        # print('Batch+other stuff: {}'.format(stacked_inputs.size()))
         if self.cpg_conv_net is not None:
             X = nn.functional.conv2d(input=stacked_inputs,
                                      weight=self.conv_filter(R),
@@ -379,7 +379,7 @@ class CPG_ConvE(nn.Module):
         X += self.b.expand_as(X)
 
         S = F.sigmoid(X)
-        print('MEMORY ALLOCATED: {}'.format(torch.cuda.memory_allocated()))
+        # print('MEMORY ALLOCATED: {}'.format(torch.cuda.memory_allocated()))
         return S
 
     def forward_fact(self, e1, r, e2, kg):

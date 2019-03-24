@@ -341,17 +341,17 @@ def inference(lf):
             dev_path = os.path.join(args.data_dir, 'dev.triples')
             test_path = os.path.join(args.data_dir, 'test.triples')
             print('Evaluation Phase...')
-            print('Memory allocated before eval data loading: {}'.format(torch.cuda.memory_allocated()))
+            print('Memory allocated before eval data loading: {}'.format(torch.cuda.memory_allocated() / 1e9))
             dev_data = data_utils.load_triples(
                 dev_path, entity_index_path, relation_index_path, seen_entities=seen_entities, verbose=False)
             test_data = data_utils.load_triples(
                 test_path, entity_index_path, relation_index_path, seen_entities=seen_entities, verbose=False)
-            print('Memory allocated after eval data loading: {}'.format(torch.cuda.memory_allocated()))
+            print('Memory allocated after eval data loading: {}'.format(torch.cuda.memory_allocated() / 1e9))
             print('Dev set performance:')
             pred_scores = lf.forward(dev_data, verbose=False)
-            print('Memory allocated after forward pass over dev data: {}'.format(torch.cuda.memory_allocated()))
+            print('Memory allocated after forward pass over dev data: {}'.format(torch.cuda.memory_allocated() / 1e9))
             dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
-            print('Memory allocated after obtaining dev metrics: {}'.format(torch.cuda.memory_allocated()))
+            print('Memory allocated after obtaining dev metrics: {}'.format(torch.cuda.memory_allocated()) / 1e9)
             eval_metrics['dev'] = {}
             eval_metrics['dev']['hits_at_1'] = dev_metrics[0]
             eval_metrics['dev']['hits_at_3'] = dev_metrics[1]
@@ -361,9 +361,9 @@ def inference(lf):
             # src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
             print('Test set performance:')
             pred_scores = lf.forward(test_data, verbose=False)
-            print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated()))
+            print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
             test_metrics = src.eval.hits_and_ranks(test_data, pred_scores, lf.kg.all_objects, verbose=True)
-            print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated()))
+            print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
             eval_metrics['test']['hits_at_1'] = test_metrics[0]
             eval_metrics['test']['hits_at_3'] = test_metrics[1]
             eval_metrics['test']['hits_at_5'] = test_metrics[2]
