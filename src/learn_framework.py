@@ -142,32 +142,37 @@ class LFramework(nn.Module):
             if self.run_analysis or (epoch_id > 0 and epoch_id % self.num_peek_epochs == 0):
                 self.eval()
                 self.batch_size = self.dev_batch_size
-                dev_scores = self.forward(dev_data, verbose=False)
-                print('Dev set performance: ')
-                _, _, _, _, mrr = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
-                metrics = mrr
-                print('Test set performance: ')
-                test_scores = self.forward(test_data, verbose=False)
-                src.eval.hits_and_ranks(test_data, test_scores, self.kg.all_objects, verbose=True)
-                # Action dropout anneaking
-                if self.model.startswith('point'):
-                    eta = self.action_dropout_anneal_interval
-                    if len(dev_metrics_history) > eta and metrics < min(dev_metrics_history[-eta:]):
-                        old_action_dropout_rate = self.action_dropout_rate
-                        self.action_dropout_rate *= self.action_dropout_anneal_factor 
-                        print('Decreasing action dropout rate: {} -> {}'.format(
-                            old_action_dropout_rate, self.action_dropout_rate))
-                # Save checkpoint
-                if metrics > best_dev_metrics:
-                    self.save_checkpoint(checkpoint_id=epoch_id, epoch_id=epoch_id, is_best=True)
-                    best_dev_metrics = metrics
-                    with open(os.path.join(self.model_dir, 'best_dev_iteration.dat'), 'w') as o_f:
-                        o_f.write('{}'.format(epoch_id))
-                else:
-                    # Early stopping
-                    if epoch_id >= self.num_wait_epochs and metrics < np.mean(dev_metrics_history[-self.num_wait_epochs:]):
-                        break
-                dev_metrics_history.append(metrics)
+                self.optim.zero_grad()
+                with torch.no_grad():
+                    print('Memory allocated before dev forward pass: {}'.format(torch.cuda.memory_allocated()))
+                    dev_scores = self.forward(dev_data, verbose=False)
+                    print('Memory allocated after dev forward pass: {}'.format(torch.cuda.memory_allocated()))
+                    print('Dev set performance: ')
+                    _, _, _, _, mrr = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
+                    metrics = mrr
+                    print('Test set performance: ')
+                    test_scores = self.forward(test_data, verbose=False)
+                    print('Memory allocated after test performance: {}'.format(torch.cuda.memory_allocated()))
+                    src.eval.hits_and_ranks(test_data, test_scores, self.kg.all_objects, verbose=True)
+                    # Action dropout anneaking
+                    if self.model.startswith('point'):
+                        eta = self.action_dropout_anneal_interval
+                        if len(dev_metrics_history) > eta and metrics < min(dev_metrics_history[-eta:]):
+                            old_action_dropout_rate = self.action_dropout_rate
+                            self.action_dropout_rate *= self.action_dropout_anneal_factor
+                            print('Decreasing action dropout rate: {} -> {}'.format(
+                                old_action_dropout_rate, self.action_dropout_rate))
+                    # Save checkpoint
+                    if metrics > best_dev_metrics:
+                        self.save_checkpoint(checkpoint_id=epoch_id, epoch_id=epoch_id, is_best=True)
+                        best_dev_metrics = metrics
+                        with open(os.path.join(self.model_dir, 'best_dev_iteration.dat'), 'w') as o_f:
+                            o_f.write('{}'.format(epoch_id))
+                    else:
+                        # Early stopping
+                        if epoch_id >= self.num_wait_epochs and metrics < np.mean(dev_metrics_history[-self.num_wait_epochs:]):
+                            break
+                    dev_metrics_history.append(metrics)
                 if self.run_analysis:
                     num_path_types_file = os.path.join(self.model_dir, 'num_path_types.dat')
                     dev_metrics_file = os.path.join(self.model_dir, 'dev_metrics.dat')
