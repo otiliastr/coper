@@ -432,6 +432,7 @@ class CPG_ConvE(nn.Module):
 
 def get_conve_nn_state_dict(state_dict):
     conve_nn_state_dict = {}
+    print('ConvE State dict: {}'.format(state_dict['state_dict'].keys()))
     for param_name in ['mdl.b', 'mdl.conv1.weight', 'mdl.conv1.bias', 'mdl.bn0.weight', 'mdl.bn0.bias',
                        'mdl.bn0.running_mean', 'mdl.bn0.running_var', 'mdl.bn1.weight', 'mdl.bn1.bias',
                        'mdl.bn1.running_mean', 'mdl.bn1.running_var', 'mdl.bn2.weight', 'mdl.bn2.bias',
