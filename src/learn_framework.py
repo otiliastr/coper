@@ -148,8 +148,8 @@ class LFramework(nn.Module):
                     dev_scores = self.forward(dev_data, verbose=False)
                     print('Memory allocated after dev forward pass: {}'.format(torch.cuda.memory_allocated()))
                     print('Dev set performance: ')
-                    _, _, _, _, mrr = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
-                    metrics = mrr
+                    hits_at_1, _, _, _,  = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
+                    metrics = hits_at_1
                     print('Test set performance: ')
                     test_scores = self.forward(test_data, verbose=False)
                     print('Memory allocated after test performance: {}'.format(torch.cuda.memory_allocated()))
