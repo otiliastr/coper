@@ -78,10 +78,13 @@ class LFramework(nn.Module):
             if self.rl_variation_tag.startswith('rs'):
                 # Reward shaping module sanity check:
                 #   Make sure the reward shaping module output value is in the correct range
-                train_scores = self.test_fn(train_data)
-                dev_scores = self.test_fn(dev_data)
-                print('Train set average fact score: {}'.format(float(train_scores.mean())))
-                print('Dev set average fact score: {}'.format(float(dev_scores.mean())))
+                self.eval()
+                self.optim.zero_grad()
+                with torch.no_grad():
+                    train_scores = self.test_fn(train_data)
+                    dev_scores = self.test_fn(dev_data)
+                    print('Train set average fact score: {}'.format(float(train_scores.mean())))
+                    print('Dev set average fact score: {}'.format(float(dev_scores.mean())))
 
             # Update model parameters
             self.train()
