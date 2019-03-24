@@ -81,8 +81,11 @@ class LFramework(nn.Module):
                 self.eval()
                 self.optim.zero_grad()
                 with torch.no_grad():
+                    print('Memory allocated (Gb) before train fact scores: {}'.format(torch.cuda.memory_allocated() / 1e9))
                     train_scores = self.test_fn(train_data)
+                    print('Memory allocated (Gb) after train fact scores: {}'.format(torch.cuda.memory_allocated() / 1e9))
                     dev_scores = self.test_fn(dev_data)
+                    print('Memory allocated (Gb) after dev fact scores: {}'.format(torch.cuda.memory_allocated() / 1e9))
                     print('Train set average fact score: {}'.format(float(train_scores.mean())))
                     print('Dev set average fact score: {}'.format(float(dev_scores.mean())))
 
