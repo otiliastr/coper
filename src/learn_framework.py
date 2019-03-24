@@ -111,7 +111,7 @@ class LFramework(nn.Module):
                 if len(mini_batch) < self.batch_size:
                     continue
                 print('in train loop')
-                loss = self.loss(mini_batch)
+                loss = self.loss(mini_batch, boom=False)
                 print('exited loss func')
                 loss['model_loss'].backward()
                 if self.grad_norm > 0:
