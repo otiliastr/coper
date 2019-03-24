@@ -438,7 +438,7 @@ def get_conve_nn_state_dict(state_dict, is_cpg=False):
                    'mdl.bn1.running_mean', 'mdl.bn1.running_var', 'mdl.bn2.weight', 'mdl.bn2.bias',
                    'mdl.bn2.running_mean', 'mdl.bn2.running_var']
     if is_cpg:
-        param_names += ['mdl.fc_weights.networks.0.weight', 'mdl.fc_bias.networks.0.weight']
+        param_names += ['mdl.fc_weights.network.0.weight', 'mdl.fc_bias.network.0.weight']
     else:
         param_names += ['mdl.fc.weight', 'mdl.fc.bias']
 
