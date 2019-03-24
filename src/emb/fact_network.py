@@ -239,6 +239,7 @@ class ContextualParameterGenerator(nn.Module):
         self.projections = []
         layer_input = network_structure[0]
         for layer_output in self.network_structure[1:]:
+            print('inside loop!')
             self.projections.append(nn.Linear(layer_input, layer_output, bias=self.use_bias))
             if use_batch_norm:
                 self.projections.append(nn.BatchNorm1d(num_features=layer_output,
@@ -287,8 +288,10 @@ class CPG_ConvE(nn.Module):
         self.bn2 = nn.BatchNorm1d(self.entity_dim)
         self.register_parameter('b', nn.Parameter(torch.zeros(num_entities)))
         # ConvE baseline
+        print('HI')
         if (self.cpg_conv_net is None) and (self.cpg_fc_net is None):
             h_out = 2 * self.emb_2D_d1 - self.w_d + 1
+            print('CPG is None')
         # CPG-ConvE
         else:
             h_out = self.emb_2D_d1 - self.w_d + 1
@@ -311,19 +314,20 @@ class CPG_ConvE(nn.Module):
                                                           batch_norm_momentum=self.cpg_batch_norm_momentum,
                                                           use_bias=self.cpg_use_bias)
         if self.cpg_fc_net is not None:
-            self.fc_weights = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
-                                                           output_shape=[self.feat_dim, self.entity_dim],
-                                                           dropout=self.cpg_dropout,
-                                                           use_batch_norm=self.cpg_batch_norm,
-                                                           batch_norm_momentum=self.cpg_batch_norm_momentum,
-                                                           use_bias=self.cpg_use_bias)
-            self.fc_bias = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
-                                                        output_shape=[self.entity_dim],
-                                                        dropout=self.cpg_dropout,
-                                                        use_batch_norm=self.cpg_batch_norm,
-                                                        batch_norm_momentum=self.cpg_batch_norm_momentum,
-                                                        use_bias=self.cpg_use_bias)
-
+            #self.fc_weights = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
+             #                                              output_shape=[self.feat_dim, self.entity_dim],
+              #                                             dropout=self.cpg_dropout,
+               #                                            use_batch_norm=self.cpg_batch_norm,
+                #                                           batch_norm_momentum=self.cpg_batch_norm_momentum,
+                 #                                          use_bias=self.cpg_use_bias)
+            #self.fc_bias = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
+             #                                           output_shape=[self.entity_dim],
+              #                                          dropout=self.cpg_dropout,
+               #                                         use_batch_norm=self.cpg_batch_norm,
+                #                                        batch_norm_momentum=self.cpg_batch_norm_momentum,
+                 #                                       use_bias=self.cpg_use_bias)
+            self.fc_weights = nn.Linear(self.relation_dim, self.feat_dim * self.entity_dim, bias=False)
+            self.fc_bias = nn.Linear(self.relation_dim, self.entity_dim, bias=False)
 
     def forward(self, e1, r, kg):
         E1 = kg.get_entity_embeddings(e1).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
@@ -336,11 +340,13 @@ class CPG_ConvE(nn.Module):
         # print('#' * 80)
         if (self.cpg_fc_net is None) and (self.cpg_conv_net is None) and (self.entity_dim == self.relation_dim):
             stacked_inputs = torch.cat([E1, R], 2)
+            print('Stacking inputs!')
         else:
+            print('Inputs not stacked!')
             R = R.view(-1, self.relation_dim)
             stacked_inputs = E1
         stacked_inputs = self.bn0(stacked_inputs)
-
+        print('Batch+other stuff: {}'.format(stacked_inputs.size()))
         if self.cpg_conv_net is not None:
             X = nn.functional.conv2d(input=stacked_inputs,
                                      weight=self.conv_filter(R),
@@ -360,6 +366,7 @@ class CPG_ConvE(nn.Module):
             # X = nn.functional.linear(input=X,
             #                          weight=self.fc_weights(R))
             fc_weights = self.fc_weights(R)
+            fc_weights = fc_weights.view(-1, self.feat_dim, self.entity_dim)
             # X = X.matmul(fc_weights)
             X = torch.einsum('ij, ijk-> ik', X, fc_weights)
             X += self.fc_bias(R)
@@ -372,6 +379,7 @@ class CPG_ConvE(nn.Module):
         X += self.b.expand_as(X)
 
         S = F.sigmoid(X)
+        print('MEMORY ALLOCATED: {}'.format(torch.cuda.memory_allocated()))
         return S
 
     def forward_fact(self, e1, r, e2, kg):
