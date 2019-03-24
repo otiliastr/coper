@@ -44,6 +44,7 @@ class EmbeddingBasedMethod(LFramework):
 
     def loss(self, mini_batch):
         kg, mdl = self.kg, self.mdl
+        print('model params: {}'.mdl.named_parameters())
         # compute object training loss
         e1, e2, r = self.format_batch(mini_batch, num_labels=kg.num_entities)
         e2_label = ((1 - self.label_smoothing_epsilon) * e2) + (1.0 / e2.size(1))
