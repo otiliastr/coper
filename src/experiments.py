@@ -529,6 +529,7 @@ def export_error_cases(lf):
 
 def compute_fact_scores(lf):
     data_dir = args.data_dir
+    lf.batch_size = args.dev_batch_size()
     train_path = os.path.join(data_dir, 'train.triples')
     dev_path = os.path.join(data_dir, 'dev.triples')
     test_path = os.path.join(data_dir, 'test.triples')
@@ -538,6 +539,7 @@ def compute_fact_scores(lf):
     dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path)
     test_data = data_utils.load_triples(test_path, entity_index_path, relation_index_path)
     lf.eval()
+    lf.optim.zero_grad()
     with torch.no_grad():
         lf.load_checkpoint(get_checkpoint_path(args))
         train_scores = lf.forward_fact(train_data)
