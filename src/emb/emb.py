@@ -43,6 +43,7 @@ class EmbeddingBasedMethod(LFramework):
         return torch.cat(pred_scores)
 
     def loss(self, mini_batch):
+        print("HELLLOOOOOO!")
         kg, mdl = self.kg, self.mdl
         print('model params: {}'.mdl.named_parameters())
         # compute object training loss
