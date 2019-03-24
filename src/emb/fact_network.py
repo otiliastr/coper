@@ -430,13 +430,19 @@ class CPG_ConvE(nn.Module):
         S = F.sigmoid(X)
         return S
 
-def get_conve_nn_state_dict(state_dict):
+def get_conve_nn_state_dict(state_dict, is_cpg=False):
     conve_nn_state_dict = {}
     print('ConvE State dict: {}'.format(state_dict['state_dict'].keys()))
-    for param_name in ['mdl.b', 'mdl.conv1.weight', 'mdl.conv1.bias', 'mdl.bn0.weight', 'mdl.bn0.bias',
-                       'mdl.bn0.running_mean', 'mdl.bn0.running_var', 'mdl.bn1.weight', 'mdl.bn1.bias',
-                       'mdl.bn1.running_mean', 'mdl.bn1.running_var', 'mdl.bn2.weight', 'mdl.bn2.bias',
-                       'mdl.bn2.running_mean', 'mdl.bn2.running_var', 'mdl.fc.weight', 'mdl.fc.bias']:
+    param_names = ['mdl.b', 'mdl.conv1.weight', 'mdl.conv1.bias', 'mdl.bn0.weight', 'mdl.bn0.bias',
+                   'mdl.bn0.running_mean', 'mdl.bn0.running_var', 'mdl.bn1.weight', 'mdl.bn1.bias',
+                   'mdl.bn1.running_mean', 'mdl.bn1.running_var', 'mdl.bn2.weight', 'mdl.bn2.bias',
+                   'mdl.bn2.running_mean', 'mdl.bn2.running_var']
+    if is_cpg:
+        param_names += ['mdl.fc_weights.networks.0.weight', 'mdl.fc_bias.networks.0.weight']
+    else:
+        param_names += ['mdl.fc.weight', 'mdl.fc.bias']
+
+    for param_name in param_names:
         conve_nn_state_dict[param_name.split('.', 1)[1]] = state_dict['state_dict'][param_name]
     return conve_nn_state_dict
 

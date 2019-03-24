@@ -32,7 +32,7 @@ class RewardShapingPolicyGradient(PolicyGradient):
         fn_model = self.fn_model
         if fn_model in ['conve', 'cpg-conve']:
             fn_state_dict = torch.load(args.conve_state_dict_path)
-            fn_nn_state_dict = get_conve_nn_state_dict(fn_state_dict)
+            fn_nn_state_dict = get_conve_nn_state_dict(fn_state_dict, is_cpg=fn_model == 'cpg-conve')
             fn_kg_state_dict = get_conve_kg_state_dict(fn_state_dict)
             self.fn.load_state_dict(fn_nn_state_dict)
         elif fn_model == 'distmult':
