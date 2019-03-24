@@ -314,20 +314,20 @@ class CPG_ConvE(nn.Module):
                                                           batch_norm_momentum=self.cpg_batch_norm_momentum,
                                                           use_bias=self.cpg_use_bias)
         if self.cpg_fc_net is not None:
-            #self.fc_weights = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
-             #                                              output_shape=[self.feat_dim, self.entity_dim],
-              #                                             dropout=self.cpg_dropout,
-               #                                            use_batch_norm=self.cpg_batch_norm,
-                #                                           batch_norm_momentum=self.cpg_batch_norm_momentum,
-                 #                                          use_bias=self.cpg_use_bias)
-            #self.fc_bias = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
-             #                                           output_shape=[self.entity_dim],
-              #                                          dropout=self.cpg_dropout,
-               #                                         use_batch_norm=self.cpg_batch_norm,
-                #                                        batch_norm_momentum=self.cpg_batch_norm_momentum,
-                 #                                       use_bias=self.cpg_use_bias)
-            self.fc_weights = nn.Linear(self.relation_dim, self.feat_dim * self.entity_dim, bias=False)
-            self.fc_bias = nn.Linear(self.relation_dim, self.entity_dim, bias=False)
+            self.fc_weights = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
+                                                           output_shape=[self.feat_dim, self.entity_dim],
+                                                           dropout=self.cpg_dropout,
+                                                           use_batch_norm=self.cpg_batch_norm,
+                                                           batch_norm_momentum=self.cpg_batch_norm_momentum,
+                                                           use_bias=self.cpg_use_bias)
+            self.fc_bias = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
+                                                        output_shape=[self.entity_dim],
+                                                        dropout=self.cpg_dropout,
+                                                        use_batch_norm=self.cpg_batch_norm,
+                                                        batch_norm_momentum=self.cpg_batch_norm_momentum,
+                                                        use_bias=self.cpg_use_bias)
+            #self.fc_weights = nn.Linear(self.relation_dim, self.feat_dim * self.entity_dim, bias=False)
+            #self.fc_bias = nn.Linear(self.relation_dim, self.entity_dim, bias=False)
 
     def forward(self, e1, r, kg):
         E1 = kg.get_entity_embeddings(e1).view(-1, 1, self.emb_2D_d1, self.emb_2D_d2)
