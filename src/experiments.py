@@ -260,7 +260,7 @@ def train(lf):
 
 def inference(lf):
     lf.batch_size = args.dev_batch_size
-    lf.eval()
+    # lf.eval()
     with torch.no_grad():
         if args.model == 'hypere':
             conve_kg_state_dict = get_conve_kg_state_dict(torch.load(args.conve_state_dict_path))
@@ -375,7 +375,7 @@ def run_ablation_studies(args):
         lf.cuda()
         lf.batch_size = args.dev_batch_size
         lf.load_checkpoint(get_checkpoint_path(args))
-        lf.eval()
+        # lf.eval()
         with torch.no_grad():
             return lf
 
@@ -507,7 +507,7 @@ def export_fuzzy_facts(lf):
 def export_error_cases(lf):
     lf.load_checkpoint(get_checkpoint_path(args))
     lf.batch_size = args.dev_batch_size
-    lf.eval()
+    # lf.eval()
     with torch.no_grad():
         entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
         relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
@@ -529,7 +529,7 @@ def compute_fact_scores(lf):
     train_data = data_utils.load_triples(train_path, entity_index_path, relation_index_path)
     dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path)
     test_data = data_utils.load_triples(test_path, entity_index_path, relation_index_path)
-    lf.eval()
+    # lf.eval()
     with torch.no_grad():
         lf.load_checkpoint(get_checkpoint_path(args))
         train_scores = lf.forward_fact(train_data)
