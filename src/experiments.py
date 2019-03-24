@@ -261,106 +261,107 @@ def train(lf):
 def inference(lf):
     lf.batch_size = args.dev_batch_size
     lf.eval()
-    if args.model == 'hypere':
-        conve_kg_state_dict = get_conve_kg_state_dict(torch.load(args.conve_state_dict_path))
-        lf.kg.load_state_dict(conve_kg_state_dict)
-        secondary_kg_state_dict = get_complex_kg_state_dict(torch.load(args.complex_state_dict_path))
-        lf.secondary_kg.load_state_dict(secondary_kg_state_dict)
-    elif args.model == 'triplee':
-        conve_kg_state_dict = get_conve_kg_state_dict(torch.load(args.conve_state_dict_path))
-        lf.kg.load_state_dict(conve_kg_state_dict)
-        complex_kg_state_dict = get_complex_kg_state_dict(torch.load(args.complex_state_dict_path))
-        lf.secondary_kg.load_state_dict(complex_kg_state_dict)
-        distmult_kg_state_dict = get_distmult_kg_state_dict(torch.load(args.distmult_state_dict_path))
-        lf.tertiary_kg.load_state_dict(distmult_kg_state_dict)
-    else:
-        lf.load_checkpoint(get_checkpoint_path(args))
-    entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
-    relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
-    if 'NELL' in args.data_dir:
-        adj_list_path = os.path.join(args.data_dir, 'adj_list.pkl')
-        seen_entities = data_utils.load_seen_entities(adj_list_path, entity_index_path)
-    else:
-        seen_entities = set()
+    with torch.no_grad():
+        if args.model == 'hypere':
+            conve_kg_state_dict = get_conve_kg_state_dict(torch.load(args.conve_state_dict_path))
+            lf.kg.load_state_dict(conve_kg_state_dict)
+            secondary_kg_state_dict = get_complex_kg_state_dict(torch.load(args.complex_state_dict_path))
+            lf.secondary_kg.load_state_dict(secondary_kg_state_dict)
+        elif args.model == 'triplee':
+            conve_kg_state_dict = get_conve_kg_state_dict(torch.load(args.conve_state_dict_path))
+            lf.kg.load_state_dict(conve_kg_state_dict)
+            complex_kg_state_dict = get_complex_kg_state_dict(torch.load(args.complex_state_dict_path))
+            lf.secondary_kg.load_state_dict(complex_kg_state_dict)
+            distmult_kg_state_dict = get_distmult_kg_state_dict(torch.load(args.distmult_state_dict_path))
+            lf.tertiary_kg.load_state_dict(distmult_kg_state_dict)
+        else:
+            lf.load_checkpoint(get_checkpoint_path(args))
+        entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
+        relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
+        if 'NELL' in args.data_dir:
+            adj_list_path = os.path.join(args.data_dir, 'adj_list.pkl')
+            seen_entities = data_utils.load_seen_entities(adj_list_path, entity_index_path)
+        else:
+            seen_entities = set()
 
-    eval_metrics = {
-        'dev': {},
-        'test': {}
-    }
+        eval_metrics = {
+            'dev': {},
+            'test': {}
+        }
 
-    if args.compute_map:
-        relation_sets = [
-            'concept:athletehomestadium',
-            'concept:athleteplaysforteam',
-            'concept:athleteplaysinleague',
-            'concept:athleteplayssport',
-            'concept:organizationheadquarteredincity',
-            'concept:organizationhiredperson',
-            'concept:personborninlocation',
-            'concept:teamplayssport',
-            'concept:worksfor'
-        ]
-        mps = []
-        for r in relation_sets:
-            print('* relation: {}'.format(r))
-            test_path = os.path.join(args.data_dir, 'tasks', r, 'test.pairs')
-            test_data, labels = data_utils.load_triples_with_label(
-                test_path, r, entity_index_path, relation_index_path, seen_entities=seen_entities)
+        if args.compute_map:
+            relation_sets = [
+                'concept:athletehomestadium',
+                'concept:athleteplaysforteam',
+                'concept:athleteplaysinleague',
+                'concept:athleteplayssport',
+                'concept:organizationheadquarteredincity',
+                'concept:organizationhiredperson',
+                'concept:personborninlocation',
+                'concept:teamplayssport',
+                'concept:worksfor'
+            ]
+            mps = []
+            for r in relation_sets:
+                print('* relation: {}'.format(r))
+                test_path = os.path.join(args.data_dir, 'tasks', r, 'test.pairs')
+                test_data, labels = data_utils.load_triples_with_label(
+                    test_path, r, entity_index_path, relation_index_path, seen_entities=seen_entities)
+                pred_scores = lf.forward(test_data, verbose=False)
+                mp = src.eval.link_MAP(test_data, pred_scores, labels, lf.kg.all_objects, verbose=True)
+                mps.append(mp)
+            import numpy as np
+            map_ = np.mean(mps)
+            print('Overall MAP = {}'.format(map_))
+            eval_metrics['test']['avg_map'] = map
+        elif args.eval_by_relation_type:
+            dev_path = os.path.join(args.data_dir, 'dev.triples')
+            dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path, seen_entities=seen_entities)
+            pred_scores = lf.forward(dev_data, verbose=False)
+            to_m_rels, to_1_rels, _ = data_utils.get_relations_by_type(args.data_dir, relation_index_path)
+            relation_by_types = (to_m_rels, to_1_rels)
+            print('Dev set evaluation by relation type (partial graph)')
+            src.eval.hits_and_ranks_by_relation_type(
+                dev_data, pred_scores, lf.kg.dev_objects, relation_by_types, verbose=True)
+            print('Dev set evaluation by relation type (full graph)')
+            src.eval.hits_and_ranks_by_relation_type(
+                dev_data, pred_scores, lf.kg.all_objects, relation_by_types, verbose=True)
+        elif args.eval_by_seen_queries:
+            dev_path = os.path.join(args.data_dir, 'dev.triples')
+            dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path, seen_entities=seen_entities)
+            pred_scores = lf.forward(dev_data, verbose=False)
+            seen_queries = data_utils.get_seen_queries(args.data_dir, entity_index_path, relation_index_path)
+            print('Dev set evaluation by seen queries (partial graph)')
+            src.eval.hits_and_ranks_by_seen_queries(
+                dev_data, pred_scores, lf.kg.dev_objects, seen_queries, verbose=True)
+            print('Dev set evaluation by seen queries (full graph)')
+            src.eval.hits_and_ranks_by_seen_queries(
+                dev_data, pred_scores, lf.kg.all_objects, seen_queries, verbose=True)
+        else:
+            dev_path = os.path.join(args.data_dir, 'dev.triples')
+            test_path = os.path.join(args.data_dir, 'test.triples')
+            dev_data = data_utils.load_triples(
+                dev_path, entity_index_path, relation_index_path, seen_entities=seen_entities, verbose=False)
+            test_data = data_utils.load_triples(
+                test_path, entity_index_path, relation_index_path, seen_entities=seen_entities, verbose=False)
+            print('Dev set performance:')
+            pred_scores = lf.forward(dev_data, verbose=False)
+            dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
+            eval_metrics['dev'] = {}
+            eval_metrics['dev']['hits_at_1'] = dev_metrics[0]
+            eval_metrics['dev']['hits_at_3'] = dev_metrics[1]
+            eval_metrics['dev']['hits_at_5'] = dev_metrics[2]
+            eval_metrics['dev']['hits_at_10'] = dev_metrics[3]
+            eval_metrics['dev']['mrr'] = dev_metrics[4]
+            src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
+            print('Test set performance:')
             pred_scores = lf.forward(test_data, verbose=False)
-            mp = src.eval.link_MAP(test_data, pred_scores, labels, lf.kg.all_objects, verbose=True)
-            mps.append(mp)
-        import numpy as np
-        map_ = np.mean(mps)
-        print('Overall MAP = {}'.format(map_))
-        eval_metrics['test']['avg_map'] = map
-    elif args.eval_by_relation_type:
-        dev_path = os.path.join(args.data_dir, 'dev.triples')
-        dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path, seen_entities=seen_entities)
-        pred_scores = lf.forward(dev_data, verbose=False)
-        to_m_rels, to_1_rels, _ = data_utils.get_relations_by_type(args.data_dir, relation_index_path)
-        relation_by_types = (to_m_rels, to_1_rels)
-        print('Dev set evaluation by relation type (partial graph)')
-        src.eval.hits_and_ranks_by_relation_type(
-            dev_data, pred_scores, lf.kg.dev_objects, relation_by_types, verbose=True)
-        print('Dev set evaluation by relation type (full graph)')
-        src.eval.hits_and_ranks_by_relation_type(
-            dev_data, pred_scores, lf.kg.all_objects, relation_by_types, verbose=True)
-    elif args.eval_by_seen_queries:
-        dev_path = os.path.join(args.data_dir, 'dev.triples')
-        dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path, seen_entities=seen_entities)
-        pred_scores = lf.forward(dev_data, verbose=False)
-        seen_queries = data_utils.get_seen_queries(args.data_dir, entity_index_path, relation_index_path)
-        print('Dev set evaluation by seen queries (partial graph)')
-        src.eval.hits_and_ranks_by_seen_queries(
-            dev_data, pred_scores, lf.kg.dev_objects, seen_queries, verbose=True)
-        print('Dev set evaluation by seen queries (full graph)')
-        src.eval.hits_and_ranks_by_seen_queries(
-            dev_data, pred_scores, lf.kg.all_objects, seen_queries, verbose=True)
-    else:
-        dev_path = os.path.join(args.data_dir, 'dev.triples')
-        test_path = os.path.join(args.data_dir, 'test.triples')
-        dev_data = data_utils.load_triples(
-            dev_path, entity_index_path, relation_index_path, seen_entities=seen_entities, verbose=False)
-        test_data = data_utils.load_triples(
-            test_path, entity_index_path, relation_index_path, seen_entities=seen_entities, verbose=False)
-        print('Dev set performance:')
-        pred_scores = lf.forward(dev_data, verbose=False)
-        dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
-        eval_metrics['dev'] = {}
-        eval_metrics['dev']['hits_at_1'] = dev_metrics[0]
-        eval_metrics['dev']['hits_at_3'] = dev_metrics[1]
-        eval_metrics['dev']['hits_at_5'] = dev_metrics[2]
-        eval_metrics['dev']['hits_at_10'] = dev_metrics[3]
-        eval_metrics['dev']['mrr'] = dev_metrics[4]
-        src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
-        print('Test set performance:')
-        pred_scores = lf.forward(test_data, verbose=False)
-        test_metrics = src.eval.hits_and_ranks(test_data, pred_scores, lf.kg.all_objects, verbose=True)
-        eval_metrics['test']['hits_at_1'] = test_metrics[0]
-        eval_metrics['test']['hits_at_3'] = test_metrics[1]
-        eval_metrics['test']['hits_at_5'] = test_metrics[2]
-        eval_metrics['test']['hits_at_10'] = test_metrics[3]
-        eval_metrics['test']['mrr'] = test_metrics[4]
+            test_metrics = src.eval.hits_and_ranks(test_data, pred_scores, lf.kg.all_objects, verbose=True)
+            eval_metrics['test']['hits_at_1'] = test_metrics[0]
+            eval_metrics['test']['hits_at_3'] = test_metrics[1]
+            eval_metrics['test']['hits_at_5'] = test_metrics[2]
+            eval_metrics['test']['hits_at_10'] = test_metrics[3]
+            eval_metrics['test']['mrr'] = test_metrics[4]
 
     return eval_metrics
 
@@ -375,7 +376,8 @@ def run_ablation_studies(args):
         lf.batch_size = args.dev_batch_size
         lf.load_checkpoint(get_checkpoint_path(args))
         lf.eval()
-        return lf
+        with torch.no_grad():
+            return lf
 
     def rel_change(metrics, ab_system, kg_portion):
         ab_system_metrics = metrics[ab_system][kg_portion]
@@ -506,15 +508,16 @@ def export_error_cases(lf):
     lf.load_checkpoint(get_checkpoint_path(args))
     lf.batch_size = args.dev_batch_size
     lf.eval()
-    entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
-    relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
-    dev_path = os.path.join(args.data_dir, 'dev.triples')
-    dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path)
-    lf.load_checkpoint(get_checkpoint_path(args))
-    print('Dev set performance:')
-    pred_scores = lf.forward(dev_data, verbose=False)
-    src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
-    src.eval.export_error_cases(dev_data, pred_scores, lf.kg.dev_objects, os.path.join(lf.model_dir, 'error_cases.pkl'))
+    with torch.no_grad():
+        entity_index_path = os.path.join(args.data_dir, 'entity2id.txt')
+        relation_index_path = os.path.join(args.data_dir, 'relation2id.txt')
+        dev_path = os.path.join(args.data_dir, 'dev.triples')
+        dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path)
+        lf.load_checkpoint(get_checkpoint_path(args))
+        print('Dev set performance:')
+        pred_scores = lf.forward(dev_data, verbose=False)
+        src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
+        src.eval.export_error_cases(dev_data, pred_scores, lf.kg.dev_objects, os.path.join(lf.model_dir, 'error_cases.pkl'))
 
 def compute_fact_scores(lf):
     data_dir = args.data_dir
@@ -527,10 +530,11 @@ def compute_fact_scores(lf):
     dev_data = data_utils.load_triples(dev_path, entity_index_path, relation_index_path)
     test_data = data_utils.load_triples(test_path, entity_index_path, relation_index_path)
     lf.eval()
-    lf.load_checkpoint(get_checkpoint_path(args))
-    train_scores = lf.forward_fact(train_data)
-    dev_scores = lf.forward_fact(dev_data)
-    test_scores = lf.forward_fact(test_data)
+    with torch.no_grad():
+        lf.load_checkpoint(get_checkpoint_path(args))
+        train_scores = lf.forward_fact(train_data)
+        dev_scores = lf.forward_fact(dev_data)
+        test_scores = lf.forward_fact(test_data)
 
     print('Train set average fact score: {}'.format(float(train_scores.mean())))
     print('Dev set average fact score: {}'.format(float(dev_scores.mean())))
