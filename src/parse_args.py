@@ -126,9 +126,9 @@ parser.add_argument('--random_parameters', type=bool, default=False,
 # TODO: remove hardcoded defaults. I.e. fix parser not reading arguments.
 parser.add_argument('--label_smoothing_epsilon', type=float, default=0.1,
                     help='epsilon used for label smoothing')
-parser.add_argument('--hidden_dropout_rate', type=float, default=0.5,
+parser.add_argument('--hidden_dropout_rate', type=float, default=0.3,
                     help='ConvE hidden layer dropout rate (default: 0.3)')
-parser.add_argument('--feat_dropout_rate', type=float, default=0.5,
+parser.add_argument('--feat_dropout_rate', type=float, default=0.2,
                     help='ConvE feature dropout rate (default: 0.2)')
 parser.add_argument('--emb_2D_d1', type=int, default=10,
                     help='ConvE embedding 2D shape dimension 1 (default: 10)')
