@@ -351,7 +351,7 @@ def inference(lf):
             #print('Dev set performance:')
             pred_scores = lf.forward(dev_data, verbose=False)
             print('Memory allocated after forward pass over dev data: {}'.format(torch.cuda.memory_allocated() / 1e9))
-            dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
+            dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
             print('Memory allocated after obtaining dev metrics: {}'.format(torch.cuda.memory_allocated() / 1e9))
             eval_metrics['dev'] = {}
             eval_metrics['dev']['hits_at_1'] = dev_metrics[0]
