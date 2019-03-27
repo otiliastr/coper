@@ -234,7 +234,7 @@ class ContextualParameterGenerator(nn.Module):
         self.dropout = dropout
         self.use_batch_norm = use_batch_norm
         self.use_bias = use_bias
-        print(self.use_bias)
+        print('use bias: {}'.format(self.use_bias))
         self.flattened_output = reduce(mul, output_shape, 1)
 
         self.projections = []
