@@ -31,7 +31,12 @@ beta=0.05
 relation_only="False"
 beam_size=128
 
-cpg_conv_net=None
+learning_rate_decay=.995
+learning_rate=.001
+hidden_dropout_rate=.3
+feat_dropout_rate=.3
+
+cpg_conv_net=[]
 cpg_fc_net=[]
 cpg_dropout=.5
 cpg_batch_norm=True
