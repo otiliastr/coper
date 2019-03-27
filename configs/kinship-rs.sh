@@ -36,8 +36,8 @@ learning_rate=.001
 hidden_dropout_rate=.3
 feat_dropout_rate=.3
 
-cpg_conv_net=[]
-cpg_fc_net=[]
+cpg_conv_net=
+cpg_fc_net=
 cpg_dropout=.5
 cpg_batch_norm=True
 cpg_batch_norm_momentum=.1

@@ -50,8 +50,14 @@ cmd="python3 -m src.experiments \
     --reward_shaping_threshold $reward_shaping_threshold \
     --cpg_conv_net $cpg_conv_net \
     --cpg_fc_net $cpg_fc_net \
+    --cpg_dropout $cpg_dropout \
     --cpg_batch_norm $cpg_batch_norm \
     --cpg_batch_norm_momentum $cpg_batch_norm_momentum \
+    --cpg_use_bias=$cpg_use_bias \
+    --hidden_dropout_rate $hidden_dropout_rate \
+    --feat_dropout_rate $feat_dropout_rate \
+    --learning_rate_decay $learning_rate_decay \
+    --learning_rate $learning_rate \
     $relation_only_flag \
     --beta $beta \
     --beam_size $beam_size \
