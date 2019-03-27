@@ -53,7 +53,7 @@ cmd="python3 -m src.experiments \
     --cpg_dropout $cpg_dropout \
     --cpg_batch_norm $cpg_batch_norm \
     --cpg_batch_norm_momentum $cpg_batch_norm_momentum \
-    --cpg_use_bias=$cpg_use_bias \
+    --cpg_use_bias $cpg_use_bias \
     --hidden_dropout_rate $hidden_dropout_rate \
     --feat_dropout_rate $feat_dropout_rate \
     --learning_rate_decay $learning_rate_decay \
