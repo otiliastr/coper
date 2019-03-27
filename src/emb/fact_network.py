@@ -268,9 +268,16 @@ class CPG_ConvE(nn.Module):
         self.emb_2D_d2 = args.emb_2D_d2
         self.num_out_channels = args.num_out_channels
         self.w_d = args.kernel_size
-
-        self.cpg_conv_net = args.cpg_conv_net
-        self.cpg_fc_net = args.cpg_fc_net
+        # Due to not being able to pass both int type and list type to argsparse
+        # [-1] is equivalent to None. Thus, perform check for this
+        if (len(args.cpg_conv_net) > 0) and (args.cpg_conv_net[0] == -1):
+            self.cpg_conv_net = None
+        else:
+            self.cpg_conv_net = args.cpg_conv_net
+        if (len(args.cpg_fc_net) > 0) and (args.cpg_fc_net[0] == -1):
+            self.cpg_fc_net = None
+        else:
+            self.cpg_fc_net = args.cpg_fc_net
         self.cpg_dropout = args.cpg_dropout
         self.cpg_batch_norm = args.cpg_batch_norm
         self.cpg_batch_norm_momentum = args.cpg_batch_norm_momentum
@@ -281,7 +288,7 @@ class CPG_ConvE(nn.Module):
         self.FeatureDropout = nn.Dropout(args.feat_dropout_rate)
 
         # stride = 1, padding = 0, dilation = 1, groups = 1
-        if self.cpg_conv_net[0] == -1:
+        if self.cpg_conv_net is None:
             self.conv1 = nn.Conv2d(1, self.num_out_channels, (self.w_d, self.w_d), 1, 0)
         self.bn0 = nn.BatchNorm2d(1)
         self.bn1 = nn.BatchNorm2d(self.num_out_channels)
@@ -289,7 +296,7 @@ class CPG_ConvE(nn.Module):
         self.register_parameter('b', nn.Parameter(torch.zeros(num_entities)))
         # ConvE baseline
         print('HI')
-        if (self.cpg_conv_net[0] == -1) and (self.cpg_fc_net[0] == -1):
+        if (self.cpg_conv_net is None) and (self.cpg_fc_net is None):
             h_out = 2 * self.emb_2D_d1 - self.w_d + 1
             print('CPG is None')
         # CPG-ConvE
@@ -297,10 +304,10 @@ class CPG_ConvE(nn.Module):
             h_out = self.emb_2D_d1 - self.w_d + 1
         w_out = self.emb_2D_d2 - self.w_d + 1
         self.feat_dim = self.num_out_channels * h_out * w_out
-        if self.cpg_fc_net[0] == -1:
+        if self.cpg_fc_net is None:
             self.fc = nn.Linear(self.feat_dim, self.entity_dim)
 
-        if self.cpg_conv_net[0] != -1:
+        if self.cpg_conv_net is not None:
             self.conv_filter = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_conv_net,
                                                             output_shape=[self.num_out_channels, 1, self.w_d, self.w_d],
                                                             dropout=self.cpg_dropout,
@@ -313,7 +320,7 @@ class CPG_ConvE(nn.Module):
                                                           use_batch_norm=self.cpg_batch_norm,
                                                           batch_norm_momentum=self.cpg_batch_norm_momentum,
                                                           use_bias=self.cpg_use_bias)
-        if self.cpg_fc_net[0] != -1:
+        if self.cpg_fc_net is not None:
             self.fc_weights = ContextualParameterGenerator(network_structure=[self.relation_dim] + self.cpg_fc_net,
                                                            output_shape=[self.feat_dim, self.entity_dim],
                                                            dropout=self.cpg_dropout,
@@ -338,7 +345,7 @@ class CPG_ConvE(nn.Module):
         # print('#'*80)
         # print('cpg_fc_net: {} | cpg_conve_net: {}'.format(self.cpg_fc_net, self.cpg_conv_net))
         # print('#' * 80)
-        if (self.cpg_fc_net[0] == -1) and (self.cpg_conv_net[0] == -1) and (self.entity_dim == self.relation_dim):
+        if (self.cpg_fc_net is None) and (self.cpg_conv_net is None) and (self.entity_dim == self.relation_dim):
             stacked_inputs = torch.cat([E1, R], 2)
             # print('Stacking inputs!')
         else:
@@ -347,7 +354,7 @@ class CPG_ConvE(nn.Module):
             stacked_inputs = E1
         stacked_inputs = self.bn0(stacked_inputs)
         # print('Batch+other stuff: {}'.format(stacked_inputs.size()))
-        if self.cpg_conv_net[0] != -1:
+        if self.cpg_conv_net is not None:
             X = nn.functional.conv2d(input=stacked_inputs,
                                      weight=self.conv_filter(R),
                                      bias=self.conv_bias(R))
@@ -358,7 +365,7 @@ class CPG_ConvE(nn.Module):
         X = self.FeatureDropout(X)
         X = X.view(-1, self.feat_dim)
 
-        if self.cpg_fc_net[0] != -1:
+        if self.cpg_fc_net is not None:
             # print('X shape: {} | fc_weights shape: {} | fc_bias shape: {}'.format(X.size(),
             #                                                                       self.fc_weights(R).size(),
             #                                                                       self.fc_bias(R).size()))
@@ -399,13 +406,13 @@ class CPG_ConvE(nn.Module):
         emb_2D_d2 = int(self.relation_dim / self.emb_2D_d1)
         R = kg.get_relation_embeddings(r).view(-1, 1, self.emb_2D_d1, emb_2D_d2)
         E2 = kg.get_entity_embeddings(e2)
-        if (self.cpg_fc_net[0] == -1) and (self.cpg_conv_net[0] == -1) and (self.relation_dim == self.entity_dim):
+        if (self.cpg_fc_net is None) and (self.cpg_conv_net is None) and (self.relation_dim == self.entity_dim):
             stacked_inputs = torch.cat([E1, R], 2)
         else:
             stacked_inputs = E1
             R = R.view(-1, self.relation_dim)
         stacked_inputs = self.bn0(stacked_inputs)
-        if self.cpg_conv_net[0] != -1:
+        if self.cpg_conv_net is not None:
             X = nn.functional.conv2d(input=stacked_inputs,
                                      weight=self.conv_filter(R),
                                      bias=self.conv_bias(R))
@@ -415,7 +422,7 @@ class CPG_ConvE(nn.Module):
         X = F.relu(X)
         X = self.FeatureDropout(X)
         X = X.view(-1, self.feat_dim)
-        if self.cpg_fc_net[0] != -1:
+        if self.cpg_fc_net is not None:
             fc_weights = self.fc_weights(R)
             X = torch.einsum('ij, ijk-> ik', X, fc_weights)
             X += self.fc_bias(R)
