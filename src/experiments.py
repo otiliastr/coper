@@ -103,6 +103,7 @@ def initialize_model_directory(args, random_seed=None):
                 args.relation_dim,
                 args.history_num_layers,
                 args.learning_rate,
+                #args.learning_rate_decay,
                 args.emb_dropout_rate,
                 args.ff_dropout_rate,
                 args.action_dropout_rate,
@@ -140,10 +141,11 @@ def initialize_model_directory(args, random_seed=None):
             args.label_smoothing_epsilon
         )
     elif args.model == 'cpg-conve':
-        hyperparam_sig = '{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}'.format(
+        hyperparam_sig = '{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}'.format(
             args.entity_dim,
             args.relation_dim,
             args.learning_rate,
+            args.learning_rate_decay,
             args.num_out_channels,
             args.kernel_size,
             args.emb_dropout_rate,

@@ -110,7 +110,7 @@ parser.add_argument('--margin', type=float, default=0,
 parser.add_argument('--learning_rate', type=float, default=0.001,
                     help='learning rate (default: 0.0001)')
 #TODO: change back to 1.0
-parser.add_argument('--learning_rate_decay', type=float, default=.995,
+parser.add_argument('--learning_rate_decay', type=float, default=1.0,
                     help='learning rate decay factor for the Adam optimizer (default: 1)')
 parser.add_argument('--adam_beta1', type=float, default=0.9,
                     help='Adam: decay rates for the first movement estimate (default: 0.9)')
