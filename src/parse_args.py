@@ -107,9 +107,10 @@ parser.add_argument('--dev_batch_size', type=int, default=64,
                     help='mini-batch size during inferece (default: 64)')
 parser.add_argument('--margin', type=float, default=0,
                     help='margin used for base MAMES training (default: 0)')
-parser.add_argument('--learning_rate', type=float, default=0.0001,
+parser.add_argument('--learning_rate', type=float, default=0.001,
                     help='learning rate (default: 0.0001)')
-parser.add_argument('--learning_rate_decay', type=float, default=1.0,
+#TODO: change back to 1.0
+parser.add_argument('--learning_rate_decay', type=float, default=.995,
                     help='learning rate decay factor for the Adam optimizer (default: 1)')
 parser.add_argument('--adam_beta1', type=float, default=0.9,
                     help='Adam: decay rates for the first movement estimate (default: 0.9)')
@@ -126,9 +127,9 @@ parser.add_argument('--random_parameters', type=bool, default=False,
 # TODO: remove hardcoded defaults. I.e. fix parser not reading arguments.
 parser.add_argument('--label_smoothing_epsilon', type=float, default=0.1,
                     help='epsilon used for label smoothing')
-parser.add_argument('--hidden_dropout_rate', type=float, default=0.3,
+parser.add_argument('--hidden_dropout_rate', type=float, default=0.5,
                     help='ConvE hidden layer dropout rate (default: 0.3)')
-parser.add_argument('--feat_dropout_rate', type=float, default=0.2,
+parser.add_argument('--feat_dropout_rate', type=float, default=0.5,
                     help='ConvE feature dropout rate (default: 0.2)')
 parser.add_argument('--emb_2D_d1', type=int, default=10,
                     help='ConvE embedding 2D shape dimension 1 (default: 10)')
