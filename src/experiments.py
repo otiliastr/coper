@@ -97,13 +97,13 @@ def initialize_model_directory(args, random_seed=None):
             if args.mu != 1.0:
                 hyperparam_sig += '-{}'.format(args.mu)
         else:
-            hyperparam_sig = '{}-{}-{}-{}-{}-{}-{}-{}-{}-{}'.format(
+            hyperparam_sig = '{}-{}-{}-{}-{}-{}-{}-{}-{}-{}-{}'.format(
                 args.baseline,
                 args.entity_dim,
                 args.relation_dim,
                 args.history_num_layers,
                 args.learning_rate,
-                #args.learning_rate_decay,
+                args.learning_rate_decay,
                 args.emb_dropout_rate,
                 args.ff_dropout_rate,
                 args.action_dropout_rate,
