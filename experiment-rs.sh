@@ -48,6 +48,10 @@ cmd="python3 -m src.experiments \
     --action_dropout_rate $action_dropout_rate \
     --action_dropout_anneal_interval $action_dropout_anneal_interval \
     --reward_shaping_threshold $reward_shaping_threshold \
+    --cpg_conv_net $cpg_conv_net \
+    --cpg_fc_net $cpg_fc_net \
+    --cpg_batch_norm $cpg_batch_norm \
+    --cpg_batch_norm_momentum $cpg_batch_norm_momentum \
     $relation_only_flag \
     --beta $beta \
     --beam_size $beam_size \

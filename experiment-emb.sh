@@ -36,6 +36,10 @@ cmd="python3 -m src.experiments \
     --grad_norm $grad_norm \
     --emb_dropout_rate $emb_dropout_rate \
     --beam_size $beam_size \
+    --cpg_conv_net $cpg_conv_net \
+    --cpg_fc_net $cpg_fc_net \
+    --cpg_batch_norm $cpg_batch_norm \
+    --cpg_batch_norm_momentum $cpg_batch_norm_momentum \
     $group_examples_by_query_flag \
     $add_reversed_training_edges_flag \
     --gpu $gpu \
