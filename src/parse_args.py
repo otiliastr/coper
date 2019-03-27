@@ -11,6 +11,12 @@ import argparse
 import os
 
 
+def str2bool(x):
+    if x.lower() == 'false':
+        return False
+    else:
+        return True
+
 parser = argparse.ArgumentParser(description='Multi-Hop Knowledge Graph Reasoning with Reward Shaping')
 
 # Experiment control
@@ -153,11 +159,11 @@ parser.add_argument('--cpg_fc_net', nargs='*', type=int,
                     help='CPG Fully Connected network architecture. [-1]=Missing, []=Linear transform')
 parser.add_argument('--cpg_dropout', type=float, default=0.5,
                     help='CPG dropout amount')
-parser.add_argument('--cpg_batch_norm', type=bool, default=True,
+parser.add_argument('--cpg_batch_norm', type=str2bool, default=True,
                     help='Whether to include batch norm in CPG network')
 parser.add_argument('--cpg_batch_norm_momentum', type=float, default=.1,
                     help='Amount of batch norm momentum for CPG network')
-parser.add_argument('--cpg_use_bias', type=bool, default=False,
+parser.add_argument('--cpg_use_bias', type=str2bool, default=False,
                     help='Whether to include bias in CPG network')
 
 # Policy Network
