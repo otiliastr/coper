@@ -47,12 +47,6 @@ cmd="python3 -m src.experiments \
     --ff_dropout_rate $ff_dropout_rate \
     --action_dropout_rate $action_dropout_rate \
     --action_dropout_anneal_interval $action_dropout_anneal_interval \
-    --hidden_dropout_rate $hidden_dropout_rate \
-    --feat_dropout_rate $feat_dropout_rate \
-    --cpg_conv_net $cpg_conv_net \
-    --cpg_fc_net $cpg_fc_net \
-    --cpg_batch_norm $cpg_batch_norm \
-    --cpg_batch_norm_momentum $cpg_batch_norm_momentum \
     $relation_only_flag \
     --beta $beta \
     --beam_size $beam_size \
@@ -61,6 +55,13 @@ cmd="python3 -m src.experiments \
     $use_action_space_bucketing_flag \
     --gpu $gpu \
     $ARGS"
+
+#    --hidden_dropout_rate $hidden_dropout_rate \
+#    --feat_dropout_rate $feat_dropout_rate \
+#    --cpg_conv_net $cpg_conv_net \
+#    --cpg_fc_net $cpg_fc_net \
+#    --cpg_batch_norm $cpg_batch_norm \
+#    --cpg_batch_norm_momentum $cpg_batch_norm_momentum \
 
 echo "Executing $cmd"
 
