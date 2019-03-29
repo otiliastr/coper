@@ -63,7 +63,7 @@ parser.add_argument('--entity_dim', type=int, default=200, metavar='E',
                     help='entity embedding dimension (default: 200)')
 parser.add_argument('--relation_dim', type=int, default=200, metavar='R',
                     help='relation embedding dimension (default: 200)')
-parser.add_argument('--history_dim', type=int, default=400, metavar='H',
+parser.add_argument('--history_dim', type=int, default=200, metavar='H',
                     help='action history encoding LSTM hidden states dimension (default: 400)')
 parser.add_argument('--history_num_layers', type=int, default=3, metavar='L',
                     help='action history encoding LSTM number of layers (default: 1)')
@@ -133,9 +133,9 @@ parser.add_argument('--random_parameters', type=bool, default=False,
 # TODO: remove hardcoded defaults. I.e. fix parser not reading arguments.
 parser.add_argument('--label_smoothing_epsilon', type=float, default=0.1,
                     help='epsilon used for label smoothing')
-parser.add_argument('--hidden_dropout_rate', type=float, default=0.5,
+parser.add_argument('--hidden_dropout_rate', type=float, default=0.3,
                     help='ConvE hidden layer dropout rate (default: 0.3)')
-parser.add_argument('--feat_dropout_rate', type=float, default=0.5,
+parser.add_argument('--feat_dropout_rate', type=float, default=0.3,
                     help='ConvE feature dropout rate (default: 0.2)')
 parser.add_argument('--emb_2D_d1', type=int, default=10,
                     help='ConvE embedding 2D shape dimension 1 (default: 10)')
