@@ -13,6 +13,7 @@ import torch.nn.functional as F
 
 import src.utils.ops as ops
 from src.utils.ops import var_cuda, zeros_var_cuda
+from src.lstm_pg import  PGLSTM
 
 
 class GraphSearchPolicy(nn.Module):
@@ -65,7 +66,7 @@ class GraphSearchPolicy(nn.Module):
         :param merge_aspace_batch_outcome: If set, merge the transition probability distribution
             generated of different action space bucket into a single batch.
         :return
-            With aspace batching and without merging the outcomes:
+            With space batching and without merging the outcomes:
                 db_outcomes: (Dynamic Batch) (action_space, action_dist)
                     action_space: (Batch) padded possible action indices
                     action_dist: (Batch) distribution over actions.
@@ -79,6 +80,7 @@ class GraphSearchPolicy(nn.Module):
 
         # Representation of the current state (current node and other observations)
         Q = kg.get_relation_embeddings(q)
+        # self.path stores all hidden states/cell states along a path. Obtain most recent
         H = self.path[-1][0][-1, :, :]
         if self.relation_only:
             X = torch.cat([H, Q], dim=-1)
@@ -151,11 +153,16 @@ class GraphSearchPolicy(nn.Module):
 
     def initialize_path(self, init_action, kg):
         # [batch_size, action_dim]
+        # path comprises only of relation
         if self.relation_only_in_path:
             init_action_embedding = kg.get_relation_embeddings(init_action[0])
+        # path comprises of MINERVA's vectors: [relation; entity], or just relation
+        # For us, we want to change the configuration of the LSTM to generate the
+        # paramaters using the relation, and then use the entity as the path..
         else:
             init_action_embedding = self.get_action_embedding(init_action, kg)
-        init_action_embedding.unsqueeze_(1)
+        # TODO: test that we can squeeze in LSTM layer, to keep inputs below consistent
+        # init_action_embedding.unsqueeze_(1)
         # [num_layers, batch_size, dim]
         init_h = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
         init_c = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
@@ -186,7 +193,8 @@ class GraphSearchPolicy(nn.Module):
         if offset is not None:
             offset_path_history(self.path, offset)
 
-        self.path.append(self.path_encoder(action_embedding.unsqueeze(1), self.path[-1])[1])
+        # self.path.append(self.path_encoder(action_embedding.unsqueeze(1), self.path[-1])[1])
+        self.path.append(self.path_encoder(action_embedding, self.path[-1])[1])
 
     def get_action_space_in_buckets(self, e, obs, kg, collapse_entities=False):
         """
@@ -375,15 +383,21 @@ class GraphSearchPolicy(nn.Module):
         self.W1Dropout = nn.Dropout(p=self.ff_dropout_rate)
         self.W2Dropout = nn.Dropout(p=self.ff_dropout_rate)
         if self.relation_only_in_path:
-            self.path_encoder = nn.LSTM(input_size=self.relation_dim,
-                                        hidden_size=self.history_dim,
-                                        num_layers=self.history_num_layers,
-                                        batch_first=True)
+            # self.path_encoder = nn.LSTM(input_size=self.relation_dim,
+            #                             hidden_size=self.history_dim,
+            #                             num_layers=self.history_num_layers,
+            #                             batch_first=True)
+            self.path_encoder = PGLSTM(input_size=self.relation_dim,
+                                       hidden_size=self.history_dim,
+                                       num_layers=self.history_num_layers)
         else:
-            self.path_encoder = nn.LSTM(input_size=self.action_dim,
-                                        hidden_size=self.history_dim,
-                                        num_layers=self.history_num_layers,
-                                        batch_first=True)
+            # self.path_encoder = nn.LSTM(input_size=self.action_dim,
+            #                             hidden_size=self.history_dim,
+            #                             num_layers=self.history_num_layers,
+            #                             batch_first=True)
+            self.path_encoder = PGLSTM(input_size=self.action_dim,
+                                       hidden_size=self.history_dim,
+                                       num_layers=self.history_num_layers)
 
     def initialize_modules(self):
         if self.xavier_initialization:
