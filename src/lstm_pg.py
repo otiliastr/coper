@@ -158,6 +158,7 @@ class PGLSTM(nn.Module):
                 all_gates = torch.einsum('ij,ijk->ik', cell_input, weights) + biases
                 # all_gates = torch.bmm(cell_input, weights)
             else:
+                print('hidden state size: {}'.format(hidden_state.size()))
                 print('Cell input size: {}'.format(cell_input.size()))
                 all_gates = self.all_gates[layer](cell_input)
 
