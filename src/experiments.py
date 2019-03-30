@@ -16,6 +16,7 @@ import os, sys
 import random
 
 import torch
+import torch.nn as nn
 
 from src.parse_args import parser
 from src.parse_args import args
@@ -31,7 +32,7 @@ from src.rl.graph_search.pg import PolicyGradient
 from src.rl.graph_search.rs_pg import RewardShapingPolicyGradient
 from src.utils.ops import flatten
 
-torch.cuda.set_device(args.gpu)
+# torch.cuda.set_device(args.gpu)
 
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
@@ -204,7 +205,7 @@ def construct_model(args):
 
     if args.model in ['point', 'point.gc']:
         pn = GraphSearchPolicy(args)
-        lf = PolicyGradient(args, kg, pn)
+        lf = nn.DataParallel(PolicyGradient(args, kg, pn), device_ids=args.device_ids)
     elif args.model.startswith('point.rs'):
         pn = GraphSearchPolicy(args)
         fn_model = args.model.split('.')[2]

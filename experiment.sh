@@ -53,7 +53,7 @@ cmd="python3 -m src.experiments \
     --num_paths_per_entity $num_paths_per_entity \
     $group_examples_by_query_flag \
     $use_action_space_bucketing_flag \
-    --gpu $gpu \
+    --device_ids $device_ids \
     $ARGS"
 
 #    --hidden_dropout_rate $hidden_dropout_rate \

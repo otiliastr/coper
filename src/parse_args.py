@@ -45,8 +45,8 @@ parser.add_argument('--model_root_dir', type=str, default=os.path.join(os.path.d
                     help='root directory where the model parameters are stored (default: None)')
 parser.add_argument('--model_dir', type=str, default=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'model'),
                     help='directory where the model parameters are stored (default: None)')
-parser.add_argument('--gpu', type=int, default=0,
-                    help='gpu device (default: 0)')
+# parser.add_argument('--gpu', type=int, default=0,
+#                     help='gpu device (default: 0)')
 parser.add_argument('--checkpoint_path', type=str, default=None,
                     help='path to a pretrained checkpoint')
 
@@ -55,6 +55,8 @@ parser.add_argument('--test', action='store_true',
                     help='perform inference on the test set (default: False)')
 parser.add_argument('--group_examples_by_query', action='store_true',
                     help='group examples by topic entity + query relation (default: False)')
+parser.add_argument('--device_ids', nargs='*', type=int,
+                    help='specify devices distribute data on')
 
 # Network Architecture
 parser.add_argument('--model', type=str, default='point',
