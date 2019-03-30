@@ -185,7 +185,7 @@ class GraphSearchPolicy(nn.Module):
         def offset_path_history(p, offset):
             for i, x in enumerate(p):
                 if type(x) is tuple:
-                    new_tuple = tuple([_x[:, offset, :] for _x in x])
+                    new_tuple = tuple([_x[offset, :, :] for _x in x])
                     p[i] = new_tuple
                 else:
                     p[i] = x[offset, :]
