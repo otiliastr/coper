@@ -30,7 +30,7 @@ class GraphSearchPolicy(nn.Module):
             print('Using PG LSTM!')
             self.context_info = {'network_structure': args.pg_network_structure,
                                  'dropout': args.pg_dropout,
-                                 'use_batch_norm': args.pg_use_batch_norm,
+                                 'use_batch_norm': args.pg_batch_norm,
                                  'batch_norm_momentum': args.pg_batch_norm_momentum,
                                  'use_bias': args.pg_use_bias}
 
