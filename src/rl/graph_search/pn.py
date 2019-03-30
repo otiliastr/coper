@@ -194,6 +194,10 @@ class GraphSearchPolicy(nn.Module):
         # init_c = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
         init_h = zeros_var_cuda([len(init_action_embedding), self.history_num_layers, self.history_dim])
         init_c = zeros_var_cuda([len(init_action_embedding), self.history_num_layers, self.history_dim])
+        print('action device: {} | history devices: {}, {} | context device: {}'.format(init_action_embedding.device,
+                                                                                        init_h.device,
+                                                                                        init_c.device,
+                                                                                        init_context.device))
         self.path = [self.path_encoder(init_action_embedding, (init_h, init_c), context=init_context)[1]]
 
     def update_path(self, action, kg, offset=None):
