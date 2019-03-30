@@ -23,6 +23,17 @@ class GraphSearchPolicy(nn.Module):
 
         self.device_ids = args.device_ids
 
+        if args.pg_network_structure[0] != -1:
+            print('Using PG_LSTM!')
+            self.context_info = {'network_structure': args.pg_network_structure,
+                                 'dropout': args.pg_dropout,
+                                 'use_batch_norm': args.pg_use_batch_norm,
+                                 'batch_norm_momentum': args.pg_batch_norm_momentum,
+                                 'use_bias': args.pg_use_bias}
+        else:
+            print('Using Normal LSTM!')
+            self.context_info = None
+
         self.relation_only = args.relation_only
 
         self.history_dim = args.history_dim
@@ -159,11 +170,23 @@ class GraphSearchPolicy(nn.Module):
         # path comprises only of relation
         if self.relation_only_in_path:
             init_action_embedding = kg.get_relation_embeddings(init_action[0])
+            init_context = None
         # path comprises of MINERVA's vectors: [relation; entity], or just relation
         # For us, we want to change the configuration of the LSTM to generate the
         # paramaters using the relation, and then use the entity as the path..
         else:
-            init_action_embedding = self.get_action_embedding(init_action, kg)
+            # init_action_embedding = self.get_action_embedding(init_action, kg)
+            init_r, init_e = init_action
+            init_relation_embedding = kg.get_relation_embeddings(init_r)
+            init_entity_embedding = kg.get_entity_embeddings(init_e)
+            if self.context_info is None:
+                init_action_embedding = torch.cat([init_relation_embedding, init_entity_embedding], dim=-1)
+                init_context = None
+            else:
+                init_action_embedding = init_entity_embedding
+                init_context = init_relation_embedding
+
+
         # TODO: test that we can squeeze in LSTM layer, to keep inputs below consistent
         # init_action_embedding.unsqueeze_(1)
         # [num_layers, batch_size, dim]
@@ -171,7 +194,7 @@ class GraphSearchPolicy(nn.Module):
         # init_c = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
         init_h = zeros_var_cuda([len(init_action_embedding), self.history_num_layers, self.history_dim])
         init_c = zeros_var_cuda([len(init_action_embedding), self.history_num_layers, self.history_dim])
-        self.path = [self.path_encoder(init_action_embedding, (init_h, init_c))[1]]
+        self.path = [self.path_encoder(init_action_embedding, (init_h, init_c), context=init_context)[1]]
 
     def update_path(self, action, kg, offset=None):
         """
@@ -193,13 +216,24 @@ class GraphSearchPolicy(nn.Module):
         # update action history
         if self.relation_only_in_path:
             action_embedding = kg.get_relation_embeddings(action[0])
+            context = None
         else:
             action_embedding = self.get_action_embedding(action, kg)
+            r, e = action
+            relation_embedding = kg.get_relation_embeddings(r)
+            entity_embedding = kg.get_entity_embeddings(e)
+            if self.context_info is None:
+                action_embedding = torch.cat([relation_embedding, entity_embedding], dim=-1)
+                context = None
+            else:
+                action_embedding = entity_embedding
+                context = relation_embedding
+
         if offset is not None:
             offset_path_history(self.path, offset)
 
         # self.path.append(self.path_encoder(action_embedding.unsqueeze(1), self.path[-1])[1])
-        self.path.append(self.path_encoder(action_embedding, self.path[-1])[1])
+        self.path.append(self.path_encoder(action_embedding, self.path[-1], context=context)[1])
 
     def get_action_space_in_buckets(self, e, obs, kg, collapse_entities=False):
         """
@@ -401,8 +435,10 @@ class GraphSearchPolicy(nn.Module):
             #                             num_layers=self.history_num_layers,
             #                             batch_first=True)
             self.path_encoder = nn.DataParallel(PGLSTM(input_size=self.action_dim,
-                                       hidden_size=self.history_dim,
-                                       num_layers=self.history_num_layers), device_ids=self.device_ids)
+                                                       hidden_size=self.history_dim,
+                                                       num_layers=self.history_num_layers,
+                                                       context_info=self.context_info),
+                                                device_ids=self.device_ids)
             #self.path_encoder = PGLSTM(input_size=self.action_dim,
              #                          hidden_size=self.history_dim,
               #                         num_layers=self.history_num_layers)

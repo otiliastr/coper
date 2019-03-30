@@ -47,6 +47,12 @@ cmd="python3 -m src.experiments \
     --ff_dropout_rate $ff_dropout_rate \
     --action_dropout_rate $action_dropout_rate \
     --action_dropout_anneal_interval $action_dropout_anneal_interval \
+
+    --pg_network_structure $pg_network_structure \
+    --pg_dropout $pg_dropout \
+    --pg_batch_norm $pg_batch_norm \
+    --pg_batch_norm_momentum $cg_batch_norm_momentum \
+    --pg_use_bias $pg_use_bias \
     $relation_only_flag \
     --beta $beta \
     --beam_size $beam_size \
