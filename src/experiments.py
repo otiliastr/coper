@@ -205,7 +205,10 @@ def construct_model(args):
 
     if args.model in ['point', 'point.gc']:
         pn = GraphSearchPolicy(args)
+        #print(args.device_ids)
+        #print(type(args.device_ids[0]))
         lf = nn.DataParallel(PolicyGradient(args, kg, pn), device_ids=args.device_ids)
+        #lf = PolicyGradient(args, kg, pn)
     elif args.model.startswith('point.rs'):
         pn = GraphSearchPolicy(args)
         fn_model = args.model.split('.')[2]
