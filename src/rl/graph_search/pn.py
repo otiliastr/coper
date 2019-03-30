@@ -395,9 +395,9 @@ class GraphSearchPolicy(nn.Module):
             #                             hidden_size=self.history_dim,
             #                             num_layers=self.history_num_layers,
             #                             batch_first=True)
-            self.path_encoder = PGLSTM(input_size=self.action_dim,
+            self.path_encoder = nn.DataParallel(PGLSTM(input_size=self.action_dim,
                                        hidden_size=self.history_dim,
-                                       num_layers=self.history_num_layers)
+                                       num_layers=self.history_num_layers), device_ids=[0, 1])
 
     def initialize_modules(self):
         if self.xavier_initialization:
