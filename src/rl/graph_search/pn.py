@@ -23,7 +23,7 @@ class GraphSearchPolicy(nn.Module):
 
         self.device_ids = args.device_ids
 
-        if args.pg_network_structure[0] != -1:
+        if (len(args.pg_network_structure) > 0) and (args.pg_network_structure[0] != -1):
             print('Using PG_LSTM!')
             self.context_info = {'network_structure': args.pg_network_structure,
                                  'dropout': args.pg_dropout,

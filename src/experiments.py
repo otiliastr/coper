@@ -207,8 +207,8 @@ def construct_model(args):
         pn = GraphSearchPolicy(args)
         #print(args.device_ids)
         #print(type(args.device_ids[0]))
-        lf = nn.DataParallel(PolicyGradient(args, kg, pn), device_ids=args.device_ids)
-        #lf = PolicyGradient(args, kg, pn)
+        #lf = nn.DataParallel(PolicyGradient(args, kg, pn), device_ids=args.device_ids)
+        lf = PolicyGradient(args, kg, pn)
     elif args.model.startswith('point.rs'):
         pn = GraphSearchPolicy(args)
         fn_model = args.model.split('.')[2]
@@ -596,8 +596,8 @@ def load_configs(config_path):
 def run_experiment(args):
     print(args)
     print('#' * 80)
-    print('cpg_fc_net: {} | cpg_conve_net: {} | hidden_dropout_rate: {} | feat_dropout_rate: {} |'.format(
-        args.cpg_fc_net, args.cpg_conv_net, args.hidden_dropout_rate, args.feat_dropout_rate))
+    #print('cpg_fc_net: {} | cpg_conve_net: {} | hidden_dropout_rate: {} | feat_dropout_rate: {} |'.format(
+     #   args.cpg_fc_net, args.cpg_conv_net, args.hidden_dropout_rate, args.feat_dropout_rate))
     print('#' * 80)
     if args.test:
         if 'NELL' in args.data_dir:
