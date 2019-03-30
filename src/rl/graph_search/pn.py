@@ -23,16 +23,16 @@ class GraphSearchPolicy(nn.Module):
 
         self.device_ids = args.device_ids
 
-        if (len(args.pg_network_structure) > 0) and (args.pg_network_structure[0] != -1):
-            print('Using PG_LSTM!')
+        if (len(args.pg_network_structure) > 0) and (args.pg_network_structure[0] == -1):
+            print('Using Normal LSTM!')
+            self.context_info = None
+        else:
+            print('Using PG LSTM!')
             self.context_info = {'network_structure': args.pg_network_structure,
                                  'dropout': args.pg_dropout,
                                  'use_batch_norm': args.pg_use_batch_norm,
                                  'batch_norm_momentum': args.pg_batch_norm_momentum,
                                  'use_bias': args.pg_use_bias}
-        else:
-            print('Using Normal LSTM!')
-            self.context_info = None
 
         self.relation_only = args.relation_only
 
