@@ -198,7 +198,7 @@ class GraphSearchPolicy(nn.Module):
                                                                                         init_h.device,
                                                                                         init_c.device,
                                                                                         init_context.device))
-        self.path = [self.path_encoder(init_action_embedding, (init_h, init_c), context=init_context)[1]]
+        self.path = [self.path_encoder(init_action_embedding, (init_h, init_c), init_context)[1]]
 
     def update_path(self, action, kg, offset=None):
         """
@@ -237,7 +237,7 @@ class GraphSearchPolicy(nn.Module):
             offset_path_history(self.path, offset)
 
         # self.path.append(self.path_encoder(action_embedding.unsqueeze(1), self.path[-1])[1])
-        self.path.append(self.path_encoder(action_embedding, self.path[-1], context=context)[1])
+        self.path.append(self.path_encoder(action_embedding, self.path[-1], context)[1])
 
     def get_action_space_in_buckets(self, e, obs, kg, collapse_entities=False):
         """
@@ -438,13 +438,14 @@ class GraphSearchPolicy(nn.Module):
             #                             hidden_size=self.history_dim,
             #                             num_layers=self.history_num_layers,
             #                             batch_first=True)
-            with torch.cuda.device('cuda:0'):
+            with torch.cuda.device(0):
                 path_encoder = PGLSTM(input_size=self.action_dim,
                                        hidden_size=self.history_dim,
                                        num_layers=self.history_num_layers,
-                                       context_info=self.context_info)
+                                       context_info=self.context_info).cuda()
             self.path_encoder = nn.DataParallel(path_encoder,
                                                 device_ids=self.device_ids)
+            self.path_encoder.to(0)
             #self.path_encoder = PGLSTM(input_size=self.action_dim,
              #                          hidden_size=self.history_dim,
               #                         num_layers=self.history_num_layers)

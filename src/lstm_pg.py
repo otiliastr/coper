@@ -32,21 +32,23 @@ class ContextualParameterGenerator(nn.Module):
         # print('use bias: {}'.format(self.use_bias))
         self.flattened_output = reduce(mul, output_shape, 1)
 
-        self.projections = []
+        self.projections = nn.ModuleList([])
         layer_input = network_structure[0]
         for layer_output in self.network_structure[1:]:
             print('inside loop!')
-            self.projections.append(nn.Linear(layer_input, layer_output, bias=self.use_bias))
+            self.projections.append(nn.Linear(layer_input, layer_output, bias=self.use_bias).cuda())
             if use_batch_norm:
                 self.projections.append(nn.BatchNorm1d(num_features=layer_output,
-                                                       momentum=batch_norm_momentum))
-            self.projections.append(nn.ReLU())
-            self.projections.append(nn.Dropout(p=self.dropout))
+                                                       momentum=batch_norm_momentum).cuda())
+            self.projections.append(nn.ReLU().cuda())
+            self.projections.append(nn.Dropout(p=self.dropout).cuda())
             layer_input = layer_output
 
-        self.projections.append(nn.Linear(layer_input, self.flattened_output, bias=self.use_bias))
+        self.projections.append(nn.Linear(layer_input, self.flattened_output, bias=self.use_bias).cuda())
         self.network = nn.Sequential(*self.projections)
     def forward(self, query_emb):
+        #print('the device of the CPG network is: {}'.format(self.network.device))
+        print('query embedding device: {}'.format(query_emb.device))
         flat_params = self.network(query_emb)
         params = flat_params.view([-1] + self.output_shape)
         # print('CPG shape: {}'.format(params.shape))
