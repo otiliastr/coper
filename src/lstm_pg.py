@@ -145,8 +145,8 @@ class PGLSTM(nn.Module):
         past_cell_states = past_states[1]
 
         for layer in range(self.num_layers):
-            hidden_state = past_hidden_states[layer]
-            cell_state = past_cell_states[layer]
+            hidden_state = past_hidden_states[:, layer, :]
+            cell_state = past_cell_states[:, layer, :]
             # print('input size: {} | hidden state size: {}'.format(input.size(), hidden_state.size()))
             cell_input = torch.cat((input, hidden_state), dim=-1)
 
@@ -179,15 +179,15 @@ class PGLSTM(nn.Module):
                 input = hidden_state
             # [BatchSize, HiddenSize] --> [1, BatchSize, HiddenSize] for stacking
             # we stack over depth to create the same output as torch.nn.LSTM
-            hidden_state_ = hidden_state.unsqueeze(0)
-            cell_state_ = cell_state.unsqueeze(0)
+            hidden_state_ = hidden_state.unsqueeze(1)
+            cell_state_ = cell_state.unsqueeze(1)
 
             if hidden_states is None:
                 hidden_states = hidden_state_
                 cell_states = cell_state_
             else:
-                hidden_states = torch.cat((hidden_states, hidden_state_), dim=0)
-                cell_states = torch.cat((cell_states, cell_state_), dim=0)
+                hidden_states = torch.cat((hidden_states, hidden_state_), dim=1)
+                cell_states = torch.cat((cell_states, cell_state_), dim=1)
 
             # hidden_states.append(hidden_state)
             # cell_states.append(cell_state)
@@ -205,20 +205,20 @@ if __name__ == '__main__':
     pglstm = PGLSTM(input_size=10, hidden_size=10, num_layers=3)
     rnn = nn.LSTM(10, 10, 3, batch_first=True)
 
-    h0 = torch.randn(3, 5, 10)
-    c0 = torch.randn(3, 5, 10)
+    h0 = torch.randn(5, 3, 10)
+    c0 = torch.randn(5, 3, 10)
     input = torch.rand(5, 10)
 
     output, (h1, c1) = pglstm(input=input, past_states=(h0, c0), context=None)
-    output_, (h1_, c1_) = rnn(input.view(5, 1, 10), (h0, c0))
+    # output_, (h1_, c1_) = rnn(input.view(5, 1, 10), (h0, c0))
     print(output.size())
-    print(output_.size())
+    # print(output_.size())
     print('#'* 80)
     print(h1.size())
-    print(h1_.size())
+    # print(h1_.size())
     print('#' * 80)
     print(c1.size())
-    print(c1_.size())
+    # print(c1_.size())
     print(list(rnn.state_dict()))
     print(list(pglstm.state_dict()))
     for name, param in pglstm.named_parameters():

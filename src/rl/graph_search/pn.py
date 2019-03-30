@@ -84,7 +84,7 @@ class GraphSearchPolicy(nn.Module):
         # Representation of the current state (current node and other observations)
         Q = kg.get_relation_embeddings(q)
         # self.path stores all hidden states/cell states along a path. Obtain most recent
-        H = self.path[-1][0][-1, :, :]
+        H = self.path[-1][0][:, -1, :]
         if self.relation_only:
             X = torch.cat([H, Q], dim=-1)
         elif self.relation_only_in_path:
@@ -167,8 +167,10 @@ class GraphSearchPolicy(nn.Module):
         # TODO: test that we can squeeze in LSTM layer, to keep inputs below consistent
         # init_action_embedding.unsqueeze_(1)
         # [num_layers, batch_size, dim]
-        init_h = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
-        init_c = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
+        # init_h = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
+        # init_c = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
+        init_h = zeros_var_cuda([len(init_action_embedding), self.history_num_layers, self.history_dim])
+        init_c = zeros_var_cuda([len(init_action_embedding), self.history_num_layers, self.history_dim])
         self.path = [self.path_encoder(init_action_embedding, (init_h, init_c))[1]]
 
     def update_path(self, action, kg, offset=None):
