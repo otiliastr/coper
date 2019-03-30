@@ -438,10 +438,12 @@ class GraphSearchPolicy(nn.Module):
             #                             hidden_size=self.history_dim,
             #                             num_layers=self.history_num_layers,
             #                             batch_first=True)
-            self.path_encoder = nn.DataParallel(PGLSTM(input_size=self.action_dim,
-                                                       hidden_size=self.history_dim,
-                                                       num_layers=self.history_num_layers,
-                                                       context_info=self.context_info),
+            with torch.cuda.device('cuda:0'):
+                path_encoder = PGLSTM(input_size=self.action_dim,
+                                       hidden_size=self.history_dim,
+                                       num_layers=self.history_num_layers,
+                                       context_info=self.context_info)
+            self.path_encoder = nn.DataParallel(path_encoder,
                                                 device_ids=self.device_ids)
             #self.path_encoder = PGLSTM(input_size=self.action_dim,
              #                          hidden_size=self.history_dim,
