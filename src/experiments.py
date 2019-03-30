@@ -740,7 +740,7 @@ def run_experiment(args):
                         print('* {}: {}'.format(hp, value))
                     initialize_model_directory(args)
                     lf = construct_model(args)
-                    lf.cuda()
+                    # lf.cuda()
                     train(lf)
                     metrics = inference(lf)
                     hits_at_1s[signature] = metrics['dev']['hits_at_1']
