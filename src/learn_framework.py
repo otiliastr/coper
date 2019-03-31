@@ -104,11 +104,10 @@ class LFramework(nn.Module):
                 rewards = None
                 fns = None
             # TODO: remove hardcoded 128
-            batch_steps = 128 / self.batch_size
+            batch_steps = 128
+            self.optim.zero_grad()
             for example_id in tqdm(range(0, len(train_data), self.batch_size)):
                 # accumulate gradients over vanilla batch size <-- emulates larger batch training
-                if example_id % batch_steps == 0:
-                    self.optim.zero_grad()
 
                 mini_batch = train_data[example_id:example_id + self.batch_size]
                 if len(mini_batch) < self.batch_size:
@@ -120,7 +119,10 @@ class LFramework(nn.Module):
                 if self.grad_norm > 0:
                     clip_grad_norm_(self.parameters(), self.grad_norm)
 
-                self.optim.step()
+                # Step every original batch size number
+                if (example_id+1) % batch_steps == 0:
+                    self.optim.step()
+                    self.optim.zero_grad()
 
                 batch_losses.append(loss['print_loss'])
                 if 'entropy' in loss:
@@ -134,6 +136,7 @@ class LFramework(nn.Module):
                         fns = loss['fn']
                     else:
                         fns = torch.cat([fns, loss['fn']])
+
             # Check training statistics
             stdout_msg = 'Epoch {}: average training loss = {}'.format(epoch_id, np.mean(batch_losses))
             if entropies:
