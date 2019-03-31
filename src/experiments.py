@@ -111,6 +111,10 @@ def initialize_model_directory(args, random_seed=None):
                 args.bandwidth,
                 args.beta
             )
+        if (len(args.pg_network_structure) > 0) and (args.pg_network_structure == -1):
+            hyperparam_sig = hyperparam_sig
+        else:
+            hyperparam_sig += '-CPG-{}-{}-{}-{}-{}'.format(args.pg_network_structure, args.pg_dropout, args.pg_batch_norm, args.pg_batch_norm_momentum, args.pg_use_bias)
         if args.reward_shaping_threshold > 0:
             hyperparam_sig += '-{}'.format(args.reward_shaping_threshold)
     elif args.model == 'distmult':
