@@ -31,6 +31,7 @@ relation_only="False"
 beam_size=128
 # CPG Args. -1: No CPG, anything else: CPG
 # Network Structure: 1 2 3 --> [1, 2, 3]
+# Nothing = [] due to nargs='*'
 # in parse args
 pg_network_structure=
 pg_dropout=.5
