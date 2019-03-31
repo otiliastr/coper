@@ -32,7 +32,7 @@ from src.rl.graph_search.pg import PolicyGradient
 from src.rl.graph_search.rs_pg import RewardShapingPolicyGradient
 from src.utils.ops import flatten
 
-# torch.cuda.set_device(args.gpu)
+torch.cuda.set_device(args.gpu)
 
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
