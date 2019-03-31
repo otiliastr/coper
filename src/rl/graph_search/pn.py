@@ -431,14 +431,14 @@ class GraphSearchPolicy(nn.Module):
             input_dim = self.history_dim + self.entity_dim + self.relation_dim
         if self.context_info is not None:
             self.pg_weights = ContextualParameterGenerator(
-                    network_structure=[self.input_size] + self.context_info['network_structure'],
+                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
                     output_shape=[self.input_size + self.hidden_size, self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
                     batch_norm_momentum=self.context_info['batch_norm_momentum'],
                     use_bias=self.context_info['use_bias'])
             self.pg_bias =  ContextualParameterGenerator(
-                    network_structure=[self.input_size] + self.context_info['network_structure'],
+                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
                     output_shape=[self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
