@@ -115,7 +115,9 @@ class GraphSearchPolicy(nn.Module):
         if self.context_info is None:
             X = self.W1(X)
         else:
-            X = torch.matmul(X, self.pg_weights(Q)) + self.pg_bias(Q)
+            #print('X size: {} | weights size: {}'.format(X.size(), self.pg_weights(Q).size()))
+            X = torch.einsum('ij,ijk->ik', X, self.pg_weights(Q)) + self.pg_bias(Q)
+            #X = torch.matmul(X, self.pg_weights(Q)) + self.pg_bias(Q)
         X = F.relu(X)
         X = self.W1Dropout(X)
         X = self.W2(X)
@@ -432,7 +434,7 @@ class GraphSearchPolicy(nn.Module):
         if self.context_info is not None:
             self.pg_weights = ContextualParameterGenerator(
                     network_structure=[self.relation_dim] + self.context_info['network_structure'],
-                    output_shape=[self.input_size + self.hidden_size, self.action_dim],
+                    output_shape=[input_dim - self.relation_dim, self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
                     batch_norm_momentum=self.context_info['batch_norm_momentum'],
@@ -477,10 +479,22 @@ class GraphSearchPolicy(nn.Module):
 
     def initialize_modules(self):
         if self.xavier_initialization:
-            nn.init.xavier_uniform_(self.W1.weight)
+            if self.context_info is None:
+                nn.init.xavier_uniform_(self.W1.weight)
             nn.init.xavier_uniform_(self.W2.weight)
             for name, param in self.path_encoder.named_parameters():
                 if 'bias' in name:
                     nn.init.constant_(param, 0.0)
                 elif 'weight' in name:
                     nn.init.xavier_normal_(param)
+            if self.context_info is not None:
+                for name, param in self.pg_weights.named_parameters():
+                    if 'bias' in name:
+                        nn.init.constant_(param, 0.0)
+                    elif 'weight' in name:
+                        nn.init.xavier_normal_(param)
+                for name, param in self.pg_bias.named_parameters():
+                    if 'bias' in name:
+                        nn.init.constant_(param, 0.0)
+                    elif 'weight' in name:
+                        nn.init.xavier_normal_(param)
