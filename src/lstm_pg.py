@@ -31,7 +31,7 @@ class ContextualParameterGenerator(nn.Module):
         self.use_bias = use_bias
         # print('use bias: {}'.format(self.use_bias))
         self.flattened_output = reduce(mul, output_shape, 1)
-
+        print('input shape: {}'.format(network_structure[0]))
         self.projections = nn.ModuleList([])
         layer_input = network_structure[0]
         for layer_output in self.network_structure[1:]:

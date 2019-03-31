@@ -21,7 +21,7 @@ class GraphSearchPolicy(nn.Module):
         super(GraphSearchPolicy, self).__init__()
         self.model = args.model
 
-        self.device_ids = args.device_ids
+        #self.device_ids = args.device_ids
 
         if (len(args.pg_network_structure) > 0) and (args.pg_network_structure[0] == -1):
             print('Using Normal LSTM!')
@@ -438,7 +438,7 @@ class GraphSearchPolicy(nn.Module):
             #                             hidden_size=self.history_dim,
             #                             num_layers=self.history_num_layers,
             #                             batch_first=True)
-            path_encoder = PGLSTM(input_size=self.action_dim,
+            path_encoder = PGLSTM(input_size=self.entity_dim,
                                    hidden_size=self.history_dim,
                                    num_layers=self.history_num_layers,
                                    context_info=self.context_info)
