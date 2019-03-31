@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 import src.utils.ops as ops
 from src.utils.ops import var_cuda, zeros_var_cuda
-from src.lstm_pg import  PGLSTM
+from src.lstm_pg import  PGLSTM, ContextualParameterGenerator
 
 
 class GraphSearchPolicy(nn.Module):
@@ -35,6 +35,7 @@ class GraphSearchPolicy(nn.Module):
                                  'use_bias': args.pg_use_bias}
 
         self.relation_only = args.relation_only
+        self.pg_network_structure = args.pg_network_structure
 
         self.history_dim = args.history_dim
         self.history_num_layers = args.history_num_layers
@@ -103,11 +104,18 @@ class GraphSearchPolicy(nn.Module):
             E = kg.get_entity_embeddings(e)
             X = torch.cat([E, H, E_s, Q], dim=-1)
         else:
-            E = kg.get_entity_embeddings(e)
-            X = torch.cat([E, H, Q], dim=-1)
+            if self.context_info is not None:
+                E = kg.get_entity_embeddings(e)
+                X = torch.cat([E, H], dim=-1)
+            else:
+                E = kg.get_entity_embeddings(e)
+                X = torch.cat([E, H, Q], dim=-1)
 
         # MLP
-        X = self.W1(X)
+        if self.context_info is None:
+            X = self.W1(X)
+        else:
+            X = torch.matmul(X, self.pg_weights(Q)) + self.pg_bias(Q)
         X = F.relu(X)
         X = self.W1Dropout(X)
         X = self.W2(X)
@@ -421,7 +429,23 @@ class GraphSearchPolicy(nn.Module):
             input_dim = self.history_dim + self.entity_dim * 2 + self.relation_dim
         else:
             input_dim = self.history_dim + self.entity_dim + self.relation_dim
-        self.W1 = nn.Linear(input_dim, self.action_dim)
+        if self.context_info['network_structure']:
+            self.pg_weights = ContextualParameterGenerator(
+                    network_structure=[self.input_size] + self.context_info['network_structure'],
+                    output_shape=[self.input_size + self.hidden_size, self.action_dim],
+                    dropout=self.context_info['dropout'],
+                    use_batch_norm=self.context_info['use_batch_norm'],
+                    batch_norm_momentum=self.context_info['batch_norm_momentum'],
+                    use_bias=self.context_info['use_bias'])
+            self.pg_bias =  ContextualParameterGenerator(
+                    network_structure=[self.input_size] + self.context_info['network_structure'],
+                    output_shape=[self.action_dim],
+                    dropout=self.context_info['dropout'],
+                    use_batch_norm=self.context_info['use_batch_norm'],
+                    batch_norm_momentum=self.context_info['batch_norm_momentum'],
+                    use_bias=self.context_info['use_bias'])
+        else:
+            self.W1 = nn.Linear(input_dim, self.action_dim)
         self.W2 = nn.Linear(self.action_dim, self.action_dim)
         self.W1Dropout = nn.Dropout(p=self.ff_dropout_rate)
         self.W2Dropout = nn.Dropout(p=self.ff_dropout_rate)
