@@ -110,8 +110,8 @@ class LFramework(nn.Module):
                 # accumulate gradients over vanilla batch size <-- emulates larger batch training
 
                 mini_batch = train_data[example_id:example_id + self.batch_size]
-                if len(mini_batch) < self.batch_size:
-                    continue
+                # if len(mini_batch) < self.batch_size:
+                #     continue
                 # print('in train loop')
                 loss = self.loss(mini_batch)
                 # print('exited loss func')
