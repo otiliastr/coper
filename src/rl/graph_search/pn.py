@@ -429,7 +429,7 @@ class GraphSearchPolicy(nn.Module):
             input_dim = self.history_dim + self.entity_dim * 2 + self.relation_dim
         else:
             input_dim = self.history_dim + self.entity_dim + self.relation_dim
-        if self.context_info['network_structure']:
+        if self.context_info is not None:
             self.pg_weights = ContextualParameterGenerator(
                     network_structure=[self.input_size] + self.context_info['network_structure'],
                     output_shape=[self.input_size + self.hidden_size, self.action_dim],
