@@ -103,9 +103,12 @@ class LFramework(nn.Module):
             if self.run_analysis:
                 rewards = None
                 fns = None
+            # TODO: remove hardcoded 128
+            batch_steps = 128 / self.batch_size
             for example_id in tqdm(range(0, len(train_data), self.batch_size)):
-
-                self.optim.zero_grad()
+                # accumulate gradients over vanilla batch size <-- emulates larger batch training
+                if example_id % batch_steps == 0:
+                    self.optim.zero_grad()
 
                 mini_batch = train_data[example_id:example_id + self.batch_size]
                 if len(mini_batch) < self.batch_size:
