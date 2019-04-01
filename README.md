@@ -1,3 +1,14 @@
+# File Updates:
+- lstm_pg.py: This file contains modified Torch LSTM to work with CPG (PG_LSTM). CPG is used to generate all parameters of the LSTM, and the LSTM can be stacked just like in pytorch's implementation. However, in contrast to torch's implementation, this LSTM expects the data to be batch first (i.e. the 0th dimension of the tensor is the BatchSize), and the hidden states are also batch first (this was done for data parallel though this branch does not use it).
+- pn.py: Changes to use PG_LSTM and CPG dense layer in policy network
+- parse_args/experiment.sh: Added CPG arguments
+- configs/kinship.sh: See this file to see how to train a model with CPG
+- experiments.py: Model name changes
+
+Note on training: Parameter Generation significantly increases the amount of memory on the GPU. To counter this, I have decreased the batch size while only performing gradient steps once the original batch has been stepped over. I have also tried using DataParrallel, but while this works on the vanilla version of PG_LSTM (my implementation of the original LSTM), it does not work with CPG due to a tensor on different gpus issue. This branch does not attempt to use data parrallel
+
+
+
 # Multi-Hop Knowledge Graph Reasoning with Reward Shaping
 
 This repository contains the source code release of the paper: [Lin et. al. 2018. Multi-Hop Knowledge Graph Reasoning with Reward Shaping](https://arxiv.org/abs/1808.10568).

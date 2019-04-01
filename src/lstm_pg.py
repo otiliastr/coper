@@ -129,16 +129,16 @@ class PGLSTM(nn.Module):
     def forward(self, input, past_states, context=None):
         """
         Perform forward layer of Deep LSTM
-        :param input: Input data, [BatchSize, 1, EntEmbSize]
-        :param past_states: States from previous (ent, rel), [NumLayers, BatchSize, HiddenSize]
+        :param input: Input data, [BatchSize, EntEmbSize]
+        :param past_states: States from previous (ent, rel), [BatchSize, NumLayers, HiddenSize]
         :param context: Whether to use context PG or not
             - None: Use normal Deep LSTM
             - not None: use PG, [BatchSize, RelEmbSize]
         :return:
-            - output: [BatchSize, 1, HiddenSize]
+            - output: [BatchSize, HiddenSize]
             - (hidden_states, cell_states):
-                - hidden_states: [NumLayers, BatchSize, HiddenSize]
-                - cell_states: [NumLayers, BatchSize, HiddenSize]
+                - hidden_states: [BatchSize, NumLayers, HiddenSize]
+                - cell_states: [BatchSize, NumLayers, HiddenSize]
         """
         # record state changes
         hidden_states = None
@@ -180,7 +180,7 @@ class PGLSTM(nn.Module):
                 input = self.dropouts[layer](hidden_state)
             else:
                 input = hidden_state
-            # [BatchSize, HiddenSize] --> [1, BatchSize, HiddenSize] for stacking
+            # [BatchSize, HiddenSize] --> [BatchSize, 1, HiddenSize] for stacking
             # we stack over depth to create the same output as torch.nn.LSTM
             hidden_state_ = hidden_state.unsqueeze(1)
             cell_state_ = cell_state.unsqueeze(1)
