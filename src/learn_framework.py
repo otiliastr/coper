@@ -121,6 +121,7 @@ class LFramework(nn.Module):
 
                 # Step every original batch size number
                 if ((example_id > 0) and ((example_id % batch_steps) == 0)) or (len(mini_batch) < self.batch_size):
+                    print('Step: {}. Updating Grads!'.format(example_id))
                     self.optim.step()
                     self.optim.zero_grad()
 
