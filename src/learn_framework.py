@@ -120,7 +120,7 @@ class LFramework(nn.Module):
                     clip_grad_norm_(self.parameters(), self.grad_norm)
 
                 # Step every original batch size number
-                if (example_id+1) % batch_steps == 0:
+                if ((example_id > 0) and ((example_id % batch_steps) == 0)) or (len(mini_batch) < self.batch_size):
                     self.optim.step()
                     self.optim.zero_grad()
 
