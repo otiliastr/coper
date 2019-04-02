@@ -371,22 +371,22 @@ def inference(lf):
             dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
             print('Memory allocated after obtaining dev metrics: {}'.format(torch.cuda.memory_allocated() / 1e9))
             eval_metrics['dev'] = {}
-            eval_metrics['dev']['hits_at_1'] = dev_metrics[0]
-            eval_metrics['dev']['hits_at_3'] = dev_metrics[1]
-            eval_metrics['dev']['hits_at_5'] = dev_metrics[2]
-            eval_metrics['dev']['hits_at_10'] = dev_metrics[3]
-            eval_metrics['dev']['mrr'] = dev_metrics[4]
+            eval_metrics['dev']['hits_at_1'] = dev_metrics['hits_at_1']
+            eval_metrics['dev']['hits_at_3'] = dev_metrics['hits_at_3']
+            eval_metrics['dev']['hits_at_5'] = dev_metrics['hits_at_5']
+            eval_metrics['dev']['hits_at_10'] = dev_metrics['hits_at_10']
+            eval_metrics['dev']['mrr'] = dev_metrics['mrr']
             # src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
             #print('Test set performance:')
             pred_scores = lf.forward(test_data, verbose=False)
             print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
             test_metrics = src.eval.hits_and_ranks(test_data, pred_scores, lf.kg.all_objects, verbose=True)
             print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
-            eval_metrics['test']['hits_at_1'] = test_metrics[0]
-            eval_metrics['test']['hits_at_3'] = test_metrics[1]
-            eval_metrics['test']['hits_at_5'] = test_metrics[2]
-            eval_metrics['test']['hits_at_10'] = test_metrics[3]
-            eval_metrics['test']['mrr'] = test_metrics[4]
+            eval_metrics['test']['hits_at_1'] = test_metrics['hits_at_1']
+            eval_metrics['test']['hits_at_3'] = test_metrics['hits_at_3']
+            eval_metrics['test']['hits_at_5'] = test_metrics['hits_at_5']
+            eval_metrics['test']['hits_at_10'] = test_metrics['hits_at_10']
+            eval_metrics['test']['mrr'] = test_metrics['mrr']
 
     return eval_metrics
 
@@ -445,7 +445,8 @@ def run_ablation_studies(args):
         
         lf = set_up_lf_for_inference(args)
         pred_scores = lf.forward(dev_data, verbose=False)
-        _, _, _, _, mrr = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
+        curr_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
+        mrr = curr_metrics['mrr']
         if to_1_ratio == 0:
             to_m_mrr = mrr
             to_1_mrr = -1
@@ -459,7 +460,8 @@ def run_ablation_studies(args):
         to_1_mrrs[system] = {'': to_1_mrr  * 100}
         seen_mrrs[system] = {'': seen_mrr * 100}
         unseen_mrrs[system] = {'': unseen_mrr * 100}
-        _, _, _, _, mrr_full_kg = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
+        new_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
+        mrr_full_kg = new_metrics['mrr']
         if to_1_ratio == 0:
             to_m_mrr_full_kg = mrr_full_kg
             to_1_mrr_full_kg = -1

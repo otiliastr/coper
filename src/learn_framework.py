@@ -69,8 +69,12 @@ class LFramework(nn.Module):
             self.optim = optim.Adam(
                 filter(lambda p: p.requires_grad, self.parameters()), lr=self.learning_rate)
 
-        # Track dev metrics changes
-        best_dev_metrics = 0
+        # Track dev curr_metric changes
+        best_dev_metric = -np.inf
+        best_dev_metrics = None
+        best_test_at_dev = None
+        best_epoch = 0
+
         dev_metrics_history = []
 
         for epoch_id in range(self.start_epoch, self.num_epochs):
@@ -163,31 +167,42 @@ class LFramework(nn.Module):
                     dev_scores = self.forward(dev_data, verbose=False)
                     print('Memory allocated after dev forward pass: {}'.format(torch.cuda.memory_allocated()))
                     print('Dev set performance: ')
-                    hits_at_1, _, _, _, _ = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
-                    metrics = hits_at_1
+                    # hits_at_1, hits_at_3, hits_at_10, _, _ = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
+                    dev_metrics = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
+                    curr_metric = dev_metrics['hits_at_1']
                     print('Test set performance: ')
                     test_scores = self.forward(test_data, verbose=False)
                     print('Memory allocated after test performance: {}'.format(torch.cuda.memory_allocated()))
-                    src.eval.hits_and_ranks(test_data, test_scores, self.kg.all_objects, verbose=True)
+                    test_metrics = src.eval.hits_and_ranks(test_data, test_scores, self.kg.all_objects, verbose=True)
                     # Action dropout anneaking
                     if self.model.startswith('point'):
                         eta = self.action_dropout_anneal_interval
-                        if len(dev_metrics_history) > eta and metrics < min(dev_metrics_history[-eta:]):
+                        if len(dev_metrics_history) > eta and curr_metric < min(dev_metrics_history[-eta:]):
                             old_action_dropout_rate = self.action_dropout_rate
                             self.action_dropout_rate *= self.action_dropout_anneal_factor
                             print('Decreasing action dropout rate: {} -> {}'.format(
                                 old_action_dropout_rate, self.action_dropout_rate))
                     # Save checkpoint
-                    if metrics > best_dev_metrics:
+                    if curr_metric > best_dev_metric:
+                        best_dev_metrics = dev_metrics
+                        best_test_at_dev = test_metrics
+                        best_epoch = epoch_id
                         self.save_checkpoint(checkpoint_id=epoch_id, epoch_id=epoch_id, is_best=True)
-                        best_dev_metrics = metrics
+                        best_dev_metric = curr_metric
                         with open(os.path.join(self.model_dir, 'best_dev_iteration.dat'), 'w') as o_f:
                             o_f.write('{}'.format(epoch_id))
                     else:
                         # Early stopping
-                        if epoch_id >= self.num_wait_epochs and metrics < np.mean(dev_metrics_history[-self.num_wait_epochs:]):
+                        if epoch_id >= self.num_wait_epochs and curr_metric < np.mean(dev_metrics_history[-self.num_wait_epochs:]):
                             break
-                    dev_metrics_history.append(metrics)
+
+                    print('#' * 80)
+                    print('Best test metrics at best dev: ')
+                    print('Epoch: {}'.format(best_epoch))
+                    src.eval.print_metrics(best_test_at_dev)
+                    print('#' * 80)
+
+                    dev_metrics_history.append(curr_metric)
                 if self.run_analysis:
                     num_path_types_file = os.path.join(self.model_dir, 'num_path_types.dat')
                     dev_metrics_file = os.path.join(self.model_dir, 'dev_metrics.dat')
