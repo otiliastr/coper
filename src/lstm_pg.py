@@ -38,14 +38,21 @@ class ContextualParameterGenerator(nn.Module):
         for layer_output in self.network_structure[1:]:
             print('inside loop!')
             self.projections.append(nn.Linear(layer_input, layer_output, bias=self.use_bias))
+            #for name, param in self.projections[-1].named_parameters():
+             #   print('{} size: {}'.format(name, param.size()))
             if use_batch_norm:
                 self.projections.append(nn.BatchNorm1d(num_features=layer_output,
                                                        momentum=batch_norm_momentum))
+                #for name, param in self.projections[-1].named_parameters():
+                 #   print('Batch Norm | {} size: {}'.format(name, param.size()))
             self.projections.append(nn.ReLU())
             self.projections.append(nn.Dropout(p=self.dropout))
             layer_input = layer_output
-
+        print('creating output layer')
         self.projections.append(nn.Linear(layer_input, self.flattened_output, bias=self.use_bias))
+        #print('Printing Network Architecture: ')
+        #for name, param in self.projections.named_parameters():
+        #    print('| {} size: {}'.format(name, param.size()))
         self.network = nn.Sequential(*self.projections)
 
     def forward(self, query_emb):
@@ -158,9 +165,10 @@ class PGLSTM(nn.Module):
             if self.use_cpg:
                 weights = self.weights[layer](context)
                 biases = self.biases[layer](context)
-                # print(weights.size())
-                # print(biases.size())
-                all_gates = torch.einsum('ij,ijk->ik', cell_input, weights) + biases
+                #print(weights.size())
+                #print(biases.size())
+                #print(cell_input.size())
+                all_gates = torch.einsum('ij,ijk->ik', (cell_input, weights)) + biases
                 # all_gates = torch.bmm(cell_input, weights)
             else:
                 #print('input size: {}'.format(input.size()))

@@ -122,14 +122,14 @@ class GraphSearchPolicy(nn.Module):
             X = self.W1(X)
         else:
             #print('X size: {} | weights size: {}'.format(X.size(), self.pg_weights(Q).size()))
-            X = torch.einsum('ij,ijk->ik', X, self.pg_weights1(Q)) + self.pg_bias1(Q)
+            X = torch.einsum('ij,ijk->ik', (X, self.pg_weights1(Q))) + self.pg_bias1(Q)
             #X = torch.matmul(X, self.pg_weights(Q)) + self.pg_bias(Q)
         X = F.relu(X)
         X = self.W1Dropout(X)
         if self.context_info is None:
             X = self.W2(X)
         else:
-            X = torch.einsum('ij,ijk->ik', X, self.pg_weights2(Q)) + self.pg_bias2(Q)
+            X = torch.einsum('ij,ijk->ik', (X, self.pg_weights2(Q))) + self.pg_bias2(Q)
 
         X2 = self.W2Dropout(X)
 
@@ -520,32 +520,35 @@ class GraphSearchPolicy(nn.Module):
             if self.context_info is None:
                 nn.init.xavier_uniform_(self.W2.weight)
                 nn.init.xavier_uniform_(self.W1.weight)
+            #for name, param in self.path_encoder.named_parameters():
+             #   print('{} size: {}'.format(name, param.size()))
             for name, param in self.path_encoder.named_parameters():
                 if 'bias' in name:
                     nn.init.constant_(param, 0.0)
-                elif 'weight' in name:
+                elif 'weight' in name and len(param.size()) != 1:
+                    #print('{} size: {}'.format(name, param.size()))
                     nn.init.xavier_normal_(param)
             if self.context_info is not None:
                 # Dense layer 1
                 for name, param in self.pg_weights1.named_parameters():
                     if 'bias' in name:
                         nn.init.constant_(param, 0.0)
-                    elif 'weight' in name:
+                    elif 'weight' in name and len(param.size()) != 1:
                         nn.init.xavier_normal_(param)
                 for name, param in self.pg_bias1.named_parameters():
                     if 'bias' in name:
                         nn.init.constant_(param, 0.0)
-                    elif 'weight' in name:
+                    elif 'weight' in name and len(param.size()) != 1:
                         nn.init.xavier_normal_(param)
                 # Dense layer 2
                 for name, param in self.pg_weights2.named_parameters():
                     if 'bias' in name:
                         nn.init.constant_(param, 0.0)
-                    elif 'weight' in name:
+                    elif 'weight' in name and len(param.size()) != 1:
                         nn.init.xavier_normal_(param)
                 for name, param in self.pg_bias2.named_parameters():
                     if 'bias' in name:
                         nn.init.constant_(param, 0.0)
-                    elif 'weight' in name:
+                    elif 'weight' in name and len(param.size()) != 1:
                         nn.init.xavier_normal_(param)
 
