@@ -34,6 +34,7 @@ class ContextualParameterGenerator(nn.Module):
         #print('input shape: {}'.format(network_structure[0]))
         self.projections = nn.ModuleList([])
         layer_input = network_structure[0]
+        print('network structure: {}'.format(network_structure))
         for layer_output in self.network_structure[1:]:
             print('inside loop!')
             self.projections.append(nn.Linear(layer_input, layer_output, bias=self.use_bias))
@@ -97,6 +98,7 @@ class PGLSTM(nn.Module):
         for layer in range(self.num_layers):
 
             if self.use_cpg:
+                print('CPG LSTM init network structure: {}'.format(self.context_info['network_structure']))
                 # generate each LSTM parameters via parameter generator
                 weights = ContextualParameterGenerator(
                     network_structure=self.context_info['network_structure'],

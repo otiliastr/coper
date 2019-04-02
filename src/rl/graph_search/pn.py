@@ -28,7 +28,11 @@ class GraphSearchPolicy(nn.Module):
             self.context_info = None
         else:
             print('Using PG LSTM!')
-            self.context_info = {'network_structure': [args.relation_dim] + args.pg_network_structure,
+            print('network_struture before lstm: {}'.format(args.pg_network_structure))
+            print('relation dim: {}'.format([args.relation_dim]))
+            network_structure = [args.relation_dim] + args.pg_network_structure
+            print('network structure after concatentation: {}'.format(network_structure))
+            self.context_info = {'network_structure': network_structure,
                                  'dropout': args.pg_dropout,
                                  'use_batch_norm': args.pg_batch_norm,
                                  'batch_norm_momentum': args.pg_batch_norm_momentum,
@@ -438,14 +442,15 @@ class GraphSearchPolicy(nn.Module):
 
         if self.context_info is not None:
             self.pg_weights1 = ContextualParameterGenerator(
-                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[input_dim - self.relation_dim, self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
                     batch_norm_momentum=self.context_info['batch_norm_momentum'],
                     use_bias=self.context_info['use_bias'])
+
             self.pg_bias1 =  ContextualParameterGenerator(
-                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
@@ -453,14 +458,15 @@ class GraphSearchPolicy(nn.Module):
                     use_bias=self.context_info['use_bias'])
 
             self.pg_weights2 = ContextualParameterGenerator(
-                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[self.action_dim, self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
                     batch_norm_momentum=self.context_info['batch_norm_momentum'],
                     use_bias=self.context_info['use_bias'])
+
             self.pg_bias2 = ContextualParameterGenerator(
-                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
