@@ -123,7 +123,7 @@ class GraphSearchPolicy(nn.Module):
         if self.context_info is None:
             X = self.W2(X)
         else:
-            X = torch.einsum('ij,ijk->ik', self.pg_weights2(Q)) + self.pg_bias2(Q)
+            X = torch.einsum('ij,ijk->ik', X, self.pg_weights2(Q)) + self.pg_bias2(Q)
 
         X2 = self.W2Dropout(X)
 
