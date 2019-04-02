@@ -627,6 +627,9 @@ def run_experiment(args):
         with torch.set_grad_enabled(args.train or args.search_random_seed or args.grid_search):
             if args.search_random_seed:
 
+                best_dev_metrics = None
+                best_test_metrics = None
+                eval_metric = -np.inf
                 # Search for best random seed
 
                 # search log file
