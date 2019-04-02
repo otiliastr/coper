@@ -28,7 +28,7 @@ class GraphSearchPolicy(nn.Module):
             self.context_info = None
         else:
             print('Using PG LSTM!')
-            self.context_info = {'network_structure': args.pg_network_structure,
+            self.context_info = {'network_structure': [args.relation_dim] + args.pg_network_structure,
                                  'dropout': args.pg_dropout,
                                  'use_batch_norm': args.pg_batch_norm,
                                  'batch_norm_momentum': args.pg_batch_norm_momentum,

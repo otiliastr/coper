@@ -99,14 +99,14 @@ class PGLSTM(nn.Module):
             if self.use_cpg:
                 # generate each LSTM parameters via parameter generator
                 weights = ContextualParameterGenerator(
-                    network_structure=[self.input_size] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[self.input_size + self.hidden_size, 4 * self.hidden_size],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
                     batch_norm_momentum=self.context_info['batch_norm_momentum'],
                     use_bias=self.context_info['use_bias'])
                 biases = ContextualParameterGenerator(
-                    network_structure=[self.input_size] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[4 * self.hidden_size],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
