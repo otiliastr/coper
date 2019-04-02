@@ -111,7 +111,7 @@ def initialize_model_directory(args, random_seed=None):
                 args.bandwidth,
                 args.beta
             )
-        if (len(args.pg_network_structure) > 0) and (args.pg_network_structure == -1):
+        if (len(args.pg_network_structure) > 0) and (args.pg_network_structure[0] == -1):
             hyperparam_sig = hyperparam_sig
         else:
             hyperparam_sig += '-CPG-{}-{}-{}-{}-{}-All_layers'.format(
