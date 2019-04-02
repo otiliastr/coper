@@ -47,8 +47,8 @@ class GraphSearchPolicy(nn.Module):
         self.relation_dim = args.relation_dim
         if self.relation_only:
             self.action_dim = args.relation_dim
-        elif self.context_info is not None:
-            self.action_dim = args.entity_dim
+        #elif self.context_info is not None:
+         #   self.action_dim = args.entity_dim
         else:
             self.action_dim = args.entity_dim + args.relation_dim
         self.ff_dropout_rate = args.ff_dropout_rate
