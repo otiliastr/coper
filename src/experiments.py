@@ -212,7 +212,10 @@ def construct_model(args):
 
     if args.model in ['point', 'point.gc']:
         pn = GraphSearchPolicy(args)
-        print('pn parameters: {}'.format(pn.named_parameters()))
+        parameters = pn.named_parameters()
+        for name, value in parameters:
+            print('parameter: {} | size: {}'.format(name, value.size()))
+        # print('pn parameters: {}'.format(pn.named_parameters()))
         #print(args.device_ids)
         #print(type(args.device_ids[0]))
         #lf = nn.DataParallel(PolicyGradient(args, kg, pn), device_ids=args.device_ids)
