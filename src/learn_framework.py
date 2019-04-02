@@ -119,7 +119,7 @@ class LFramework(nn.Module):
                 if self.grad_norm > 0:
                     clip_grad_norm_(self.parameters(), self.grad_norm)
 
-                # Step every original batch size number
+                # Step every original batch size number or if we have reached end of dataset
                 if ((example_id > 0) and ((example_id % batch_steps) == 0)) or (len(mini_batch) < self.batch_size):
                     print('Step: {}. Updating Grads!'.format(example_id))
                     self.optim.step()
