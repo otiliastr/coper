@@ -273,7 +273,7 @@ def train(lf):
     test_data = data_utils.load_triples(test_path, entity_index_path, relation_index_path, seen_entities=seen_entities)
     if args.checkpoint_path is not None:
         lf.load_checkpoint(args.checkpoint_path)
-    lf.run_train(train_data, dev_data, test_data)
+    lf.run_train(train_data, dev_data, test_data, store_metric_history=args.store_metric_history)
 
 def inference(lf):
     lf.batch_size = args.dev_batch_size

@@ -22,6 +22,7 @@ from torch.nn.utils import clip_grad_norm_
 import src.eval
 from src.utils.ops import var_cuda, zeros_var_cuda
 import src.utils.ops as ops
+from src.eval import _write_data_to_file
 
 
 class LFramework(nn.Module):
@@ -62,7 +63,7 @@ class LFramework(nn.Module):
         print('--------------------------')
         print()
 
-    def run_train(self, train_data, dev_data, test_data):
+    def run_train(self, train_data, dev_data, test_data, store_metric_history=True):
         self.print_all_model_parameters()
 
         if self.optim is None:
@@ -182,6 +183,18 @@ class LFramework(nn.Module):
                             self.action_dropout_rate *= self.action_dropout_anneal_factor
                             print('Decreasing action dropout rate: {} -> {}'.format(
                                 old_action_dropout_rate, self.action_dropout_rate))
+                    # if desired, store model dev and test curves
+                    if store_metric_history:
+
+                        def _store_metrics(metrics, eval_type='dev'):
+                            print('Storing Metrics!')
+                            for metric_type, metric_value in metrics.items():
+                                file_path = os.path.join(self.model_dir, '{}_{}.txt'.format(eval_type, metric_type))
+                                _write_data_to_file(file_path=file_path, data=metric_value)
+
+                        _store_metrics(dev_metrics, eval_type='dev')
+                        _store_metrics(test_metrics, eval_type='test')
+
                     # Save checkpoint
                     if curr_metric > best_dev_metric:
                         best_dev_metrics = dev_metrics
@@ -212,7 +225,7 @@ class LFramework(nn.Module):
                         with open(num_path_types_file, 'w') as o_f:
                             o_f.write('{}\n'.format(self.num_path_types))
                         with open(dev_metrics_file, 'w') as o_f:
-                            o_f.write('{}\n'.format(metrics))
+                            o_f.write('{}\n'.format(curr_metric))
                         with open(hit_ratio_file, 'w') as o_f:
                             o_f.write('{}\n'.format(hit_ratio))
                         with open(fn_ratio_file, 'w') as o_f:
@@ -221,7 +234,7 @@ class LFramework(nn.Module):
                         with open(num_path_types_file, 'a') as o_f:
                             o_f.write('{}\n'.format(self.num_path_types))
                         with open(dev_metrics_file, 'a') as o_f:
-                            o_f.write('{}\n'.format(metrics))
+                            o_f.write('{}\n'.format(curr_metric))
                         with open(hit_ratio_file, 'a') as o_f:
                             o_f.write('{}\n'.format(hit_ratio))
                         with open(fn_ratio_file, 'a') as o_f:

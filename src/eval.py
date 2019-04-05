@@ -16,6 +16,14 @@ import torch
 from src.parse_args import args
 from src.data_utils import NO_OP_ENTITY_ID, DUMMY_ENTITY_ID
 
+def _write_data_to_file(file_path, data):
+    if os.path.exists(file_path):
+        append_write = 'a'
+    else:
+        append_write = 'w+'
+    with open(file_path, append_write) as handle:
+        handle.write(str(data) + "\n")
+
 
 def hits_and_ranks(examples, scores, all_answers, verbose=False):
     """
