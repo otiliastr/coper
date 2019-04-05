@@ -184,16 +184,16 @@ class LFramework(nn.Module):
                             print('Decreasing action dropout rate: {} -> {}'.format(
                                 old_action_dropout_rate, self.action_dropout_rate))
                     # if desired, store model dev and test curves
-                    # if store_metric_history:
-                    #
-                    #     def _store_metrics(metrics, eval_type='dev'):
-                    #         print('Storing Metrics!')
-                    #         for metric_type, metric_value in metrics.items():
-                    #             file_path = os.path.join(self.model_dir, '{}_{}.txt'.format(eval_type, metric_type))
-                    #             _write_data_to_file(file_path=file_path, data=metric_value)
-                    #
-                    #     _store_metrics(dev_metrics, eval_type='dev')
-                    #     _store_metrics(test_metrics, eval_type='test')
+                    if store_metric_history:
+
+                        def _store_metrics(metrics, eval_type='dev'):
+                            print('Storing Metrics!')
+                            for metric_type, metric_value in metrics.items():
+                                file_path = os.path.join(self.model_dir, '{}_{}.txt'.format(eval_type, metric_type))
+                                _write_data_to_file(file_path=file_path, data=metric_value)
+
+                        _store_metrics(dev_metrics, eval_type='dev')
+                        _store_metrics(test_metrics, eval_type='test')
 
                     # Save checkpoint
                     if curr_metric > best_dev_metric:
