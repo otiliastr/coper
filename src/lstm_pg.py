@@ -161,7 +161,7 @@ class PGLSTM(nn.Module):
             cell_state = past_cell_states[:, layer, :]
             # print('input size: {} | hidden state size: {}'.format(input.size(), hidden_state.size()))
             cell_input = torch.cat((input, hidden_state), dim=-1)
-
+            #print('Cell input for layer: {} is size: {}'.format(layer, cell_input.size()))
             if self.use_cpg:
                 weights = self.weights[layer](context)
                 biases = self.biases[layer](context)

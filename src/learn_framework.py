@@ -159,7 +159,7 @@ class LFramework(nn.Module):
                 print('* Analysis: false negative ratio = {}'.format(fn_ratio))
 
             # Check dev set performance
-            if self.run_analysis or (epoch_id > 0 and epoch_id % self.num_peek_epochs == 0):
+            if self.run_analysis or (epoch_id >= 0 and epoch_id % self.num_peek_epochs == 0):
                 self.eval()
                 self.batch_size = self.dev_batch_size
                 self.optim.zero_grad()

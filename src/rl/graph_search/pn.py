@@ -501,7 +501,7 @@ class GraphSearchPolicy(nn.Module):
                 input_size = self.entity_dim
             else:
                 input_size = self.action_dim
-
+            print('Input size: {}'.format(input_size))
             path_encoder = PGLSTM(input_size=input_size,
                                   hidden_size=self.history_dim,
                                   num_layers=self.history_num_layers,
