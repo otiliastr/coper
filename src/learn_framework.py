@@ -126,9 +126,12 @@ class LFramework(nn.Module):
 
                 # Step every original batch size number or if we have reached end of dataset
                 if ((example_id > 0) and ((example_id % batch_steps) == 0)) or (len(mini_batch) < self.batch_size):
+                    do_eval = True
                     print('Step: {}. Updating Grads!'.format(example_id))
                     self.optim.step()
                     self.optim.zero_grad()
+                else:
+                    do_eval = False
 
                 batch_losses.append(loss['print_loss'])
                 if 'entropy' in loss:
@@ -159,7 +162,7 @@ class LFramework(nn.Module):
                 print('* Analysis: false negative ratio = {}'.format(fn_ratio))
 
             # Check dev set performance
-            if self.run_analysis or (epoch_id >= 0 and epoch_id % self.num_peek_epochs == 0):
+            if (self.run_analysis or (epoch_id >= 0 and epoch_id % self.num_peek_epochs == 0)) and do_eval:
                 self.eval()
                 self.batch_size = self.dev_batch_size
                 self.optim.zero_grad()
