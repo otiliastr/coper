@@ -1,3 +1,4 @@
+
 from __future__ import absolute_import, division, print_function
 
 import logging
@@ -32,6 +33,7 @@ def get_model_name(cfg, data_loader):
         suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm)
         if cfg.context.context_rel_out is not None and len(cfg.context.context_rel_out) > 0:
             suffix += '-context_sz_' + '_'.join([str(sz) for sz in cfg.context.context_rel_out])
+        suffix += '-context_rel_dropout_%.1f' % cfg.context.context_rel_dropout
     suffix += '-CLEAN' if data_loader.dataset_name.startswith('nell-995') and data_loader.needs_test_set_cleaning else ''
     suffix += ''
     model_name += suffix
@@ -63,7 +65,7 @@ use_cpg = True
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.UMLSLoader()
+data_loader = data.WN18Loader()
 # data_loader = data.NELL995Loader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
