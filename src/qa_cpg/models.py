@@ -76,6 +76,24 @@ class ContextualParameterGenerator(object):
         return generated_value
 
 
+class ParameterLookup(object):
+    def __init__(self, num_discrete_params, output_shape, name, dtype):
+        self.name = name
+        self.dtype = dtype
+        self.output_shape = output_shape
+        self.param_size = reduce(mul, self.shape, 1)
+        self.param_lookup = tf.get_variable(
+            name=self.name, dtype=tf.float32,
+            shape=[num_discrete_params, self.param_size],
+            initializer=tf.contrib.layers.xavier_initializer())
+    
+    def lookup_params(self, one_hots):
+        desired_params = tf.nn.embedding_lookup(ent_emb, self.e1, name=self.name + '_matrix')
+        desired_params_shaped = tf.reshape(desired_params, [-1] + self.shape)
+        desired_params_shaped = tf.cast(desired_params_shaped, self.dtype)
+        return desired_params_shaped
+
+
 class ConvE(object):
     def __init__(self, model_descriptors):
         self.use_negative_sampling = model_descriptors['use_negative_sampling']
@@ -85,6 +103,8 @@ class ConvE(object):
         self.num_rel = model_descriptors['num_rel']
         self.ent_emb_size = model_descriptors['ent_emb_size']
         self.rel_emb_size = model_descriptors['rel_emb_size']
+        
+        self.is_parameter_lookup = model_descriptors['do_parameter_lookup']
 
         self.conv_filter_height = model_descriptors.get('conv_filter_height', 3)
         self.conv_filter_width = model_descriptors.get('conv_filter_width', 3)
@@ -189,6 +209,9 @@ class ConvE(object):
             initializer=tf.contrib.layers.xavier_initializer())
 
         if self.context_rel_conv is not None:
+            if self.is_parameter_lookup:
+            else:
+
             conv1_weights = ContextualParameterGenerator(
                 context_size=[self.rel_emb_size] + self.context_rel_conv, 
                 name='conv1_weights',

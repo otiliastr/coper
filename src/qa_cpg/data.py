@@ -11,13 +11,13 @@ import six
 import requests
 import tensorflow as tf
 
-from tensorflow.python.ops.inplace_ops import inplace_update
+#from tensorflow.python.ops.inplace_ops import inplace_update
 
 from tqdm import tqdm
 
 __all__ = [
     'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader', 'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader',
-    'CountriesS1Loader', 'CountriesS2Loader', 'CountriesS3Loader', 'NELL995Loader']
+    'CountriesS1Loader', 'CountriesS2Loader', 'CountriesS3Loader', 'NELL995Loader', 'WN18', 'FB15k']
 
 logger = logging.getLogger(__name__)
 
@@ -595,12 +595,13 @@ class _DataLoader(Loader):
 
 
 class _ConvEDataLoader(_DataLoader):
-    def __init__(self, dataset_name):
+    def __init__(self, dataset_name, needs_test_set_cleaning=False):
         url = 'https://github.com/TimDettmers/ConvE/raw/master'
         filetypes = ['train', 'valid', 'test']
         add_reverse_per_filetype = [True, False, False]
         super(_ConvEDataLoader, self).__init__(url, [dataset_name + '.tar.gz'], dataset_name, filetypes,
-                                               add_reverse_per_filetype=add_reverse_per_filetype)
+                                               add_reverse_per_filetype=add_reverse_per_filetype, 
+                                               needs_test_set_cleaning=needs_test_set_cleaning)
 
 
 class _MinervaDataLoader(_DataLoader):
@@ -665,6 +666,26 @@ class CountriesS3Loader(_MinervaDataLoader):
     def __init__(self):
         dataset_name = 'countries_S3'
         super(CountriesS3Loader, self).__init__(dataset_name)
+
+
+class WN18Loader(_ConvEDataLoader):
+    def __init__(self, is_test=False, needs_test_set_cleaning=False):
+        dataset_name = 'WN18'
+        self.is_test = is_test
+        self.needs_test_set_cleaning = needs_test_set_cleaning
+        if is_test:
+            dataset_name += '-test'
+        super(WN18Loader, self).__init__(dataset_name, needs_test_set_cleaning=needs_test_set_cleaning)
+
+
+class FB15kLoader(_ConvEDataLoader):
+    def __init__(self, is_test=False, needs_test_set_cleaning=False):
+        dataset_name = 'FB15k'
+        self.is_test = is_test
+        self.needs_test_set_cleaning = needs_test_set_cleaning
+        if is_test:
+            dataset_name += 'test'
+        super(FB15kLoader, self).__init__(dataset_name, needs_test_set_cleaning=needs_test_set_cleaning)
 
 
 class NELL995Loader(_MinervaDataLoader):

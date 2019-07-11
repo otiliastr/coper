@@ -40,7 +40,7 @@ use_cpg = True
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.UMLSLoader()
+data_loader = data.WN18Loader(is_test=False, needs_test_set_cleaning=True)
 # data_loader = data.NELL995Loader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
@@ -64,7 +64,7 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-One
     cfg.model.batch_norm_momentum)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
-suffix += '-CLEAN' if data_loader.dataset_name.startswith('nell-995') and data_loader.needs_test_set_cleaning else ''
+suffix += '-CLEAN' if data_loader.needs_test_set_cleaning else ''
 suffix += ''
 model_name += suffix
 logger.info('Model name: %s', model_name)
