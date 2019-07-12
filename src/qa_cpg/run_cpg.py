@@ -36,13 +36,13 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-use_cpg = True
-use_parameter_lookup = False
+use_cpg = False
+use_parameter_lookup = True
 save_best_embeddings = True
 
 # Load data.
-# data_loader = data.KinshipLoader()
-data_loader = data.FB15kLoader(is_test=False, needs_test_set_cleaning=True)
+data_loader = data.KinshipLoader()
+# data_loader = data.FB15kLoader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
 if use_cpg:
@@ -192,8 +192,8 @@ if __name__ == '__main__':
     test_eval_iterator_handle = session.run(test_eval_iterator.string_handle())
 
     validation_metric = cfg.eval.validation_metric
-    best_metrics_dev = {validation_metric: -np.inf}
-    metrics_test_at_best_dev = {validation_metric: -np.inf}
+    best_metrics_dev = {validation_metric: -np.inf if validation_metric != 'mr' else np.inf}
+    metrics_test_at_best_dev = {validation_metric: -np.inf if validation_metric != 'mrr' else np.inf}
     best_iter = None
     for step in range(cfg.training.max_steps):
         feed_dict = {
@@ -224,14 +224,18 @@ if __name__ == '__main__':
                 metrics_test = _evaluate(
                     test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, step)
             if cfg.eval.eval_on_dev and cfg.eval.eval_on_test:
-                if best_metrics_dev[validation_metric] > metrics_dev[validation_metric]:
+                if best_metrics_dev[validation_metric] < metrics_dev[validation_metric]:
                     best_metrics_dev = metrics_dev
                     metrics_test_at_best_dev = metrics_test
                     best_iter = step
                     if save_best_embeddings:
-                        # Save relation and entity embeddings at the best validation point.
-                        rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
-                        pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
+                        # Save relation and entity embeddings at the best validation point
+                        if not use_parameter_lookup:
+                            rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
+                            pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
+                        else:
+                            ent_embed = session.run(model.variables['ent_emb'])
+                            pickle.dump(ent_embed, open(embed_file, 'wb'))
                 logger.info('Best dev %s so far is at step %d. Best dev metrics: %s',
                             validation_metric, best_iter, str(best_metrics_dev))
                 logger.info('Test metrics at best dev: %s', str(metrics_test_at_best_dev))
