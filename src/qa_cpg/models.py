@@ -52,7 +52,7 @@ class ContextualParameterGenerator(object):
                     shape=[in_size, n],
                     initializer=initializer))
             in_size = n
-
+    
     def generate(self, context, is_train):
         # Generate the parameter values.
         generated_value = context
@@ -74,7 +74,7 @@ class ContextualParameterGenerator(object):
         generated_value = tf.cast(generated_value, self.dtype)
 
         return generated_value
-
+    
 
 class ParameterLookup(object):
     def __init__(self, num_discrete_params, output_shape, name, dtype):
@@ -104,7 +104,7 @@ class ConvE(object):
         self.ent_emb_size = model_descriptors['ent_emb_size']
         self.rel_emb_size = model_descriptors['rel_emb_size']
         
-        self.is_parameter_lookup = model_descriptors.get('do_parameter_lookup', False)
+        self.is_parameter_lookup = False #model_descriptors.get('do_parameter_lookup', False)
 
         self.conv_filter_height = model_descriptors.get('conv_filter_height', 3)
         self.conv_filter_width = model_descriptors.get('conv_filter_width', 3)
@@ -322,7 +322,7 @@ class ConvE(object):
             'pred_bias': pred_bias}
 
         if not self.is_parameter_lookup:
-            variables['rel_emb'] = rel_emb,
+            variables['rel_emb'] = rel_emb
 
         if self._variable_summaries:
             _create_summaries('emb/ent', ent_emb)

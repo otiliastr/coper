@@ -36,13 +36,13 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-use_cpg = False
-use_parameter_lookup = True
+use_cpg = True
+use_parameter_lookup = False
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.KinshipLoader()
-# data_loader = data.NELL995Loader(is_test=False, needs_test_set_cleaning=True)
+# data_loader = data.KinshipLoader()
+data_loader = data.FB15kLoader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
 if use_cpg:
@@ -59,7 +59,7 @@ print(cfg_dict)
 cfg = AttributeDict(cfg_dict)
 
 # Compose model name based on config params.
-model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}'.format(
+model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}-eval_{}'.format(
     model_descr,
     data_loader.dataset_name,
     cfg.model.entity_embedding_size,
@@ -68,7 +68,8 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-One
     cfg.training.prop_negatives,
     cfg.training.num_labels,
     cfg.training.one_positive_label_per_sample,
-    cfg.model.batch_norm_momentum)
+    cfg.model.batch_norm_momentum,
+    cfg.eval.validation_metric)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
 suffix += '-CLEAN' if data_loader.needs_test_set_cleaning else ''
@@ -126,7 +127,7 @@ if __name__ == '__main__':
                 'add_tensor_summaries': cfg.eval.add_tensor_summaries,
                 'batch_norm_momentum': cfg.model.batch_norm_momentum,
                 'batch_norm_train_stats': cfg.model.batch_norm_train_stats,
-                'do_parameter_lookup': cfg.model.do_parameter_lookup})
+                'do_parameter_lookup': use_parameter_lookup})
 
     # Create dataset iterator initializers.
     logger.info('Creating train dataset...')
@@ -223,7 +224,7 @@ if __name__ == '__main__':
                 metrics_test = _evaluate(
                     test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, step)
             if cfg.eval.eval_on_dev and cfg.eval.eval_on_test:
-                if best_metrics_dev[validation_metric] < metrics_dev[validation_metric]:
+                if best_metrics_dev[validation_metric] > metrics_dev[validation_metric]:
                     best_metrics_dev = metrics_dev
                     metrics_test_at_best_dev = metrics_test
                     best_iter = step
