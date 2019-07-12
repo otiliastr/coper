@@ -41,7 +41,7 @@ use_parameter_lookup = True
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.KinshipLoader(is_test=False, needs_test_set_cleaning=False)
+data_loader = data.KinshipLoader()
 # data_loader = data.NELL995Loader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.

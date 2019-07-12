@@ -170,7 +170,8 @@ class ConvE(object):
             self.variables = self._create_variables()
 
         ent_emb = self.variables['ent_emb']
-        rel_emb = self.variables['rel_emb']
+        if not self.is_parameter_lookup:
+            rel_emb = self.variables['rel_emb']
 
         conve_e1_emb = tf.nn.embedding_lookup(ent_emb, self.e1, name='e1_emb')
         if not self.is_parameter_lookup:
