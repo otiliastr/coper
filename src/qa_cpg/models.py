@@ -81,15 +81,15 @@ class ParameterLookup(object):
         self.name = name
         self.dtype = dtype
         self.output_shape = output_shape
-        self.param_size = reduce(mul, self.shape, 1)
-        self.param_lookup = tf.get_variable(
+        self.param_size = reduce(mul, self.output_shape, 1)
+        self.param_lookup_matrix = tf.get_variable(
             name=self.name, dtype=tf.float32,
             shape=[num_discrete_params, self.param_size],
             initializer=tf.contrib.layers.xavier_initializer())
     
-    def lookup_params(self, one_hots):
-        desired_params = tf.nn.embedding_lookup(ent_emb, self.e1, name=self.name + '_matrix')
-        desired_params_shaped = tf.reshape(desired_params, [-1] + self.shape)
+    def generate(self, one_hots):
+        desired_params = tf.nn.embedding_lookup(self.param_lookup_matrix, one_hots, name=self.name + '_matrix')
+        desired_params_shaped = tf.reshape(desired_params, [-1] + self.output_shape)
         desired_params_shaped = tf.cast(desired_params_shaped, self.dtype)
         return desired_params_shaped
 
@@ -104,7 +104,7 @@ class ConvE(object):
         self.ent_emb_size = model_descriptors['ent_emb_size']
         self.rel_emb_size = model_descriptors['rel_emb_size']
         
-        self.is_parameter_lookup = model_descriptors['do_parameter_lookup']
+        self.is_parameter_lookup = model_descriptors.get('do_parameter_lookup', False)
 
         self.conv_filter_height = model_descriptors.get('conv_filter_height', 3)
         self.conv_filter_width = model_descriptors.get('conv_filter_width', 3)
@@ -173,7 +173,10 @@ class ConvE(object):
         rel_emb = self.variables['rel_emb']
 
         conve_e1_emb = tf.nn.embedding_lookup(ent_emb, self.e1, name='e1_emb')
-        conve_rel_emb = tf.nn.embedding_lookup(rel_emb, self.rel, name='rel_emb')
+        if not self.is_parameter_lookup:
+            conve_rel_emb = tf.nn.embedding_lookup(rel_emb, self.rel, name='rel_emb')
+        else:
+            conve_rel_emb = self.rel
 
         # Use the model to predict the embedding of the correct answer e2.
         self.predicted_e2_emb = self._create_predictions(conve_e1_emb, conve_rel_emb)
@@ -203,35 +206,47 @@ class ConvE(object):
             shape=[self.num_ent, self.ent_emb_size],
             initializer=tf.contrib.layers.xavier_initializer())
 
-        rel_emb = tf.get_variable(
-            name='rel_emb', dtype=tf.float32,
-            shape=[self.num_rel, self.rel_emb_size],
-            initializer=tf.contrib.layers.xavier_initializer())
+        if not self.is_parameter_lookup:
+            rel_emb = tf.get_variable(
+                name='rel_emb', dtype=tf.float32,
+                shape=[self.num_rel, self.rel_emb_size],
+                initializer=tf.contrib.layers.xavier_initializer())
 
         if self.context_rel_conv is not None:
             if self.is_parameter_lookup:
-            else:
+                conv1_weights = ParameterLookup(num_discrete_params=self.num_rel,
+                                                output_shape=[self.conv_filter_height,
+                                                              self.conv_filter_width,
+                                                              1,
+                                                              self.conv_num_channels],
+                                                name='conv1_weights',
+                                                dtype=tf.float32)
+                conv1_bias = ParameterLookup(num_discrete_params=self.num_rel,
+                                                output_shape=[self.conv_num_channels],
+                                                name='conv1_bias',
+                                                dtype=tf.float32)
 
-            conv1_weights = ContextualParameterGenerator(
-                context_size=[self.rel_emb_size] + self.context_rel_conv, 
-                name='conv1_weights',
-                dtype=tf.float32,
-                shape=[self.conv_filter_height, self.conv_filter_width, 1, self.conv_num_channels],
-                dropout=self.context_rel_dropout,
-                use_batch_norm=self.context_rel_use_batch_norm,
-                initializer=tf.contrib.layers.xavier_initializer(),
-                batch_norm_momentum=self.batch_norm_momentum,
-                batch_norm_train_stats=self.batch_norm_train_stats)
-            conv1_bias = ContextualParameterGenerator(
-                context_size=[self.rel_emb_size] + self.context_rel_conv,
-                name='conv1_bias',
-                dtype=tf.float32,
-                shape=[self.conv_num_channels],
-                dropout=self.context_rel_dropout,
-                use_batch_norm=self.context_rel_use_batch_norm,
-                initializer=tf.zeros_initializer(),
-                batch_norm_momentum=self.batch_norm_momentum,
-                batch_norm_train_stats=self.batch_norm_train_stats)
+            else:
+                conv1_weights = ContextualParameterGenerator(
+                    context_size=[self.rel_emb_size] + self.context_rel_conv,
+                    name='conv1_weights',
+                    dtype=tf.float32,
+                    shape=[self.conv_filter_height, self.conv_filter_width, 1, self.conv_num_channels],
+                    dropout=self.context_rel_dropout,
+                    use_batch_norm=self.context_rel_use_batch_norm,
+                    initializer=tf.contrib.layers.xavier_initializer(),
+                    batch_norm_momentum=self.batch_norm_momentum,
+                    batch_norm_train_stats=self.batch_norm_train_stats)
+                conv1_bias = ContextualParameterGenerator(
+                    context_size=[self.rel_emb_size] + self.context_rel_conv,
+                    name='conv1_bias',
+                    dtype=tf.float32,
+                    shape=[self.conv_num_channels],
+                    dropout=self.context_rel_dropout,
+                    use_batch_norm=self.context_rel_use_batch_norm,
+                    initializer=tf.zeros_initializer(),
+                    batch_norm_momentum=self.batch_norm_momentum,
+                    batch_norm_train_stats=self.batch_norm_train_stats)
         else:
             conv1_weights = tf.get_variable(
                 name='conv1_weights', dtype=tf.float32,
@@ -255,26 +270,36 @@ class ConvE(object):
             fc_input_size += self.rel_emb_size
 
         if self.context_rel_out is not None:
-            fc_weights = ContextualParameterGenerator(
-                context_size=[self.rel_emb_size] + self.context_rel_out,
-                name='fc_weights',
-                dtype=tf.float32,
-                shape=[fc_input_size, self.ent_emb_size],
-                dropout=self.context_rel_dropout,
-                use_batch_norm=self.context_rel_use_batch_norm,
-                initializer=tf.contrib.layers.xavier_initializer(),
-                batch_norm_momentum=self.batch_norm_momentum,
-                batch_norm_train_stats=self.batch_norm_train_stats)
-            fc_bias = ContextualParameterGenerator(
-                context_size=[self.rel_emb_size] + self.context_rel_out, 
-                name='fc_bias', 
-                dtype=tf.float32,
-                shape=[self.ent_emb_size],
-                dropout=self.context_rel_dropout,
-                use_batch_norm=self.context_rel_use_batch_norm,
-                initializer=tf.zeros_initializer(),
-                batch_norm_momentum=self.batch_norm_momentum,
-                batch_norm_train_stats=self.batch_norm_train_stats)
+            if self.is_parameter_lookup:
+                fc_weights = ParameterLookup(num_discrete_params=self.num_rel,
+                                                output_shape=[fc_input_size, self.ent_emb_size],
+                                                name='fc_weights',
+                                                dtype=tf.float32)
+                fc_bias = ParameterLookup(num_discrete_params=self.num_rel,
+                                                output_shape=[self.ent_emb_size],
+                                                name='fc_bias',
+                                                dtype=tf.float32)
+            else:
+                fc_weights = ContextualParameterGenerator(
+                    context_size=[self.rel_emb_size] + self.context_rel_out,
+                    name='fc_weights',
+                    dtype=tf.float32,
+                    shape=[fc_input_size, self.ent_emb_size],
+                    dropout=self.context_rel_dropout,
+                    use_batch_norm=self.context_rel_use_batch_norm,
+                    initializer=tf.contrib.layers.xavier_initializer(),
+                    batch_norm_momentum=self.batch_norm_momentum,
+                    batch_norm_train_stats=self.batch_norm_train_stats)
+                fc_bias = ContextualParameterGenerator(
+                    context_size=[self.rel_emb_size] + self.context_rel_out,
+                    name='fc_bias',
+                    dtype=tf.float32,
+                    shape=[self.ent_emb_size],
+                    dropout=self.context_rel_dropout,
+                    use_batch_norm=self.context_rel_use_batch_norm,
+                    initializer=tf.zeros_initializer(),
+                    batch_norm_momentum=self.batch_norm_momentum,
+                    batch_norm_train_stats=self.batch_norm_train_stats)
         else:
             fc_weights = tf.get_variable(
                 name='fc_weights', dtype=tf.float32,
@@ -289,16 +314,19 @@ class ConvE(object):
 
         variables = {
             'ent_emb': ent_emb,
-            'rel_emb': rel_emb,
             'conv1_weights': conv1_weights,
             'conv1_bias': conv1_bias,
             'fc_weights': fc_weights,
             'fc_bias': fc_bias,
             'pred_bias': pred_bias}
 
+        if not self.is_parameter_lookup:
+            variables['rel_emb'] = rel_emb,
+
         if self._variable_summaries:
             _create_summaries('emb/ent', ent_emb)
-            _create_summaries('emb/rel', rel_emb)
+            if not self.is_parameter_lookup:
+                _create_summaries('emb/rel', rel_emb)
             _create_summaries('predictions/conv1_weights', conv1_weights)
             _create_summaries('predictions/conv1_bias', conv1_bias)
             _create_summaries('predictions/fc_weights', fc_weights)
@@ -327,8 +355,8 @@ class ConvE(object):
 
         is_train_float = tf.cast(self.is_train, tf.float32)
         is_train_batch_norm = self.is_train if self.batch_norm_train_stats else False
-
-        if self.context_rel_conv is None and self.context_rel_out is None:
+        # TODO: Add parameter lookup option here
+        if self.context_rel_conv is None and self.context_rel_out is None and not self.is_parameter_lookup:
             reshaped_rel_emb = tf.reshape(rel_emb, [-1, 10, self.rel_emb_size // 10, 1])
             stacked_emb = tf.concat([e1_emb, reshaped_rel_emb], 1)
         else:

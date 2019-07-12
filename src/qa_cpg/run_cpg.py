@@ -36,15 +36,22 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-use_cpg = True
+use_cpg = False
+use_parameter_lookup = True
 save_best_embeddings = True
 
 # Load data.
-data_loader = data.WN18Loader(is_test=False, needs_test_set_cleaning=True)
+data_loader = data.KinshipLoader(is_test=False, needs_test_set_cleaning=False)
 # data_loader = data.NELL995Loader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
-model_descr = 'cpg' if use_cpg else 'plain'
+if use_cpg:
+    model_descr = 'cpg'
+elif use_parameter_lookup:
+    model_descr = 'param_lookup'
+else:
+    model_descr = 'plain'
+# model_descr = 'cpg' if use_cpg else 'plain'
 config_path = 'qa_cpg/configs/config_%s_%s.yaml' % (data_loader.dataset_name, model_descr)
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
@@ -118,7 +125,8 @@ if __name__ == '__main__':
                 'add_variable_summaries': cfg.eval.add_variable_summaries,
                 'add_tensor_summaries': cfg.eval.add_tensor_summaries,
                 'batch_norm_momentum': cfg.model.batch_norm_momentum,
-                'batch_norm_train_stats': cfg.model.batch_norm_train_stats})
+                'batch_norm_train_stats': cfg.model.batch_norm_train_stats,
+                'do_parameter_lookup': cfg.model.do_parameter_lookup})
 
     # Create dataset iterator initializers.
     logger.info('Creating train dataset...')
