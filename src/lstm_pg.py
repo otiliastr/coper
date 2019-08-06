@@ -34,17 +34,25 @@ class ContextualParameterGenerator(nn.Module):
         #print('input shape: {}'.format(network_structure[0]))
         self.projections = nn.ModuleList([])
         layer_input = network_structure[0]
+        print('network structure: {}'.format(network_structure))
         for layer_output in self.network_structure[1:]:
             print('inside loop!')
             self.projections.append(nn.Linear(layer_input, layer_output, bias=self.use_bias))
+            #for name, param in self.projections[-1].named_parameters():
+             #   print('{} size: {}'.format(name, param.size()))
             if use_batch_norm:
                 self.projections.append(nn.BatchNorm1d(num_features=layer_output,
                                                        momentum=batch_norm_momentum))
+                #for name, param in self.projections[-1].named_parameters():
+                 #   print('Batch Norm | {} size: {}'.format(name, param.size()))
             self.projections.append(nn.ReLU())
             self.projections.append(nn.Dropout(p=self.dropout))
             layer_input = layer_output
-
+        print('creating output layer')
         self.projections.append(nn.Linear(layer_input, self.flattened_output, bias=self.use_bias))
+        #print('Printing Network Architecture: ')
+        #for name, param in self.projections.named_parameters():
+        #    print('| {} size: {}'.format(name, param.size()))
         self.network = nn.Sequential(*self.projections)
 
     def forward(self, query_emb):
@@ -97,16 +105,17 @@ class PGLSTM(nn.Module):
         for layer in range(self.num_layers):
 
             if self.use_cpg:
+                print('CPG LSTM init network structure: {}'.format(self.context_info['network_structure']))
                 # generate each LSTM parameters via parameter generator
                 weights = ContextualParameterGenerator(
-                    network_structure=[self.input_size] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[self.input_size + self.hidden_size, 4 * self.hidden_size],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
                     batch_norm_momentum=self.context_info['batch_norm_momentum'],
                     use_bias=self.context_info['use_bias'])
                 biases = ContextualParameterGenerator(
-                    network_structure=[self.input_size] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[4 * self.hidden_size],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
@@ -152,13 +161,14 @@ class PGLSTM(nn.Module):
             cell_state = past_cell_states[:, layer, :]
             # print('input size: {} | hidden state size: {}'.format(input.size(), hidden_state.size()))
             cell_input = torch.cat((input, hidden_state), dim=-1)
-
+            #print('Cell input for layer: {} is size: {}'.format(layer, cell_input.size()))
             if self.use_cpg:
                 weights = self.weights[layer](context)
                 biases = self.biases[layer](context)
-                # print(weights.size())
-                # print(biases.size())
-                all_gates = torch.einsum('ij,ijk->ik', cell_input, weights) + biases
+                #print(weights.size())
+                #print(biases.size())
+                #print(cell_input.size())
+                all_gates = torch.einsum('ij,ijk->ik', (cell_input, weights)) + biases
                 # all_gates = torch.bmm(cell_input, weights)
             else:
                 #print('input size: {}'.format(input.size()))

@@ -7,7 +7,7 @@ use_action_space_bucketing="True"
 
 bandwidth=400
 entity_dim=200
-relation_dim=200
+relation_dim=8
 history_dim=200
 history_num_layers=3
 num_rollouts=20
@@ -16,8 +16,8 @@ bucket_interval=10
 num_epochs=1000
 num_wait_epochs=400
 num_peek_epochs=5
-batch_size=8
-train_batch_size=8
+batch_size=32
+train_batch_size=32
 dev_batch_size=8
 learning_rate=0.001
 baseline="n/a"
@@ -34,7 +34,7 @@ beam_size=128
 # Nothing = [] due to nargs='*'
 # in parse args
 pg_network_structure=
-pg_dropout=.5
+pg_dropout=.2
 pg_batch_norm=True
 pg_batch_norm_momentum=.1
 pg_use_bias=False

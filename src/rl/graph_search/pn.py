@@ -28,7 +28,11 @@ class GraphSearchPolicy(nn.Module):
             self.context_info = None
         else:
             print('Using PG LSTM!')
-            self.context_info = {'network_structure': args.pg_network_structure,
+            print('network_struture before lstm: {}'.format(args.pg_network_structure))
+            print('relation dim: {}'.format([args.relation_dim]))
+            network_structure = [args.relation_dim] + args.pg_network_structure
+            print('network structure after concatentation: {}'.format(network_structure))
+            self.context_info = {'network_structure': network_structure,
                                  'dropout': args.pg_dropout,
                                  'use_batch_norm': args.pg_batch_norm,
                                  'batch_norm_momentum': args.pg_batch_norm_momentum,
@@ -43,6 +47,8 @@ class GraphSearchPolicy(nn.Module):
         self.relation_dim = args.relation_dim
         if self.relation_only:
             self.action_dim = args.relation_dim
+        #elif self.context_info is not None:
+         #   self.action_dim = args.entity_dim
         else:
             self.action_dim = args.entity_dim + args.relation_dim
         self.ff_dropout_rate = args.ff_dropout_rate
@@ -116,14 +122,14 @@ class GraphSearchPolicy(nn.Module):
             X = self.W1(X)
         else:
             #print('X size: {} | weights size: {}'.format(X.size(), self.pg_weights(Q).size()))
-            X = torch.einsum('ij,ijk->ik', X, self.pg_weights1(Q)) + self.pg_bias1(Q)
+            X = torch.einsum('ij,ijk->ik', (X, self.pg_weights1(Q))) + self.pg_bias1(Q)
             #X = torch.matmul(X, self.pg_weights(Q)) + self.pg_bias(Q)
         X = F.relu(X)
         X = self.W1Dropout(X)
         if self.context_info is None:
             X = self.W2(X)
         else:
-            X = torch.einsum('ij,ijk->ik', X, self.pg_weights2(Q)) + self.pg_bias2(Q)
+            X = torch.einsum('ij,ijk->ik', (X, self.pg_weights2(Q))) + self.pg_bias2(Q)
 
         X2 = self.W2Dropout(X)
 
@@ -208,10 +214,10 @@ class GraphSearchPolicy(nn.Module):
         # init_c = zeros_var_cuda([self.history_num_layers, len(init_action_embedding), self.history_dim])
         init_h = zeros_var_cuda([len(init_action_embedding), self.history_num_layers, self.history_dim])
         init_c = zeros_var_cuda([len(init_action_embedding), self.history_num_layers, self.history_dim])
-        print('action device: {} | history devices: {}, {} | context device: {}'.format(init_action_embedding.device,
-                                                                                        init_h.device,
-                                                                                        init_c.device,
-                                                                                        init_context.device))
+        #print('action device: {} | history devices: {}, {} | context device: {}'.format(init_action_embedding.device,
+         #                                                                               init_h.device,
+          #                                                                              init_c.device,
+           #                                                                             init_context.device))
         self.path = [self.path_encoder(init_action_embedding, (init_h, init_c), init_context)[1]]
 
     def update_path(self, action, kg, offset=None):
@@ -438,14 +444,15 @@ class GraphSearchPolicy(nn.Module):
 
         if self.context_info is not None:
             self.pg_weights1 = ContextualParameterGenerator(
-                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[input_dim - self.relation_dim, self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
                     batch_norm_momentum=self.context_info['batch_norm_momentum'],
                     use_bias=self.context_info['use_bias'])
+
             self.pg_bias1 =  ContextualParameterGenerator(
-                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
@@ -453,14 +460,15 @@ class GraphSearchPolicy(nn.Module):
                     use_bias=self.context_info['use_bias'])
 
             self.pg_weights2 = ContextualParameterGenerator(
-                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[self.action_dim, self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
                     batch_norm_momentum=self.context_info['batch_norm_momentum'],
                     use_bias=self.context_info['use_bias'])
+
             self.pg_bias2 = ContextualParameterGenerator(
-                    network_structure=[self.relation_dim] + self.context_info['network_structure'],
+                    network_structure=self.context_info['network_structure'],
                     output_shape=[self.action_dim],
                     dropout=self.context_info['dropout'],
                     use_batch_norm=self.context_info['use_batch_norm'],
@@ -485,10 +493,19 @@ class GraphSearchPolicy(nn.Module):
             #                             hidden_size=self.history_dim,
             #                             num_layers=self.history_num_layers,
             #                             batch_first=True)
-            path_encoder = PGLSTM(input_size=self.entity_dim,
-                                   hidden_size=self.history_dim,
-                                   num_layers=self.history_num_layers,
-                                   context_info=self.context_info)
+            if self.context_info is not None:
+                # path_encoder = PGLSTM(input_size=self.entity_dim,
+                #                        hidden_size=self.history_dim,
+                #                        num_layers=self.history_num_layers,
+                #                        context_info=self.context_info)
+                input_size = self.entity_dim
+            else:
+                input_size = self.action_dim
+            print('Input size: {}'.format(input_size))
+            path_encoder = PGLSTM(input_size=input_size,
+                                  hidden_size=self.history_dim,
+                                  num_layers=self.history_num_layers,
+                                  context_info=self.context_info)
 
             # self.path_encoder = nn.DataParallel(path_encoder,
             #                                     device_ids=self.device_ids)
@@ -503,32 +520,35 @@ class GraphSearchPolicy(nn.Module):
             if self.context_info is None:
                 nn.init.xavier_uniform_(self.W2.weight)
                 nn.init.xavier_uniform_(self.W1.weight)
+            #for name, param in self.path_encoder.named_parameters():
+             #   print('{} size: {}'.format(name, param.size()))
             for name, param in self.path_encoder.named_parameters():
                 if 'bias' in name:
                     nn.init.constant_(param, 0.0)
-                elif 'weight' in name:
+                elif 'weight' in name and len(param.size()) != 1:
+                    #print('{} size: {}'.format(name, param.size()))
                     nn.init.xavier_normal_(param)
             if self.context_info is not None:
                 # Dense layer 1
                 for name, param in self.pg_weights1.named_parameters():
                     if 'bias' in name:
                         nn.init.constant_(param, 0.0)
-                    elif 'weight' in name:
+                    elif 'weight' in name and len(param.size()) != 1:
                         nn.init.xavier_normal_(param)
                 for name, param in self.pg_bias1.named_parameters():
                     if 'bias' in name:
                         nn.init.constant_(param, 0.0)
-                    elif 'weight' in name:
+                    elif 'weight' in name and len(param.size()) != 1:
                         nn.init.xavier_normal_(param)
                 # Dense layer 2
                 for name, param in self.pg_weights2.named_parameters():
                     if 'bias' in name:
                         nn.init.constant_(param, 0.0)
-                    elif 'weight' in name:
+                    elif 'weight' in name and len(param.size()) != 1:
                         nn.init.xavier_normal_(param)
                 for name, param in self.pg_bias2.named_parameters():
                     if 'bias' in name:
                         nn.init.constant_(param, 0.0)
-                    elif 'weight' in name:
+                    elif 'weight' in name and len(param.size()) != 1:
                         nn.init.xavier_normal_(param)
 

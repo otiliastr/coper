@@ -22,6 +22,7 @@ from torch.nn.utils import clip_grad_norm_
 import src.eval
 from src.utils.ops import var_cuda, zeros_var_cuda
 import src.utils.ops as ops
+from src.eval import _write_data_to_file
 
 
 class LFramework(nn.Module):
@@ -62,15 +63,19 @@ class LFramework(nn.Module):
         print('--------------------------')
         print()
 
-    def run_train(self, train_data, dev_data, test_data):
+    def run_train(self, train_data, dev_data, test_data, store_metric_history=True):
         self.print_all_model_parameters()
 
         if self.optim is None:
             self.optim = optim.Adam(
                 filter(lambda p: p.requires_grad, self.parameters()), lr=self.learning_rate)
 
-        # Track dev metrics changes
-        best_dev_metrics = 0
+        # Track dev curr_metric changes
+        best_dev_metric = -np.inf
+        best_dev_metrics = None
+        best_test_at_dev = None
+        best_epoch = 0
+
         dev_metrics_history = []
 
         for epoch_id in range(self.start_epoch, self.num_epochs):
@@ -121,9 +126,12 @@ class LFramework(nn.Module):
 
                 # Step every original batch size number or if we have reached end of dataset
                 if ((example_id > 0) and ((example_id % batch_steps) == 0)) or (len(mini_batch) < self.batch_size):
+                    do_eval = True
                     print('Step: {}. Updating Grads!'.format(example_id))
                     self.optim.step()
                     self.optim.zero_grad()
+                else:
+                    do_eval = False
 
                 batch_losses.append(loss['print_loss'])
                 if 'entropy' in loss:
@@ -154,7 +162,7 @@ class LFramework(nn.Module):
                 print('* Analysis: false negative ratio = {}'.format(fn_ratio))
 
             # Check dev set performance
-            if self.run_analysis or (epoch_id > 0 and epoch_id % self.num_peek_epochs == 0):
+            if (self.run_analysis or (epoch_id >= 0 and epoch_id % self.num_peek_epochs == 0)) and do_eval:
                 self.eval()
                 self.batch_size = self.dev_batch_size
                 self.optim.zero_grad()
@@ -163,31 +171,54 @@ class LFramework(nn.Module):
                     dev_scores = self.forward(dev_data, verbose=False)
                     print('Memory allocated after dev forward pass: {}'.format(torch.cuda.memory_allocated()))
                     print('Dev set performance: ')
-                    hits_at_1, _, _, _, _ = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
-                    metrics = hits_at_1
+                    # hits_at_1, hits_at_3, hits_at_10, _, _ = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
+                    dev_metrics = src.eval.hits_and_ranks(dev_data, dev_scores, self.kg.all_objects, verbose=True)
+                    curr_metric = dev_metrics['hits_at_1']
                     print('Test set performance: ')
                     test_scores = self.forward(test_data, verbose=False)
                     print('Memory allocated after test performance: {}'.format(torch.cuda.memory_allocated()))
-                    src.eval.hits_and_ranks(test_data, test_scores, self.kg.all_objects, verbose=True)
+                    test_metrics = src.eval.hits_and_ranks(test_data, test_scores, self.kg.all_objects, verbose=True)
                     # Action dropout anneaking
                     if self.model.startswith('point'):
                         eta = self.action_dropout_anneal_interval
-                        if len(dev_metrics_history) > eta and metrics < min(dev_metrics_history[-eta:]):
+                        if len(dev_metrics_history) > eta and curr_metric < min(dev_metrics_history[-eta:]):
                             old_action_dropout_rate = self.action_dropout_rate
                             self.action_dropout_rate *= self.action_dropout_anneal_factor
                             print('Decreasing action dropout rate: {} -> {}'.format(
                                 old_action_dropout_rate, self.action_dropout_rate))
+                    # if desired, store model dev and test curves
+                    if store_metric_history:
+
+                        def _store_metrics(metrics, eval_type='dev'):
+                            print('Storing Metrics!')
+                            for metric_type, metric_value in metrics.items():
+                                file_path = os.path.join(self.model_dir, '{}_{}.txt'.format(eval_type, metric_type))
+                                _write_data_to_file(file_path=file_path, data=metric_value)
+
+                        _store_metrics(dev_metrics, eval_type='dev')
+                        _store_metrics(test_metrics, eval_type='test')
+
                     # Save checkpoint
-                    if metrics > best_dev_metrics:
+                    if curr_metric > best_dev_metric:
+                        best_dev_metrics = dev_metrics
+                        best_test_at_dev = test_metrics
+                        best_epoch = epoch_id
                         self.save_checkpoint(checkpoint_id=epoch_id, epoch_id=epoch_id, is_best=True)
-                        best_dev_metrics = metrics
+                        best_dev_metric = curr_metric
                         with open(os.path.join(self.model_dir, 'best_dev_iteration.dat'), 'w') as o_f:
                             o_f.write('{}'.format(epoch_id))
                     else:
                         # Early stopping
-                        if epoch_id >= self.num_wait_epochs and metrics < np.mean(dev_metrics_history[-self.num_wait_epochs:]):
+                        if epoch_id >= self.num_wait_epochs and curr_metric < np.mean(dev_metrics_history[-self.num_wait_epochs:]):
                             break
-                    dev_metrics_history.append(metrics)
+
+                    print('#' * 80)
+                    print('Best test metrics at best dev: ')
+                    print('Epoch: {}'.format(best_epoch))
+                    src.eval.print_metrics(best_test_at_dev)
+                    print('#' * 80)
+
+                    dev_metrics_history.append(curr_metric)
                 if self.run_analysis:
                     num_path_types_file = os.path.join(self.model_dir, 'num_path_types.dat')
                     dev_metrics_file = os.path.join(self.model_dir, 'dev_metrics.dat')
@@ -197,7 +228,7 @@ class LFramework(nn.Module):
                         with open(num_path_types_file, 'w') as o_f:
                             o_f.write('{}\n'.format(self.num_path_types))
                         with open(dev_metrics_file, 'w') as o_f:
-                            o_f.write('{}\n'.format(metrics))
+                            o_f.write('{}\n'.format(curr_metric))
                         with open(hit_ratio_file, 'w') as o_f:
                             o_f.write('{}\n'.format(hit_ratio))
                         with open(fn_ratio_file, 'w') as o_f:
@@ -206,7 +237,7 @@ class LFramework(nn.Module):
                         with open(num_path_types_file, 'a') as o_f:
                             o_f.write('{}\n'.format(self.num_path_types))
                         with open(dev_metrics_file, 'a') as o_f:
-                            o_f.write('{}\n'.format(metrics))
+                            o_f.write('{}\n'.format(curr_metric))
                         with open(hit_ratio_file, 'a') as o_f:
                             o_f.write('{}\n'.format(hit_ratio))
                         with open(fn_ratio_file, 'a') as o_f:

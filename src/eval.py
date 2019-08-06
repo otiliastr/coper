@@ -10,11 +10,19 @@
 
 import numpy as np
 import pickle
-
+import os
 import torch
 
 from src.parse_args import args
 from src.data_utils import NO_OP_ENTITY_ID, DUMMY_ENTITY_ID
+
+def _write_data_to_file(file_path, data):
+    if os.path.exists(file_path):
+        append_write = 'a'
+    else:
+        append_write = 'w+'
+    with open(file_path, append_write) as handle:
+        handle.write(str(data) + "\n")
 
 
 def hits_and_ranks(examples, scores, all_answers, verbose=False):
@@ -64,14 +72,29 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False):
     hits_at_10 = float(hits_at_10) / len(examples)
     mrr = float(mrr) / len(examples)
 
-    if verbose:
-        print('Hits@1 = {}'.format(hits_at_1))
-        print('Hits@3 = {}'.format(hits_at_3))
-        print('Hits@5 = {}'.format(hits_at_5))
-        print('Hits@10 = {}'.format(hits_at_10))
-        print('MRR = {}'.format(mrr))
+    metrics = {'hits_at_1': hits_at_1,
+               'hits_at_3': hits_at_3,
+               'hits_at_5': hits_at_5,
+               'hits_at_10': hits_at_10,
+               'mrr': mrr}
 
-    return hits_at_1, hits_at_3, hits_at_5, hits_at_10, mrr
+    if verbose:
+        # print('Hits@1 = {}'.format(hits_at_1))
+        # print('Hits@3 = {}'.format(hits_at_3))
+        # print('Hits@5 = {}'.format(hits_at_5))
+        # print('Hits@10 = {}'.format(hits_at_10))
+        # print('MRR = {}'.format(mrr))
+        print_metrics(metrics)
+
+    # return hits_at_1, hits_at_3, hits_at_5, hits_at_10, mrr
+    return metrics
+
+def print_metrics(metrics):
+    print('Hits@1 = {}'.format(metrics['hits_at_1']))
+    print('Hits@3 = {}'.format(metrics['hits_at_3']))
+    print('Hits@5 = {}'.format(metrics['hits_at_5']))
+    print('Hits@10 = {}'.format(metrics['hits_at_10']))
+    print('MRR = {}'.format(metrics['mrr']))
 
 def hits_at_k(examples, scores, all_answers, verbose=False):
     """
@@ -143,8 +166,11 @@ def hits_and_ranks_by_seen_queries(examples, scores, all_answers, seen_queries, 
             unseen_exps.append(example)
             unseen_ids.append(i)
 
-    _, _, _, _, seen_mrr = hits_and_ranks(seen_exps, scores[seen_ids], all_answers, verbose=False)
-    _, _, _, _, unseen_mrr = hits_and_ranks(unseen_exps, scores[unseen_ids], all_answers, verbose=False)
+    seen_metrics = hits_and_ranks(seen_exps, scores[seen_ids], all_answers, verbose=False)
+    unseen_metrics = hits_and_ranks(unseen_exps, scores[unseen_ids], all_answers, verbose=False)
+    seen_mrr = seen_metrics['mrr']
+    unseen_metrics = unseen_metrics['mrr']
+
     if verbose:
         print('MRR on seen queries: {}'.format(seen_mrr))
         print('MRR on unseen queries: {}'.format(unseen_mrr))
@@ -163,8 +189,12 @@ def hits_and_ranks_by_relation_type(examples, scores, all_answers, relation_by_t
             to_1_exps.append(example)
             to_1_ids.append(i)
 
-    _, _, _, _, to_m_mrr = hits_and_ranks(to_M_exps, scores[to_M_ids], all_answers, verbose=False)
-    _, _, _, _, to_1_mrr = hits_and_ranks(to_1_exps, scores[to_1_ids], all_answers, verbose=False)
+    to_M_metrics = hits_and_ranks(to_M_exps, scores[to_M_ids], all_answers, verbose=False)
+    to_1_metrics = hits_and_ranks(to_1_exps, scores[to_1_ids], all_answers, verbose=False)
+
+    to_m_mrr = to_M_metrics['mrr']
+    to_1_mrr = to_1_metrics['mrr']
+
     if verbose:
         print('MRR on to-M relations: {}'.format(to_m_mrr))
         print('MRR on to-1 relations: {}'.format(to_1_mrr))

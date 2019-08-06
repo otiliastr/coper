@@ -111,7 +111,7 @@ def initialize_model_directory(args, random_seed=None):
                 args.bandwidth,
                 args.beta
             )
-        if (len(args.pg_network_structure) > 0) and (args.pg_network_structure == -1):
+        if (len(args.pg_network_structure) > 0) and (args.pg_network_structure[0] == -1):
             hyperparam_sig = hyperparam_sig
         else:
             hyperparam_sig += '-CPG-{}-{}-{}-{}-{}-All_layers'.format(
@@ -212,7 +212,10 @@ def construct_model(args):
 
     if args.model in ['point', 'point.gc']:
         pn = GraphSearchPolicy(args)
-        print('pn parameters: {}'.format(pn.named_parameters()))
+        parameters = pn.named_parameters()
+        for name, value in parameters:
+            print('parameter: {} | size: {}'.format(name, value.size()))
+        # print('pn parameters: {}'.format(pn.named_parameters()))
         #print(args.device_ids)
         #print(type(args.device_ids[0]))
         #lf = nn.DataParallel(PolicyGradient(args, kg, pn), device_ids=args.device_ids)
@@ -270,7 +273,7 @@ def train(lf):
     test_data = data_utils.load_triples(test_path, entity_index_path, relation_index_path, seen_entities=seen_entities)
     if args.checkpoint_path is not None:
         lf.load_checkpoint(args.checkpoint_path)
-    lf.run_train(train_data, dev_data, test_data)
+    lf.run_train(train_data, dev_data, test_data, store_metric_history=args.store_metric_history)
 
 def inference(lf):
     lf.batch_size = args.dev_batch_size
@@ -368,22 +371,22 @@ def inference(lf):
             dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
             print('Memory allocated after obtaining dev metrics: {}'.format(torch.cuda.memory_allocated() / 1e9))
             eval_metrics['dev'] = {}
-            eval_metrics['dev']['hits_at_1'] = dev_metrics[0]
-            eval_metrics['dev']['hits_at_3'] = dev_metrics[1]
-            eval_metrics['dev']['hits_at_5'] = dev_metrics[2]
-            eval_metrics['dev']['hits_at_10'] = dev_metrics[3]
-            eval_metrics['dev']['mrr'] = dev_metrics[4]
+            eval_metrics['dev']['hits_at_1'] = dev_metrics['hits_at_1']
+            eval_metrics['dev']['hits_at_3'] = dev_metrics['hits_at_3']
+            eval_metrics['dev']['hits_at_5'] = dev_metrics['hits_at_5']
+            eval_metrics['dev']['hits_at_10'] = dev_metrics['hits_at_10']
+            eval_metrics['dev']['mrr'] = dev_metrics['mrr']
             # src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
             #print('Test set performance:')
             pred_scores = lf.forward(test_data, verbose=False)
             print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
             test_metrics = src.eval.hits_and_ranks(test_data, pred_scores, lf.kg.all_objects, verbose=True)
             print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
-            eval_metrics['test']['hits_at_1'] = test_metrics[0]
-            eval_metrics['test']['hits_at_3'] = test_metrics[1]
-            eval_metrics['test']['hits_at_5'] = test_metrics[2]
-            eval_metrics['test']['hits_at_10'] = test_metrics[3]
-            eval_metrics['test']['mrr'] = test_metrics[4]
+            eval_metrics['test']['hits_at_1'] = test_metrics['hits_at_1']
+            eval_metrics['test']['hits_at_3'] = test_metrics['hits_at_3']
+            eval_metrics['test']['hits_at_5'] = test_metrics['hits_at_5']
+            eval_metrics['test']['hits_at_10'] = test_metrics['hits_at_10']
+            eval_metrics['test']['mrr'] = test_metrics['mrr']
 
     return eval_metrics
 
@@ -442,7 +445,8 @@ def run_ablation_studies(args):
         
         lf = set_up_lf_for_inference(args)
         pred_scores = lf.forward(dev_data, verbose=False)
-        _, _, _, _, mrr = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
+        curr_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.dev_objects, verbose=True)
+        mrr = curr_metrics['mrr']
         if to_1_ratio == 0:
             to_m_mrr = mrr
             to_1_mrr = -1
@@ -456,7 +460,8 @@ def run_ablation_studies(args):
         to_1_mrrs[system] = {'': to_1_mrr  * 100}
         seen_mrrs[system] = {'': seen_mrr * 100}
         unseen_mrrs[system] = {'': unseen_mrr * 100}
-        _, _, _, _, mrr_full_kg = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
+        new_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
+        mrr_full_kg = new_metrics['mrr']
         if to_1_ratio == 0:
             to_m_mrr_full_kg = mrr_full_kg
             to_1_mrr_full_kg = -1
@@ -624,6 +629,9 @@ def run_experiment(args):
         with torch.set_grad_enabled(args.train or args.search_random_seed or args.grid_search):
             if args.search_random_seed:
 
+                best_dev_metrics = None
+                best_test_metrics = None
+                eval_metric = -np.inf
                 # Search for best random seed
 
                 # search log file

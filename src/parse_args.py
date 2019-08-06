@@ -55,6 +55,8 @@ parser.add_argument('--test', action='store_true',
                     help='perform inference on the test set (default: False)')
 parser.add_argument('--group_examples_by_query', action='store_true',
                     help='group examples by topic entity + query relation (default: False)')
+parser.add_argument('--store_metric_history', action='store_true',
+                    help='specify whether to store metrics to file for later visualizations (default: False)')
 # parser.add_argument('--device_ids', nargs='*', type=int,
 #                     help='specify devices distribute data on')
 
