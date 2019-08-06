@@ -59,6 +59,7 @@ cmd="python3 -m src.experiments \
     --num_paths_per_entity $num_paths_per_entity \
     $group_examples_by_query_flag \
     $use_action_space_bucketing_flag \
+    --store_metric_history \
     --gpu $gpu \
     $ARGS"
 
