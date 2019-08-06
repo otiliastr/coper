@@ -33,7 +33,7 @@ beam_size=128
 # Network Structure: 1 2 3 --> [1, 2, 3]
 # Nothing = [] due to nargs='*'
 # in parse args
-pg_network_structure=
+pg_network_structure=-1
 pg_dropout=.2
 pg_batch_norm=True
 pg_batch_norm_momentum=.1
