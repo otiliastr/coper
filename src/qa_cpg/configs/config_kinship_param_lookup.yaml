@@ -11,7 +11,7 @@ model:
   do_parameter_lookup: True
 context:
   context_rel_conv:          # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
-  context_rel_out:           # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
+  context_rel_out: []          # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
   context_rel_dropout: 0.5
   context_rel_use_batch_norm: True
 training:
