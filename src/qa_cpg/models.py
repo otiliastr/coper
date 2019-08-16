@@ -7,7 +7,7 @@ import tensorflow as tf
 from functools import reduce
 from operator import mul
 
-from .utils.amsgrad import AMSGradOptimizer
+from utils.amsgrad import AMSGradOptimizer
 
 __all__ = ['ConvE']
 
@@ -87,7 +87,7 @@ class ParameterLookup(object):
             shape=[num_discrete_params, self.param_size],
             initializer=tf.contrib.layers.xavier_initializer())
     
-    def generate(self, one_hots):
+    def generate(self, one_hots, is_train):
         desired_params = tf.nn.embedding_lookup(self.param_lookup_matrix, one_hots, name=self.name + '_matrix')
         desired_params_shaped = tf.reshape(desired_params, [-1] + self.output_shape)
         desired_params_shaped = tf.cast(desired_params_shaped, self.dtype)
@@ -322,7 +322,7 @@ class ConvE(object):
             'pred_bias': pred_bias}
 
         if not self.is_parameter_lookup:
-            variables['rel_emb'] = rel_emb,
+            variables['rel_emb'] = rel_emb
 
         if self._variable_summaries:
             _create_summaries('emb/ent', ent_emb)
@@ -371,7 +371,7 @@ class ConvE(object):
 
         with tf.name_scope('conv1'):
             weights, bias = self._get_conv_params(rel_emb, self.is_train)
-            if self.context_rel_conv is not None:
+            if self.context_rel_conv is not None and not self.is_parameter_lookup:
                 def conv(pair):
                     return (tf.nn.conv2d(
                         input=pair[0][None], filter=pair[1],

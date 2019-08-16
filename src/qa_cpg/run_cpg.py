@@ -7,18 +7,33 @@ import pickle
 import tensorflow as tf
 import yaml
 
-from qa_cpg import data
-from qa_cpg.models import ConvE
-from qa_cpg.metrics import ranking_and_hits
-from qa_cpg.utils.dict_with_attributes import AttributeDict
+import data
+from models import ConvE
+from metrics import ranking_and_hits
+from utils.dict_with_attributes import AttributeDict
+from utils import *
+# from qa_cpg import data
+# from src.qa_cpg.models import ConvE
+# from src.qa_cpg.metrics import ranking_and_hits
+# from src.qa_cpg.utils.dict_with_attributes import AttributeDict
 
 logger = logging.getLogger(__name__)
 
 
-def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
+def get_id_maps(id_path):
+    id_map = {}
+    with open(id_path, 'r') as handle:
+        for idx, name in handle:
+            id_map[idx] = name
+    return id_map
+
+
+def _evaluate(data_iterator, data_iterator_handle, name, summary_writer,
+              step, id_rel_map=None, get_relation_metrics=False):
     logger.info('Running %s at step %d...', name, step)
     session.run(data_iterator.initializer)
-    mr, mrr, hits = ranking_and_hits(model, eval_path, data_iterator_handle, name, session)
+    mr, mrr, hits, _ = ranking_and_hits(model, eval_path, data_iterator_handle, name, session,
+                                     get_relation_metrics=get_relation_metrics, id_rel_map=id_rel_map)
 
     metrics = {'mr': mr, 'mrr': mrr}
 
@@ -39,6 +54,9 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 use_cpg = False
 use_parameter_lookup = True
 save_best_embeddings = True
+model_load_path = None
+get_relation_metrics = False
+
 
 # Load data.
 data_loader = data.KinshipLoader()
@@ -53,6 +71,7 @@ else:
     model_descr = 'plain'
 # model_descr = 'cpg' if use_cpg else 'plain'
 config_path = 'qa_cpg/configs/config_%s_%s.yaml' % (data_loader.dataset_name, model_descr)
+print(config_path)
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 print(cfg_dict)
@@ -126,7 +145,7 @@ if __name__ == '__main__':
                 'add_tensor_summaries': cfg.eval.add_tensor_summaries,
                 'batch_norm_momentum': cfg.model.batch_norm_momentum,
                 'batch_norm_train_stats': cfg.model.batch_norm_train_stats,
-                'do_parameter_lookup': cfg.model.do_parameter_lookup})
+                'do_parameter_lookup': use_parameter_lookup})
 
     # Create dataset iterator initializers.
     logger.info('Creating train dataset...')
@@ -191,9 +210,20 @@ if __name__ == '__main__':
     test_eval_iterator_handle = session.run(test_eval_iterator.string_handle())
 
     validation_metric = cfg.eval.validation_metric
-    best_metrics_dev = {validation_metric: -np.inf}
+    best_metrics_dev = {validation_metric: -np.inf }
     metrics_test_at_best_dev = {validation_metric: -np.inf}
     best_iter = None
+
+    if model_load_path is not None:
+        if get_relation_metrics:
+            relations_list_path = os.path.join(data_dir, data_loader.dataset_name, 'relations.txt')
+            id_rel_map = get_id_maps(relations_list_path)
+        else:
+            id_rel_map = None
+        saver.restore(session, model_load_path)
+        _evaluate(test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, 0,
+                  get_relation_metrics=get_relation_metrics, id_rel_map=id_rel_map)
+
     for step in range(cfg.training.max_steps):
         feed_dict = {
             model.is_train: True,
@@ -229,8 +259,12 @@ if __name__ == '__main__':
                     best_iter = step
                     if save_best_embeddings:
                         # Save relation and entity embeddings at the best validation point.
-                        rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
-                        pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
+                        if not use_parameter_lookup:
+                            rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
+                            pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
+                        else:
+                            ent_embed = session.run([model.variables['ent_emb']])
+                            pickle.dump([ent_embed], open(embed_file, 'wb'))
                 logger.info('Best dev %s so far is at step %d. Best dev metrics: %s',
                             validation_metric, best_iter, str(best_metrics_dev))
                 logger.info('Test metrics at best dev: %s', str(metrics_test_at_best_dev))
