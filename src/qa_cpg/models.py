@@ -7,7 +7,7 @@ import tensorflow as tf
 from functools import reduce
 from operator import mul
 
-from utils.amsgrad import AMSGradOptimizer
+from .utils.amsgrad import AMSGradOptimizer
 
 __all__ = ['ConvE']
 
@@ -414,9 +414,10 @@ class ConvE(object):
 
             fc_dropout = tf.nn.dropout(
                 fc, 1 - (self.output_dropout * is_train_float))
-            fc_bn = tf.layers.batch_normalization(
-                fc_dropout, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
-                training=is_train_batch_norm, fused=True, name='FCBN')
+            fc_bn = fc_dropout
+            #fc_bn = tf.layers.batch_normalization(
+             #   fc_dropout, momentum=self.batch_norm_momentum, reuse=tf.AUTO_REUSE,
+              #  training=is_train_batch_norm, fused=True, name='FCBN')
             fc_bn = tf.nn.relu(fc_bn)
 
             if self._tensor_summaries:

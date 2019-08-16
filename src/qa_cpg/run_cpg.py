@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def get_id_maps(id_path):
     id_map = {}
     with open(id_path, 'r') as handle:
-        for idx, name in handle:
+        for idx, name in enumerate(handle):
             id_map[idx] = name
     return id_map
 
@@ -28,7 +28,8 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer,
     logger.info('Running %s at step %d...', name, step)
     session.run(data_iterator.initializer)
     mr, mrr, hits, _ = ranking_and_hits(model, eval_path, data_iterator_handle, name, session,
-                                     get_relation_metrics=get_relation_metrics, id_rel_map=id_rel_map)
+                                     get_relation_metrics=get_relation_metrics, id_rel_map=id_rel_mapi,
+                                     enable_write_to_file=True)
 
     metrics = {'mr': mr, 'mrr': mrr}
 
@@ -49,12 +50,12 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer,
 use_cpg = False
 use_parameter_lookup = True
 save_best_embeddings = True
-model_load_path = None
-get_relation_metrics = False
+model_load_path = '/zfsauton/home/gis/research/qa_types/src/temp/FB15k-237/checkpoints/cpg-FB15k-237-ent_emb_200-rel_emb_200-batch_512-prop_neg_10.0-num_labels_100-context_batchnorm_False_newNegSampl/model_weights.ckpt/model_weights.ckpt'
+get_relation_metrics = True
 
 
 # Load data.
-data_loader = data.KinshipLoader()
+data_loader = data.FB15k237Loader()
 # data_loader = data.FB15kLoader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
