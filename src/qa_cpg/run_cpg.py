@@ -7,15 +7,10 @@ import pickle
 import tensorflow as tf
 import yaml
 
-import data
-from models import ConvE
-from metrics import ranking_and_hits
-from utils.dict_with_attributes import AttributeDict
-from utils import *
-# from qa_cpg import data
-# from src.qa_cpg.models import ConvE
-# from src.qa_cpg.metrics import ranking_and_hits
-# from src.qa_cpg.utils.dict_with_attributes import AttributeDict
+from qa_cpg import data
+from qa_cpg.models import ConvE
+from qa_cpg.metrics import ranking_and_hits
+from qa_cpg.utils.dict_with_attributes import AttributeDict
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +55,7 @@ get_relation_metrics = False
 
 # Load data.
 data_loader = data.KinshipLoader()
-# data_loader = data.NELL995Loader(is_test=False, needs_test_set_cleaning=True)
+# data_loader = data.FB15kLoader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
 if use_cpg:
@@ -71,14 +66,13 @@ else:
     model_descr = 'plain'
 # model_descr = 'cpg' if use_cpg else 'plain'
 config_path = 'qa_cpg/configs/config_%s_%s.yaml' % (data_loader.dataset_name, model_descr)
-print(config_path)
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
 print(cfg_dict)
 cfg = AttributeDict(cfg_dict)
 
 # Compose model name based on config params.
-model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}'.format(
+model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}-eval_{}'.format(
     model_descr,
     data_loader.dataset_name,
     cfg.model.entity_embedding_size,
@@ -87,7 +81,8 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-One
     cfg.training.prop_negatives,
     cfg.training.num_labels,
     cfg.training.one_positive_label_per_sample,
-    cfg.model.batch_norm_momentum)
+    cfg.model.batch_norm_momentum,
+    cfg.eval.validation_metric)
 # Add more CPG-specific params to the model name.
 suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
 suffix += '-CLEAN' if data_loader.needs_test_set_cleaning else ''
@@ -210,8 +205,8 @@ if __name__ == '__main__':
     test_eval_iterator_handle = session.run(test_eval_iterator.string_handle())
 
     validation_metric = cfg.eval.validation_metric
-    best_metrics_dev = {validation_metric: -np.inf }
-    metrics_test_at_best_dev = {validation_metric: -np.inf}
+    best_metrics_dev = {validation_metric: -np.inf if validation_metric != 'mr' else np.inf}
+    metrics_test_at_best_dev = {validation_metric: -np.inf if validation_metric != 'mrr' else np.inf}
     best_iter = None
 
     if model_load_path is not None:
@@ -258,13 +253,13 @@ if __name__ == '__main__':
                     metrics_test_at_best_dev = metrics_test
                     best_iter = step
                     if save_best_embeddings:
-                        # Save relation and entity embeddings at the best validation point.
+                        # Save relation and entity embeddings at the best validation point
                         if not use_parameter_lookup:
                             rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
                             pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
                         else:
-                            ent_embed = session.run([model.variables['ent_emb']])
-                            pickle.dump([ent_embed], open(embed_file, 'wb'))
+                            ent_embed = session.run(model.variables['ent_emb'])
+                            pickle.dump(ent_embed, open(embed_file, 'wb'))
                 logger.info('Best dev %s so far is at step %d. Best dev metrics: %s',
                             validation_metric, best_iter, str(best_metrics_dev))
                 logger.info('Test metrics at best dev: %s', str(metrics_test_at_best_dev))
