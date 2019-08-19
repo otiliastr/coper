@@ -19,7 +19,7 @@ def get_id_maps(id_path):
     id_map = {}
     with open(id_path, 'r') as handle:
         for idx, name in enumerate(handle):
-            id_map[idx] = name
+            id_map[idx] = name.strip()
     return id_map
 
 
@@ -28,7 +28,7 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer,
     logger.info('Running %s at step %d...', name, step)
     session.run(data_iterator.initializer)
     mr, mrr, hits, _ = ranking_and_hits(model, eval_path, data_iterator_handle, name, session,
-                                     get_relation_metrics=get_relation_metrics, id_rel_map=id_rel_mapi,
+                                     get_relation_metrics=get_relation_metrics, id_rel_map=id_rel_map,
                                      enable_write_to_file=True)
 
     metrics = {'mr': mr, 'mrr': mrr}
@@ -217,7 +217,7 @@ if __name__ == '__main__':
         else:
             id_rel_map = None
         saver.restore(session, model_load_path)
-        _evaluate(test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, 0,
+        _evaluate(test_eval_iterator, test_eval_iterator_handle, 'test', summary_writer, 0,
                   get_relation_metrics=get_relation_metrics, id_rel_map=id_rel_map)
 
     for step in range(cfg.training.max_steps):
