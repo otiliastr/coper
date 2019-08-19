@@ -30,13 +30,15 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False, relation_metric
     """
     Compute ranking based metrics.
     """
-    metrics = ['hits_at_1', 'hits_at_3', 'hits_at_5', 'hits_at_10', 'mrr']
+    # metrics = ['hits_at_1', 'hits_at_3', 'hits_at_5', 'hits_at_10', 'mrr']
+    metric_storage = {'hits_at_1': 0, 'hits_at_3': 0, 'hits_at_5': 0, 'hits_at_10': 0, 'mrr': 0}
+    metric_str2int = {'hits_at_1': 1, 'hits_at_3': 3, 'hits_at_5': 5, 'hits_at_10': 10}
     if relation_metric_info is not None:
-        eval_metrics = {'hits_at_1': 0,
-                        'hits_at_3': 0,
-                        'hits_at_5': 0,
-                        'hits_at_10': 0,
-                        'mrr': 0}
+        eval_metrics = {'hits_at_1': [0, 0],
+                        'hits_at_3': [0, 0],
+                        'hits_at_5': [0, 0],
+                        'hits_at_10': [0, 0],
+                        'mrr': [0, 0]}
         relation_metrics = defaultdict(lambda: eval_metrics.copy())
         save_path = relation_metric_info['save_path']
         id2rel = relation_metric_info['id2rel']
@@ -58,57 +60,86 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False, relation_metric
     top_k_scores, top_k_targets = torch.topk(scores, min(scores.size(1), args.beam_size))
     top_k_targets = top_k_targets.cpu().numpy()
 
-    hits_at_1 = 0
-    hits_at_3 = 0
-    hits_at_5 = 0
-    hits_at_10 = 0
-    mrr = 0
+    # hits_at_1 = 0
+    # hits_at_3 = 0
+    # hits_at_5 = 0
+    # hits_at_10 = 0
+    # mrr = 0
+
     for i, example in enumerate(examples):
         e1, e2, r = example
         pos = np.where(top_k_targets[i] == e2)[0]
         if len(pos) > 0:
             pos = pos[0]
-            if pos < 10:
-                hits_at_10 += 1
-                if relation_metric_info is not None:
-                    relation_metrics[id2rel[r]]['hits_at_10'] += 1.
-                if pos < 5:
-                    hits_at_5 += 1
-                    if relation_metric_info is not None:
-                        relation_metrics[id2rel[r]]['hits_at_5'] += 1.
-                    if pos < 3:
-                        hits_at_3 += 1
-                        if relation_metric_info is not None:
-                            relation_metrics[id2rel[r]]['hits_at_3'] += 1.
-                        if pos < 1:
-                            hits_at_1 += 1
-                            if relation_metric_info is not None:
-                                relation_metrics[id2rel[r]]['hits_at_1'] += 1.
-            mrr += 1.0 / (pos + 1)
-            if relation_metric_info is not None:
-                relation_metrics[id2rel[r]]['mrr'] += 1.0 / (pos + 1)
 
-    hits_at_1 = float(hits_at_1) / len(examples)
-    hits_at_3 = float(hits_at_3) / len(examples)
-    hits_at_5 = float(hits_at_5) / len(examples)
-    hits_at_10 = float(hits_at_10) / len(examples)
-    mrr = float(mrr) / len(examples)
+            for metric_type in metric_storage.keys():
+                if metric_type != 'mrr':
+                    rank_threshold = metric_str2int[metric_type]
+                    if pos < rank_threshold:
+                        metric_storage[metric_type] += 1.
+                    if relation_metric_info is not None:
+                        if pos < rank_threshold:
+                            relation_metrics[id2rel[r]][metric_type][0] += 1.
+                        relation_metrics[id2rel[r]][metric_type][1] += 1.
+                else:
+                    mrr_val = 1.0 / (pos + 1.)
+                    metric_storage[metric_type] += mrr_val
+                    if relation_metric_info is not None:
+                        relation_metrics[id2rel[r]][metric_type][0] += mrr_val
+                        relation_metrics[id2rel[r]][metric_type][1] += 1.
+
+            # if pos < 10:
+            #     hits_at_10 += 1
+            #     if relation_metric_info is not None:
+            #         relation_metrics[id2rel[r]]['hits_at_10'][0] += 1.
+            #         relation_metrics[id2rel[r]]['hits_at_10'][1] += 1.
+            #     if pos < 5:
+            #         hits_at_5 += 1
+            #         if relation_metric_info is not None:
+            #             relation_metrics[id2rel[r]]['hits_at_5'][0] += 1.
+            #             relation_metrics[id2rel[r]]['hits_at_5'][1] += 1.
+            #         if pos < 3:
+            #             hits_at_3 += 1
+            #             if relation_metric_info is not None:
+            #                 relation_metrics[id2rel[r]]['hits_at_3'][0] += 1.
+            #                 relation_metrics[id2rel[r]]['hits_at_3'][1] += 1.
+            #             if pos < 1:
+            #                 hits_at_1 += 1
+            #                 if relation_metric_info is not None:
+            #                     relation_metrics[id2rel[r]]['hits_at_1'][0] += 1.
+            #                     relation_metrics[id2rel[r]]['hits_at_1'][1] += 1.
+            # mrr += 1.0 / (pos + 1)
+            # if relation_metric_info is not None:
+            #     relation_metrics[id2rel[r]]['mrr'] += 1.0 / (pos + 1)
+
+    # hits_at_1 = float(hits_at_1) / len(examples)
+    # hits_at_3 = float(hits_at_3) / len(examples)
+    # hits_at_5 = float(hits_at_5) / len(examples)
+    # hits_at_10 = float(hits_at_10) / len(examples)
+    # mrr = float(mrr) / len(examples)
+    for metric_type in metric_storage:
+        metric_total = metric_storage[metric_type]
+        metric_storage[metric_type] = float(metric_total) / len(examples)
+
     if relation_metric_info is not None:
         for rel in relation_metrics.keys():
-            for metric in metrics:
-                relation_metrics[rel][metric] = float(relation_metrics[rel][metric]) / len(examples)
+            for metric in metric_storage.keys():
+                rel_metric_total = relation_metrics[rel][metric][0]
+                rel_total_examples = relation_metrics[rel][metric][1]
+                relation_metrics[rel][metric] = float(rel_metric_total) / rel_total_examples
 
-        for metric in metrics:
+        for metric in metric_storage.keys():
             metric_path = save_path + '_' + metric + '.txt'
             for rel in relation_metrics.keys():
                 data_to_write = '{}\t{}'.format(rel, relation_metrics[rel][metric])
                 _write_data_to_file(metric_path, data_to_write)
 
-    metrics = {'hits_at_1': hits_at_1,
-               'hits_at_3': hits_at_3,
-               'hits_at_5': hits_at_5,
-               'hits_at_10': hits_at_10,
-               'mrr': mrr}
+    metrics = metric_storage
+    #               {'hits_at_1': hits_at_1,
+    #                'hits_at_3': hits_at_3,
+    #                'hits_at_5': hits_at_5,
+    #                'hits_at_10': hits_at_10,
+    #                'mrr': mrr}
 
     if verbose:
         # print('Hits@1 = {}'.format(hits_at_1))
