@@ -15,6 +15,7 @@ import torch
 
 from src.parse_args import args
 from src.data_utils import NO_OP_ENTITY_ID, DUMMY_ENTITY_ID
+from collections import defaultdict
 
 def _write_data_to_file(file_path, data):
     if os.path.exists(file_path):
@@ -25,23 +26,34 @@ def _write_data_to_file(file_path, data):
         handle.write(str(data) + "\n")
 
 
-def hits_and_ranks(examples, scores, all_answers, verbose=False):
+def hits_and_ranks(examples, scores, all_answers, verbose=False, relation_metric_info=None):
     """
     Compute ranking based metrics.
     """
+    metrics = ['hits_at_1', 'hits_at_3', 'hits_at_5', 'hits_at_10', 'mrr']
+    if relation_metric_info is not None:
+        eval_metrics = {'hits_at_1': 0,
+                        'hits_at_3': 0,
+                        'hits_at_5': 0,
+                        'hits_at_10': 0,
+                        'mrr': 0}
+        relation_metrics = defaultdict(lambda: eval_metrics.copy())
+        save_path = relation_metric_info['save_path']
+        id2rel = relation_metric_info['id2rel']
+
     assert (len(examples) == scores.shape[0])
     # mask false negatives in the predictions
     dummy_mask = [DUMMY_ENTITY_ID, NO_OP_ENTITY_ID]
     for i, example in enumerate(examples):
         e1, e2, r = example
-        e2_multi = dummy_mask + list(all_answers[e1][r]) 
+        e2_multi = dummy_mask + list(all_answers[e1][r])
         # save the relevant prediction
         target_score = float(scores[i, e2])
         # mask all false negatives
         scores[i, e2_multi] = 0
         # write back the save prediction
         scores[i, e2] = target_score
-    
+
     # sort and rank
     top_k_scores, top_k_targets = torch.topk(scores, min(scores.size(1), args.beam_size))
     top_k_targets = top_k_targets.cpu().numpy()
@@ -58,19 +70,39 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False):
             pos = pos[0]
             if pos < 10:
                 hits_at_10 += 1
+                if relation_metric_info is not None:
+                    relation_metrics[id2rel[r]]['hits_at_10'] += 1.
                 if pos < 5:
                     hits_at_5 += 1
+                    if relation_metric_info is not None:
+                        relation_metrics[id2rel[r]]['hits_at_5'] += 1.
                     if pos < 3:
                         hits_at_3 += 1
+                        if relation_metric_info is not None:
+                            relation_metrics[id2rel[r]]['hits_at_3'] += 1.
                         if pos < 1:
                             hits_at_1 += 1
+                            if relation_metric_info is not None:
+                                relation_metrics[id2rel[r]]['hits_at_1'] += 1.
             mrr += 1.0 / (pos + 1)
+            if relation_metric_info is not None:
+                relation_metrics[id2rel[r]]['mrr'] += 1.0 / (pos + 1)
 
     hits_at_1 = float(hits_at_1) / len(examples)
     hits_at_3 = float(hits_at_3) / len(examples)
     hits_at_5 = float(hits_at_5) / len(examples)
     hits_at_10 = float(hits_at_10) / len(examples)
     mrr = float(mrr) / len(examples)
+    if relation_metric_info is not None:
+        for rel in relation_metrics.keys():
+            for metric in metrics:
+                relation_metrics[rel][metric] = float(relation_metrics[rel][metric]) / len(examples)
+
+        for metric in metrics:
+            metric_path = save_path + '_' + metric + '.txt'
+            for rel in relation_metrics.keys():
+                data_to_write = '{}\t{}'.format(rel, relation_metrics[rel][metric])
+                _write_data_to_file(metric_path, data_to_write)
 
     metrics = {'hits_at_1': hits_at_1,
                'hits_at_3': hits_at_3,
@@ -88,6 +120,7 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False):
 
     # return hits_at_1, hits_at_3, hits_at_5, hits_at_10, mrr
     return metrics
+
 
 def print_metrics(metrics):
     print('Hits@1 = {}'.format(metrics['hits_at_1']))
