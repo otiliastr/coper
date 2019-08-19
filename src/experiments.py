@@ -369,7 +369,7 @@ def inference(lf):
             pred_scores = lf.forward(dev_data, verbose=False)
             _, id2rel = data_utils.load_index(relation_index_path)
             relation_metric_info = {'id2rel': id2rel,
-                                    'save_path': os.path.join(args.model_dir, 'dev')}
+                                    'save_path': os.path.join(args.model_dir, 'dev_relation')}
             print('Memory allocated after forward pass over dev data: {}'.format(torch.cuda.memory_allocated() / 1e9))
             dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True,
                                                   relation_metric_info=relation_metric_info)
@@ -385,7 +385,7 @@ def inference(lf):
             pred_scores = lf.forward(test_data, verbose=False)
             print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
             relation_metric_info = {'id2rel': id2rel,
-                                    'save_path': os.path.join(args.model_dir, 'test')}
+                                    'save_path': os.path.join(args.model_dir, 'test_relation')}
             test_metrics = src.eval.hits_and_ranks(test_data, pred_scores, lf.kg.all_objects, verbose=True,
                                                    relation_metric_info=relation_metric_info)
             print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
