@@ -16,6 +16,8 @@ import torch
 from src.parse_args import args
 from src.data_utils import NO_OP_ENTITY_ID, DUMMY_ENTITY_ID
 from collections import defaultdict
+import copy
+
 
 def _write_data_to_file(file_path, data):
     if os.path.exists(file_path):
@@ -34,12 +36,12 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False, relation_metric
     metric_storage = {'hits_at_1': 0, 'hits_at_3': 0, 'hits_at_5': 0, 'hits_at_10': 0, 'mrr': 0}
     metric_str2int = {'hits_at_1': 1, 'hits_at_3': 3, 'hits_at_5': 5, 'hits_at_10': 10}
     if relation_metric_info is not None:
-        eval_metrics = {'hits_at_1': [0, 0],
-                        'hits_at_3': [0, 0],
-                        'hits_at_5': [0, 0],
-                        'hits_at_10': [0, 0],
-                        'mrr': [0, 0]}
-        relation_metrics = defaultdict(lambda: eval_metrics.copy())
+        eval_metrics = {'hits_at_1': [0, 0].copy(),
+                        'hits_at_3': [0, 0].copy(),
+                        'hits_at_5': [0, 0].copy(),
+                        'hits_at_10': [0, 0].copy(),
+                        'mrr': [0, 0].copy()}
+        relation_metrics = defaultdict(lambda: copy.deepcopy(eval_metrics))
         save_path = relation_metric_info['save_path']
         id2rel = relation_metric_info['id2rel']
 
