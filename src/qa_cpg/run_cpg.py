@@ -9,11 +9,10 @@ import yaml
 
 from qa_cpg import data
 from qa_cpg.models import ConvE
-from qa_cpg.metrics import ranking_and_hits
+from qa_cpg.metrics_new import ranking_and_hits
 from qa_cpg.utils.dict_with_attributes import AttributeDict
 
 logger = logging.getLogger(__name__)
-
 
 def get_id_maps(id_path):
     id_map = {}
@@ -46,13 +45,34 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer,
     return metrics
 
 
-# Parameters.
-use_cpg = False
-use_parameter_lookup = True
-save_best_embeddings = True
-model_load_path = '/zfsauton/home/gis/research/qa_types/src/temp/FB15k-237/checkpoints/cpg-FB15k-237-ent_emb_200-rel_emb_200-batch_512-prop_neg_10.0-num_labels_100-context_batchnorm_False_newNegSampl/model_weights.ckpt/model_weights.ckpt'
-get_relation_metrics = True
+#def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
+ #   logger.info('Running %s at step %d...', name, step)
+  #  session.run(data_iterator.initializer)
+   # mr, mrr, hits = ranking_and_hits(model, eval_path, data_iterator_handle, name, session)
 
+    #metrics = {'mr': mr, 'mrr': mrr}
+
+#    if cfg.eval.summary_steps is not None:
+ #       summary = tf.Summary()
+  #      for hits_level, hits_value in hits.items():
+   #         summary.value.add(tag=name+'/hits@'+str(hits_level), simple_value=hits_value)
+    #        metrics['hits@'+str(hits_level)] = hits_value
+     #   summary.value.add(tag=name+'/mrr', simple_value=mrr)
+      #  summary.value.add(tag=name+'/mr', simple_value=mr)
+       # summary_writer.add_summary(summary, step)
+        #summary_writer.flush()
+
+    #return metrics
+
+
+# Parameters.
+use_cpg = True
+use_parameter_lookup = False
+save_best_embeddings = True
+model_load_path = '/zfsauton/home/gis/research/qa_types/src/temp/FB15k-237/checkpoints/cpg-FB15k-237-ent_emb_200-rel_emb_200-batch_512-prop_neg_10.0-num_labels_100-OnePosPerSampl_False-bn_momentum_0.1-eval_hits@1-context_batchnorm_False/model_weights.ckpt/model_weights.ckpt'
+#model_load_path = '/zfsauton/home/gis/research/qa_types/src/temp/FB15k-237/checkpoints/plain-FB15k-237-ent_emb_200-rel_emb_200-batch_512-prop_neg_10.0-num_labels_100/model_weights.ckpt/model_weights.ckpt'
+#model_load_path=None
+get_relation_metrics = True
 
 # Load data.
 data_loader = data.FB15k237Loader()
@@ -209,7 +229,6 @@ if __name__ == '__main__':
     best_metrics_dev = {validation_metric: -np.inf if validation_metric != 'mr' else np.inf}
     metrics_test_at_best_dev = {validation_metric: -np.inf if validation_metric != 'mrr' else np.inf}
     best_iter = None
-
     if model_load_path is not None:
         if get_relation_metrics:
             relations_list_path = os.path.join(data_dir, data_loader.dataset_name, 'relations.txt')
@@ -219,7 +238,7 @@ if __name__ == '__main__':
         saver.restore(session, model_load_path)
         _evaluate(test_eval_iterator, test_eval_iterator_handle, 'test', summary_writer, 0,
                   get_relation_metrics=get_relation_metrics, id_rel_map=id_rel_map)
-
+        exit()
     for step in range(cfg.training.max_steps):
         feed_dict = {
             model.is_train: True,
