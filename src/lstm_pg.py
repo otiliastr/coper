@@ -9,7 +9,7 @@ import numpy as np
 import os
 from functools import reduce
 from operator import mul
-
+from torch.nn.modules.rnn import LSTM
 
 # Contextual Parameter Generator Class for ConvE and other methods
 # network_structure: dimensions of input to all hidden layers of network
@@ -127,13 +127,15 @@ class PGLSTM(nn.Module):
 
             else:
                 # create linear transformations for each LSTM cell
-                all_gates = nn.Linear(input_size + hidden_size, 4 * hidden_size)
+                all_gates = nn.Linear(self.input_size + self.hidden_size, 4 * self.hidden_size)
                 # append to stacked LSTM list
                 self.all_gates.append(module=all_gates)
 
             # use dropout on up to penultimate layer
             if self.dropout > 0. and (layer < (self.num_layers - 1)):
                 self.dropouts.append(nn.Dropout(p=self.dropout))
+
+            self.input_size = self.hidden_size
 
     def forward(self, input, past_states, context=None):
         """
@@ -159,21 +161,13 @@ class PGLSTM(nn.Module):
         for layer in range(self.num_layers):
             hidden_state = past_hidden_states[:, layer, :]
             cell_state = past_cell_states[:, layer, :]
-            # print('input size: {} | hidden state size: {}'.format(input.size(), hidden_state.size()))
             cell_input = torch.cat((input, hidden_state), dim=-1)
-            #print('Cell input for layer: {} is size: {}'.format(layer, cell_input.size()))
             if self.use_cpg:
                 weights = self.weights[layer](context)
                 biases = self.biases[layer](context)
-                #print(weights.size())
-                #print(biases.size())
-                #print(cell_input.size())
                 all_gates = torch.einsum('ij,ijk->ik', (cell_input, weights)) + biases
                 # all_gates = torch.bmm(cell_input, weights)
             else:
-                #print('input size: {}'.format(input.size()))
-                #print('hidden state size: {}'.format(hidden_state.size()))
-                #print('Cell input size: {}'.format(cell_input.size()))
                 all_gates = self.all_gates[layer](cell_input)
 
             input_gate, forget_gate, add_gate, output_gate = all_gates.chunk(4, -1)
@@ -215,12 +209,12 @@ class PGLSTM(nn.Module):
 
 if __name__ == '__main__':
     print('analyze normal:')
-    pglstm = PGLSTM(input_size=10, hidden_size=10, num_layers=3)
+    pglstm = PGLSTM(input_size=20, hidden_size=10, num_layers=3)
     rnn = nn.LSTM(10, 10, 3, batch_first=True)
 
     h0 = torch.randn(5, 3, 10)
     c0 = torch.randn(5, 3, 10)
-    input = torch.rand(5, 10)
+    input = torch.rand(5, 20)
 
     output, (h1, c1) = pglstm(input=input, past_states=(h0, c0), context=None)
     # output_, (h1_, c1_) = rnn(input.view(5, 1, 10), (h0, c0))
@@ -240,12 +234,12 @@ if __name__ == '__main__':
     #     print(name)
 
     print('analyze PG:')
-    pglstm = PGLSTM(input_size=10, hidden_size=10, num_layers=3, context_info={'network_structure': [],
+    pglstm = PGLSTM(input_size=20, hidden_size=10, num_layers=3, context_info={'network_structure': [20],
                                                                                'dropout': .5,
                                                                                'use_batch_norm': True,
                                                                                'batch_norm_momentum': .1,
                                                                                'use_bias': True})
-    context = torch.rand(5, 10)
+    context = torch.rand(5, 20)
     output, (h1, c1) = pglstm(input=input, past_states=(h0, c0), context=context)
     print(output.size())
     print(h1.size())
