@@ -2,10 +2,9 @@ from __future__ import absolute_import, division, print_function
 
 import logging
 import os
-
 import numpy as np
 import tensorflow as tf
-from collections import defaultdict
+
 
 __all__ = ['ranking_and_hits']
 
@@ -22,7 +21,7 @@ def _write_data_to_file(file_path, data):
 
 
 def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=None, hits_to_compute=(1, 3, 5, 10, 20),
-                     enable_write_to_file=False, get_relation_metrics=False, id_rel_map=None):
+                     enable_write_to_file=False):
     os.makedirs(results_dir, exist_ok=True)
     logger.info('')
     logger.info('-' * 50)
@@ -31,9 +30,6 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
     logger.info('')
 
     hits = {hits_level: [] for hits_level in hits_to_compute}
-    # Computing relationwise metrics
-    if get_relation_metrics:
-        relation_hits = defaultdict(lambda: hits.copy())
 
     ranks = []
 
@@ -54,19 +50,11 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
                 rank = int(np.where(pred1_args == e2[i])[0]) + 1
                 ranks.append(rank)
 
-                if 'ranks' not in relation_hits[rel]:
-                    relation_hits[rel]['ranks'] = []
-                relation_hits[rel]['ranks'].append(rank)
-
                 for hits_level in hits_to_compute:
                     if rank <= hits_level:
                         hits[hits_level].append(1.0)
-                        if get_relation_metrics:
-                            relation_hits[rel][hits_level].append(1.0)
                     else:
                         hits[hits_level].append(0.0)
-                        if get_relation_metrics:
-                            relation_hits[rel][hits_level].append(0.0)
 
         except tf.errors.OutOfRangeError:
             stopped = True
@@ -83,31 +71,6 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
             hits_at_path = os.path.join(results_dir, 'hits_at_{}.txt'.format(hits_level))
             _write_data_to_file(hits_at_path, hits_value)
 
-    if get_relation_metrics and enable_write_to_file:
-        hit2str = {1: 'hits_at_1', 3: 'hits_at_3', 5: 'hits_at_5', 10: 'hits_at_10', 20: 'hits_at_20'}
-        for rel in relation_hits.keys():
-            for hits_level in hits_to_compute:
-
-                relation_save_path = os.path.join(results_dir, '{}_relation_{}.txt'.format(name, hit2str[hits_level]))
-
-                hits_value = np.mean(relation_hits[rel][hits_level])
-                relation_hits[rel][hits_level] = hits_value
-
-                _write_data_to_file(relation_save_path, '{}\t{}'.format(id_rel_map[rel], str(hits_value)))
-
-            ranks = relation_hits[rel]['ranks']
-            mr = np.mean(ranks)
-            mrr = np.mean(1. / np.array(ranks))
-
-            relation_hits[rel]['mr'] = mr
-            relation_hits[rel]['mrr'] = mrr
-
-            relation_mr_path = os.path.join(results_dir, '{}_relation_{}.txt'.format(name, 'mr'))
-            relation_mrr_path = os.path.join(results_dir, '{}_relation_{}.txt'.format(name, 'mrr'))
-
-            _write_data_to_file(relation_mr_path, '{}\t{}'.format(id_rel_map[rel], str(mr)))
-            _write_data_to_file(relation_mrr_path, '{}\t{}'.format(id_rel_map[rel], str(mrr)))
-
     # Write MRR to respective files.
     mr = np.mean(ranks)
     mrr = np.mean(1. / np.array(ranks))
@@ -120,7 +83,4 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
         _write_data_to_file(path_mrr, mrr)
     logging.info('-' * 50)
 
-    if not get_relation_metrics:
-        return mr, mrr, hits, None
-    else:
-        return mr, mrr, hits, relation_hits
+    return mr, mrr, hits

@@ -322,7 +322,7 @@ class ConvE(object):
             'pred_bias': pred_bias}
 
         if not self.is_parameter_lookup:
-            variables['rel_emb'] = rel_emb,
+            variables['rel_emb'] = rel_emb
 
         if self._variable_summaries:
             _create_summaries('emb/ent', ent_emb)
