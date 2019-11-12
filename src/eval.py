@@ -32,6 +32,12 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False, relation_metric
     """
     Compute ranking based metrics.
     """
+    print("INSIDE HITS AND RANK | LEN EXAMPLES: {} | LEN SCORES: {}".format(len(examples), len(scores)))
+    relation_set = set()
+    for line in examples:
+        _, _, r = line
+        relation_set.add(r)
+    print('NUMBER UNIQUE RELATIONS IN TEST DATA: {}'.format(len(relation_set)))
     # metrics = ['hits_at_1', 'hits_at_3', 'hits_at_5', 'hits_at_10', 'mrr']
     metric_storage = {'hits_at_1': 0, 'hits_at_3': 0, 'hits_at_5': 0, 'hits_at_10': 0, 'mrr': 0}
     metric_str2int = {'hits_at_1': 1, 'hits_at_3': 3, 'hits_at_5': 5, 'hits_at_10': 10}
@@ -67,6 +73,10 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False, relation_metric
     # hits_at_5 = 0
     # hits_at_10 = 0
     # mrr = 0
+    relation_set = set()
+    for line in examples:
+        _, _, r = line
+        relation_set.add(r)
 
     for i, example in enumerate(examples):
         e1, e2, r = example
@@ -82,14 +92,16 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False, relation_metric
                     if relation_metric_info is not None:
                         if pos < rank_threshold:
                             relation_metrics[id2rel[r]][metric_type][0] += 1.
-                        relation_metrics[id2rel[r]][metric_type][1] += 1.
                 else:
                     mrr_val = 1.0 / (pos + 1.)
                     metric_storage[metric_type] += mrr_val
                     if relation_metric_info is not None:
                         relation_metrics[id2rel[r]][metric_type][0] += mrr_val
-                        relation_metrics[id2rel[r]][metric_type][1] += 1.
-
+        
+        if relation_metric_info is not None:
+            for metric_type in metric_storage.keys():
+                relation_metrics[id2rel[r]][metric_type][1] += 1.
+        
             # if pos < 10:
             #     hits_at_10 += 1
             #     if relation_metric_info is not None:
@@ -128,12 +140,16 @@ def hits_and_ranks(examples, scores, all_answers, verbose=False, relation_metric
             for metric in metric_storage.keys():
                 rel_metric_total = relation_metrics[rel][metric][0]
                 rel_total_examples = relation_metrics[rel][metric][1]
-                relation_metrics[rel][metric] = float(rel_metric_total) / rel_total_examples
+                if rel_total_examples == 0:
+                    rel_total_examples_ = max(rel_total_examples, 1.)
+                else:
+                    rel_total_examples_ = rel_total_examples
+                relation_metrics[rel][metric] = [float(rel_metric_total) / rel_total_examples_, rel_total_examples]
 
         for metric in metric_storage.keys():
             metric_path = save_path + '_' + metric + '.txt'
             for rel in relation_metrics.keys():
-                data_to_write = '{}\t{}'.format(rel, relation_metrics[rel][metric])
+                data_to_write = '{}\t{}\t{}'.format(rel, relation_metrics[rel][metric][0], relation_metrics[rel][metric][1])
                 _write_data_to_file(metric_path, data_to_write)
 
     metrics = metric_storage

@@ -8,7 +8,7 @@ use_action_space_bucketing="True"
 bandwidth=400
 entity_dim=200
 relation_dim=200
-history_dim=400
+history_dim=200
 history_num_layers=3
 num_rollouts=20
 num_rollout_steps=3
@@ -33,7 +33,7 @@ beam_size=128
 # Network Structure: 1 2 3 --> [1, 2, 3]
 # Nothing = [] due to nargs='*'
 # in parse args
-pg_network_structure=-1
+pg_network_structure=
 pg_dropout=.2
 pg_batch_norm=True
 pg_batch_norm_momentum=.1

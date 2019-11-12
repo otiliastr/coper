@@ -367,12 +367,8 @@ def inference(lf):
             print('Memory allocated after eval data loading: {}'.format(torch.cuda.memory_allocated() / 1e9))
             #print('Dev set performance:')
             pred_scores = lf.forward(dev_data, verbose=False)
-            _, id2rel = data_utils.load_index(relation_index_path)
-            relation_metric_info = {'id2rel': id2rel,
-                                    'save_path': os.path.join(args.model_dir, 'dev_relation')}
             print('Memory allocated after forward pass over dev data: {}'.format(torch.cuda.memory_allocated() / 1e9))
-            dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True,
-                                                  relation_metric_info=relation_metric_info)
+            dev_metrics = src.eval.hits_and_ranks(dev_data, pred_scores, lf.kg.all_objects, verbose=True)
             print('Memory allocated after obtaining dev metrics: {}'.format(torch.cuda.memory_allocated() / 1e9))
             eval_metrics['dev'] = {}
             eval_metrics['dev']['hits_at_1'] = dev_metrics['hits_at_1']
@@ -384,10 +380,7 @@ def inference(lf):
             #print('Test set performance:')
             pred_scores = lf.forward(test_data, verbose=False)
             print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
-            relation_metric_info = {'id2rel': id2rel,
-                                    'save_path': os.path.join(args.model_dir, 'test_relation')}
-            test_metrics = src.eval.hits_and_ranks(test_data, pred_scores, lf.kg.all_objects, verbose=True,
-                                                   relation_metric_info=relation_metric_info)
+            test_metrics = src.eval.hits_and_ranks(test_data, pred_scores, lf.kg.all_objects, verbose=True)
             print('Memory allocated after forward pass on test data: {}'.format(torch.cuda.memory_allocated() / 1e9))
             eval_metrics['test']['hits_at_1'] = test_metrics['hits_at_1']
             eval_metrics['test']['hits_at_3'] = test_metrics['hits_at_3']

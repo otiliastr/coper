@@ -16,9 +16,9 @@ bucket_interval=10
 num_epochs=1000
 num_wait_epochs=200
 num_peek_epochs=2
-batch_size=128
-train_batch_size=128
-dev_batch_size=32
+batch_size=4
+train_batch_size=4
+dev_batch_size=2
 learning_rate=0.001
 baseline="n/a"
 grad_norm=0
@@ -29,6 +29,16 @@ action_dropout_anneal_interval=1000
 beta=0.05
 relation_only="False"
 beam_size=128
+# CPG Args. -1: No CPG, anything else: CPG
+# Network Structure: 1 2 3 --> [1, 2, 3]
+# Nothing = [] due to nargs='*'
+# in parse args
+pg_network_structure=
+pg_dropout=0.5
+pg_batch_norm=True
+pg_batch_norm_momentum=.1
+pg_use_bias=False
+
 
 num_paths_per_entity=-1
 margin=1

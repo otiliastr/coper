@@ -127,13 +127,15 @@ class PGLSTM(nn.Module):
 
             else:
                 # create linear transformations for each LSTM cell
-                all_gates = nn.Linear(input_size + hidden_size, 4 * hidden_size)
+                all_gates = nn.Linear(self.input_size + self.hidden_size, 4 * self.hidden_size)
                 # append to stacked LSTM list
                 self.all_gates.append(module=all_gates)
 
             # use dropout on up to penultimate layer
             if self.dropout > 0. and (layer < (self.num_layers - 1)):
                 self.dropouts.append(nn.Dropout(p=self.dropout))
+            
+            self.input_size = self.hidden_size
 
     def forward(self, input, past_states, context=None):
         """
@@ -155,7 +157,6 @@ class PGLSTM(nn.Module):
 
         past_hidden_states = past_states[0]
         past_cell_states = past_states[1]
-
         for layer in range(self.num_layers):
             hidden_state = past_hidden_states[:, layer, :]
             cell_state = past_cell_states[:, layer, :]
