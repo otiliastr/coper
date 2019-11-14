@@ -2,9 +2,9 @@ from __future__ import absolute_import, division, print_function
 
 import logging
 import os
-
 import numpy as np
 import tensorflow as tf
+
 
 __all__ = ['ranking_and_hits']
 
@@ -30,6 +30,7 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
     logger.info('')
 
     hits = {hits_level: [] for hits_level in hits_to_compute}
+
     ranks = []
 
     stopped = False
@@ -48,6 +49,7 @@ def ranking_and_hits(model, results_dir, data_iterator_handle, name, session=Non
                 pred1_args = np.argsort(-pred[i])
                 rank = int(np.where(pred1_args == e2[i])[0]) + 1
                 ranks.append(rank)
+
                 for hits_level in hits_to_compute:
                     if rank <= hits_level:
                         hits[hits_level].append(1.0)

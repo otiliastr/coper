@@ -1,6 +1,6 @@
 model:
   entity_embedding_size: 200
-  relation_embedding_size: 50
+  relation_embedding_size: 32
   concat_rel: False          # Set to `False` for plain ConvE, 'True' only if you want the relation to be concatenated in in the projection/output layer.
   input_dropout: 0.2
   feature_map_dropout: 0.3

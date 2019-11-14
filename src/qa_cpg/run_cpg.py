@@ -62,14 +62,23 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 # Parameters.
 use_cpg = True
+use_parameter_lookup = False
 save_best_embeddings = True
+model_load_path = None
+get_relation_metrics = True
 
 # Load data.
-data_loader = data.WN18Loader()
-# data_loader = data.NELL995Loader(is_test=False, needs_test_set_cleaning=True)
+data_loader = data.FB15k237Loader()
+# data_loader = data.FB15kLoader(is_test=False, needs_test_set_cleaning=True)
 
 # Load configuration parameters.
-model_descr = 'cpg' if use_cpg else 'plain'
+if use_cpg:
+    model_descr = 'cpg'
+elif use_parameter_lookup:
+    model_descr = 'param_lookup'
+else:
+    model_descr = 'plain'
+# model_descr = 'cpg' if use_cpg else 'plain'
 config_path = 'qa_cpg/configs/config_%s_%s.yaml' % (data_loader.dataset_name, model_descr)
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
@@ -77,7 +86,23 @@ print(cfg_dict)
 cfg = AttributeDict(cfg_dict)
 
 # Compose model name based on config params.
-model_name = get_model_name(cfg, data_loader)
+#model_name = get_model_name(cfg, data_loader)
+model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}-eval_{}'.format(
+    model_descr,
+    data_loader.dataset_name,
+    cfg.model.entity_embedding_size,
+    cfg.model.relation_embedding_size,
+    cfg.training.batch_size,
+    cfg.training.prop_negatives,
+    cfg.training.num_labels,
+    cfg.training.one_positive_label_per_sample,
+    cfg.model.batch_norm_momentum,
+    cfg.eval.validation_metric)
+# Add more CPG-specific params to the model name.
+suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
+suffix += '-CLEAN' if data_loader.needs_test_set_cleaning else ''
+suffix += ''
+model_name += suffix
 logger.info('Model name: %s', model_name)
 
 # Create directories for saving downloaded data, summaries, logs and checkpoints.
@@ -129,7 +154,8 @@ if __name__ == '__main__':
                 'add_variable_summaries': cfg.eval.add_variable_summaries,
                 'add_tensor_summaries': cfg.eval.add_tensor_summaries,
                 'batch_norm_momentum': cfg.model.batch_norm_momentum,
-                'batch_norm_train_stats': cfg.model.batch_norm_train_stats})
+                'batch_norm_train_stats': cfg.model.batch_norm_train_stats,
+                'do_parameter_lookup': use_parameter_lookup})
 
     # Create dataset iterator initializers.
     logger.info('Creating train dataset...')
@@ -194,9 +220,13 @@ if __name__ == '__main__':
     test_eval_iterator_handle = session.run(test_eval_iterator.string_handle())
 
     validation_metric = cfg.eval.validation_metric
-    best_metrics_dev = {validation_metric: -np.inf}
-    metrics_test_at_best_dev = {validation_metric: -np.inf}
+    best_metrics_dev = {validation_metric: -np.inf if validation_metric != 'mr' else np.inf}
+    metrics_test_at_best_dev = {validation_metric: -np.inf if validation_metric != 'mrr' else np.inf}
     best_iter = None
+    if model_load_path is not None:
+        saver.restore(session, model_load_path)
+        _evaluate(test_eval_iterator, test_eval_iterator_handle, 'test', summary_writer, 0)
+        exit()
     for step in range(cfg.training.max_steps):
         feed_dict = {
             model.is_train: True,
@@ -231,9 +261,13 @@ if __name__ == '__main__':
                     metrics_test_at_best_dev = metrics_test
                     best_iter = step
                     if save_best_embeddings:
-                        # Save relation and entity embeddings at the best validation point.
-                        rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
-                        pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
+                        # Save relation and entity embeddings at the best validation point
+                        if not use_parameter_lookup:
+                            rel_embed, ent_embed = session.run([model.variables['rel_emb'], model.variables['ent_emb']])
+                            pickle.dump([rel_embed, ent_embed], open(embed_file, 'wb'))
+                        else:
+                            ent_embed = session.run(model.variables['ent_emb'])
+                            pickle.dump(ent_embed, open(embed_file, 'wb'))
                 logger.info('Best dev %s so far is at step %d. Best dev metrics: %s',
                             validation_metric, best_iter, str(best_metrics_dev))
                 logger.info('Test metrics at best dev: %s', str(metrics_test_at_best_dev))

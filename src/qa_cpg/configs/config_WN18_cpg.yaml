@@ -8,6 +8,7 @@ model:
   label_smoothing_epsilon: 0.1
   batch_norm_momentum: 0.1
   batch_norm_train_stats: True # If true, during training, batch norm will use a moving average of train samples.
+  do_parameter_lookup: False
 context:
   context_rel_conv:          # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
   context_rel_out: []        # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
