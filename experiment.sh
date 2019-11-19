@@ -21,7 +21,7 @@ if [[ $use_action_space_bucketing = *"True"* ]]; then
     use_action_space_bucketing_flag='--use_action_space_bucketing'
 fi
 
-cmd="python3 -m src.experiments \
+cmd="python3.7 -m src.experiments \
     --data_dir $data_dir \
     $exp \
     --model $model \

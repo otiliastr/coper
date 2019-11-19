@@ -12,13 +12,13 @@ history_dim=200
 history_num_layers=3
 num_rollouts=20
 num_rollout_steps=3
-num_epochs=10
+num_epochs=15
 num_wait_epochs=100
 num_peek_epochs=2
 bucket_interval=5
-batch_size=128
-train_batch_size=128
-dev_batch_size=16
+batch_size=8
+train_batch_size=8
+dev_batch_size=2
 learning_rate=0.001
 baseline="n/a"
 grad_norm=5
@@ -33,8 +33,8 @@ beam_size=128
 # Network Structure: 1 2 3 --> [1, 2, 3]
 # Nothing = [] due to nargs='*'
 # in parse args
-pg_network_structure=-1
-pg_dropout=.2
+pg_network_structure=
+pg_dropout=0.2
 pg_batch_norm=True
 pg_batch_norm_momentum=.1
 pg_use_bias=False
