@@ -17,11 +17,7 @@ from tqdm import tqdm
 
 __all__ = [
     'Loader', 'NationsLoader', 'UMLSLoader', 'KinshipLoader', 'WN18RRLoader', 'YAGO310Loader', 'FB15k237Loader',
-<<<<<<< HEAD
     'CountriesS1Loader', 'CountriesS2Loader', 'CountriesS3Loader', 'NELL995Loader', 'WN18Loader', 'FB15kLoader']
-=======
-    'CountriesS1Loader', 'CountriesS2Loader', 'CountriesS3Loader', 'NELL995Loader', 'WN18', 'FB15k']
->>>>>>> 0e6f4c209b08cbdbb0850666ee06ba100affa5a2
 
 logger = logging.getLogger(__name__)
 
@@ -673,17 +669,6 @@ class CountriesS3Loader(_MinervaDataLoader):
 
 
 class WN18Loader(_ConvEDataLoader):
-<<<<<<< HEAD
-    def __init__(self):
-        dataset_name = 'WN18'
-        super(WN18Loader, self).__init__(dataset_name)
-
-
-class FB15kLoader(_ConvEDataLoader):
-    def __init__(self): 
-        dataset_name = 'FB15k'
-        super(FB15kLoader, self).__init__(dataset_name)
-=======
     def __init__(self, is_test=False, needs_test_set_cleaning=False):
         dataset_name = 'WN18'
         self.is_test = is_test
@@ -701,8 +686,6 @@ class FB15kLoader(_ConvEDataLoader):
         if is_test:
             dataset_name += 'test'
         super(FB15kLoader, self).__init__(dataset_name, needs_test_set_cleaning=needs_test_set_cleaning)
->>>>>>> 0e6f4c209b08cbdbb0850666ee06ba100affa5a2
-
 
 class NELL995Loader(_MinervaDataLoader):
     def __init__(self, is_test=False, needs_test_set_cleaning=False):
