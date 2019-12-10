@@ -1,0 +1,7 @@
+fastdtw
+numpy
+pyyaml
+requests
+six
+tensorflow
+tqdm

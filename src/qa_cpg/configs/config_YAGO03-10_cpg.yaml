@@ -1,0 +1,36 @@
+model:
+  entity_embedding_size: 200
+  relation_embedding_size: 200
+  concat_rel: False           # Set to `False` for plain ConvE, 'True' only if you want the relation to be concatenated in in the projection/output layer.
+  input_dropout: 0.2
+  feature_map_dropout: 0.3
+  output_dropout: 0.2
+  label_smoothing_epsilon: 0.1
+  batch_norm_momentum: 0.1
+  batch_norm_train_stats: True # If true, during training, batch norm will use a moving average of train samples.
+context:
+  context_rel_conv:          # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
+  context_rel_out: []        # Leave empty for plain ConvE. Put list of hidden layer sizes for CPG.
+  context_rel_dropout: 0.2
+  context_rel_use_batch_norm: True
+training:
+  learning_rate: 0.001
+  batch_size: 512
+  device: '/GPU:0'
+  max_steps: 10000000
+  prop_negatives: 10.0
+  num_labels: 100            # Total number of labels considered during training when doing negative sampling. Must be > prop_negatives.
+  one_positive_label_per_sample: True  # If True, it uses one positive answer per sample, and fills up tp num_labels with negatives.
+  cache_data: False
+eval:
+  validation_metric: hits@1  # Choose among: mr, mrr, hits@1, hits@10, hits@20.
+  log_steps: 500
+  ckpt_steps: 10000000
+  eval_steps: 100
+  summary_steps: 100
+  eval_on_train: False
+  eval_on_dev: True
+  eval_on_test: True
+  add_loss_summaries: True
+  add_variable_summaries: False
+  add_tensor_summaries: False
