@@ -26,9 +26,9 @@ $python -m qa_cpg.run_cpg
 ```
 for cpu training or 
 ```
-$CUDA_VARIABLE_DEVICES=0 python -m qa_cpg.run_cpg
+$CUDA_VARIABLE_DEVICES=[id] python -m qa_cpg.run_cpg
 ```
-for gpu.
+for gpu, where [id] is the gpu id.
 
 ### Configuring Datasets
 We have support for the following popular benchmark datasets: Nations, UMLS, Kinship, FB15k, FB15k-237, WN18, WN18RR, NELL-995, and YAGO3-10. Each dataset can be loaded and experimented on simply be calling the corresponding 'Loader' class. The complete list of loaders can be found under 'qa_cpg/data.py'. **Note**: You do not need to worry about downloading the relevant data beforehand. The 'loader' class will do that for you in case it does not already exist. 
