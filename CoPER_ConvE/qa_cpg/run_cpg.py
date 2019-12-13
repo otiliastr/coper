@@ -29,7 +29,7 @@ def get_model_name(cfg, data_loader):
         cfg.model.batch_norm_momentum)
     # Add more CPG-specific params to the model name.
     suffix = ''
-    if use_cpg:
+    if model_type == 'cpg':
         suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm)
         if cfg.context.context_rel_out is not None and len(cfg.context.context_rel_out) > 0:
             suffix += '-context_sz_' + '_'.join([str(sz) for sz in cfg.context.context_rel_out])
