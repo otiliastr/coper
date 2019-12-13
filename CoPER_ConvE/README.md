@@ -5,10 +5,18 @@
 
 ## Experiment Pipeline
 We describe how to run experiments using a demo example. Let us say that we wanted to examine the performance of CoPER-ConvE on the WN18RR dataset. 
-1. We first need to specify the exact experiment configuration such as training time, model hyperparameters, and parameter generation architecture. Thus, navigate to 'configs/config_[dataset]_[experiment_type].yaml', where '[dataset]' in this case is WN18RR and '[experiment_type]' is 'cpg'
+1. We first need to specify the exact experiment configuration such as training time, model hyperparameters, and parameter generation architecture. Thus, navigate to 'qa_cpg/configs/config_[dataset]_[experiment_type].yaml', where '[dataset]' in this case is 'WN18RR' and '[experiment_type]' is 'cpg'. Please refer to the config README for additional information about changing parameters.
+2. Once you are satisfied with our configuration, navigate to 'ga_cpg/run_cpg.py' and open it. Change the lines (63-71) to:
+```python
+# Parameters.
+model_type = 'cpg'  # Model type. Choose from ('cpg', 'param_lookup', 'plain')
+save_best_embeddings = True   # save best entity and relation embeddings through training
+model_load_path = None        # evaluate pretrained model 
 
-
-Please follow the steps below to run our code.
+# Load data.
+data_loader = data.WN18RR()   # desired dataset to experiment on
+``` 
+Note that model_type = 'cpg' indicates that you would like to use *parameter sharing* between relations (e.g. g_linear or g_MLP), while 'param_lookup' indicates embedding lookup (i.e. g_lookup). Additionally, 'plain' corresponds to ConvE.
 
 
 Further, please note that our code is compatible with python3.6
