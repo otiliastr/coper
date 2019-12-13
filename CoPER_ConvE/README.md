@@ -14,10 +14,26 @@ save_best_embeddings = True   # save best entity and relation embeddings through
 model_load_path = None        # evaluate pretrained model 
 
 # Load data.
-data_loader = data.WN18RR()   # desired dataset to experiment on
+data_loader = data.WN18RRLoader()   # desired dataset to experiment on
 ``` 
 Note that model_type = 'cpg' indicates that you would like to use *parameter sharing* between relations (e.g. g_linear or g_MLP), while 'param_lookup' indicates embedding lookup (i.e. g_lookup). Additionally, 'plain' corresponds to ConvE.
 
+Now we have everything we need to begin training!
+
+3. Simply: 
+```python
+$python -m qa_cpg.run_cpg
+```
+for cpu training or 
+```python
+$CUDA_VARIABLE_DEVICES=0 python -m qa_cpg.run_cpg
+```
+for gpu.
+
+### Configuring Datasets
+We have support for the following popular benchmark datasets: Nations, UMLS, Kinship, FB15k, FB15k-237, WN18, WN18RR, NELL-995, and YAGO3-10. Each dataset can be loaded and experimented on simply be calling the corresponding 'Loader' class. The complete list of loaders can be found under 'qa_cpg/data.py'. **Note**: You do not need to worry about downloading the relevant data beforehand. The 'loader' class will do that for you in case it does not already exist. 
+
+### Configuration Parameters
 
 Further, please note that our code is compatible with python3.6
 
