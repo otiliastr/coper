@@ -1,6 +1,15 @@
+# CoPER-ConvE & ConvE
+
+## Requirements
+```$pip install -r requirements.txt```
+
+## Experiment Pipeline
+We describe how to run experiments using a demo example. Let us say that we wanted to examine the performance of CoPER-ConvE on the WN18RR dataset. 
+1. We first need to specify the exact experiment configuration such as training time, model hyperparameters, and parameter generation architecture. Thus, navigate to 'configs/config_[dataset]_[experiment_type].yaml', where '[dataset]' in this case is WN18RR and '[experiment_type]' is 'cpg'
+
+
 Please follow the steps below to run our code.
 
-Please note that this is a temporary code base, and we plan to revise and polish for the camera ready submission.
 
 Further, please note that our code is compatible with python3.6
 
