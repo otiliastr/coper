@@ -33,6 +33,13 @@ for gpu, where [id] is the gpu id.
 ### Configuring Datasets
 We have support for the following popular benchmark datasets: Nations, UMLS, Kinship, FB15k, FB15k-237, WN18, WN18RR, NELL-995, and YAGO3-10. Each dataset can be loaded and experimented on simply be calling the corresponding 'Loader' class. The complete list of loaders can be found under 'qa_cpg/data.py'. **Note**: You do not need to worry about downloading the relevant data beforehand. The 'loader' class will do that for you in case it does not already exist. 
 
+### Note on NELL-995
+Like previous work, we evaluate performance on NELL-995 by combining the training and validation datasets together to create the dataset NELL-995-test. To run on NELL-995-test, simply call 
+```python
+data_loader = data.NELL995Loader(is_test=True, needs_test_set_cleaning=True)
+```
+in place of the above. 'needs_test_set_cleaning' denotes whether to filter out all entities or relations from the dev or test set which do not appear in training. This should be done for both FB15k-237 and NELL-995.
+
 ### Configuration Parameters
 Below is an example config (from 'config_WN18RR_cpg.yaml') which explains experiment config options:
 ```
