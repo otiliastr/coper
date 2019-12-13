@@ -1,4 +1,4 @@
-# This Directory contains all the source code necessary to experiment with MINERVA and CoPER-MINERVA. 
+# MINERVA & CoPER-MINERVA. 
 
 **Note**: Our code is built on top of the source code of MultiHop-KG (https://github.com/salesforce/MultiHopKG) from the paper,[Lin et. al. 2018. Multi-Hop Knowledge Graph Reasoning with Reward Shaping](https://arxiv.org/abs/1808.10568). 
 
