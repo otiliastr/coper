@@ -2,7 +2,7 @@
 
 **Note**: Our code is built on top of the source code of MultiHop-KG (https://github.com/salesforce/MultiHopKG) from the paper,[Lin et. al. 2018. Multi-Hop Knowledge Graph Reasoning with Reward Shaping](https://arxiv.org/abs/1808.10568). 
 
-Below is the copied README from MultiHop-KG, which describes how to run MINERVA (and CoPER-MINERVA as it was created in the same ecosystem).
+Below is the selectively copied README (as it pertains to our models) from MultiHop-KG, which describes how to run MINERVA (and CoPER-MINERVA as it was created in the same ecosystem).
 
 ## Quick Start
 
@@ -39,32 +39,19 @@ and run the following command to preprocess the datasets.
 `<gpu-ID>` is a non-negative integer number representing the GPU index.
 
 ### Train models
-Then the following commands can be used to train the proposed models and baselines in the paper. By default, dev set evaluation results will be printed when training terminates.
+Then the following command can be used to train the proposed models and baselines in the paper. 
 
-1. Train embedding-based models
-```
-./experiment-emb.sh configs/<dataset>-<emb_model>.sh --train <gpu-ID>
-```
-The following embedding-based models are implemented: `distmult`, `complex` and `conve`.
-
-2. Train RL models (policy gradient)
+Train RL models (policy gradient)
 ```
 ./experiment.sh configs/<dataset>.sh --train <gpu-ID>
 ```
-
-3. Train RL models (policy gradient + reward shaping)
-```
-./experiment-rs.sh configs/<dataset>-rs.sh --train <gpu-ID>
-```
-
-* Note: To train the RL models using reward shaping, make sure 1) you have pre-trained the embedding-based models and 2) set the file path pointers to the pre-trained embedding-based models correctly ([example configuration file](configs/umls-rs.sh)).
 
 ### Evaluate pretrained models
 To generate the evaluation results of a pre-trained model, simply change the `--train` flag in the commands above to `--inference`. 
 
 For example, the following command performs inference with the RL models (policy gradient + reward shaping) and prints the evaluation results (on both dev and test sets).
 ```
-./experiment-rs.sh configs/<dataset>-rs.sh --inference <gpu-ID>
+./experiment.sh configs/<dataset>.sh --inference <gpu-ID>
 ```
 
 * Note for the NELL-995 dataset: 
@@ -73,9 +60,7 @@ For example, the following command performs inference with the RL models (policy
   1. To obtain the correct test set results, you need to add the `--test` flag to all data pre-processing, training and inference commands.  
     ```
     ./experiment.sh configs/nell-995.sh --process_data <gpu-ID> --test
-    ./experiment-emb.sh configs/nell-995-conve.sh --train <gpu-ID> --test
-    ./experiment-rs.sh configs/NELL-995-rs.sh --train <gpu-ID> --test
-    ./experiment-rs.sh configs/NELL-995-rs.sh --inference <gpu-ID> --test
+    ./experiment.sh configs/nell-995.sh --train <gpu-ID> --test
     ```
   2. Leave out the `--test` flag during development.
 
