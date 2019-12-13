@@ -4,10 +4,6 @@ Note: Our code is built on top of the source code of MultiHop-KG (https://github
 
 Below is the copied README from MultiHop-KG, which describes how to run MINERVA (and CoPER-MINERVA as it was created in the same ecosystem).
 
-# Multi-Hop Knowledge Graph Reasoning with Reward Shaping
-
-This repository contains the source code release of the paper: [Lin et. al. 2018. Multi-Hop Knowledge Graph Reasoning with Reward Shaping](https://arxiv.org/abs/1808.10568).
-
 ## Quick Start
 
 ### Environment Variables & Dependencies
