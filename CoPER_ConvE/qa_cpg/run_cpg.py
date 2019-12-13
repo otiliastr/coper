@@ -61,7 +61,7 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-use_cpg = True
+model_type = 'cpg'
 use_parameter_lookup = False
 save_best_embeddings = True
 model_load_path = None
@@ -71,14 +71,6 @@ get_relation_metrics = True
 data_loader = data.FB15k237Loader()
 # data_loader = data.FB15kLoader(is_test=False, needs_test_set_cleaning=True)
 
-# Load configuration parameters.
-if use_cpg:
-    model_descr = 'cpg'
-elif use_parameter_lookup:
-    model_descr = 'param_lookup'
-else:
-    model_descr = 'plain'
-# model_descr = 'cpg' if use_cpg else 'plain'
 config_path = 'qa_cpg/configs/config_%s_%s.yaml' % (data_loader.dataset_name, model_descr)
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
@@ -99,7 +91,7 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-One
     cfg.model.batch_norm_momentum,
     cfg.eval.validation_metric)
 # Add more CPG-specific params to the model name.
-suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
+suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if model_type == 'cpg' else ''
 suffix += '-CLEAN' if data_loader.needs_test_set_cleaning else ''
 suffix += ''
 model_name += suffix
