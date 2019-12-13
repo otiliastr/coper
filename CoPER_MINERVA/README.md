@@ -46,6 +46,8 @@ Train RL models (policy gradient)
 ./experiment.sh configs/<dataset>.sh --train <gpu-ID>
 ```
 
+A note on Batch Size. When training CoPER models, you may find that a batch size of 128 is too large to fit inside gpu memory. For this reason, you can instead specify a smaller batchsize in the config file without needing to worry about CoPER training on a different batchsize compared to ConvE (i.e. training will only update once the minibatches equal the original 128 batch size). 
+
 ### Evaluate pretrained models
 To generate the evaluation results of a pre-trained model, simply change the `--train` flag in the commands above to `--inference`. 
 
