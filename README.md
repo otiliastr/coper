@@ -13,5 +13,8 @@ Please navigate to the CoPER-MINERVA directory for more information on how to ru
 Please refer to: (https://github.com/otiliastr/coper/blob/master/CoPER_AAAI_Supplementary.pdf) for our supplementary material
 
 
+### NeurIPS 2019 Graph Representation Workshop Paper
+Our workshop paper can be accessed here: https://grlearning.github.io/papers/64.pdf
+
 ## Citation
 G. Stoica*, O. Stretcu*, E.A. Platanios*, T.M. Mitchell, B. Poczos. "Contextual Parameter Generation for Knowledge Graph Link Prediction." AAAI 2020
