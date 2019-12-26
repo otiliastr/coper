@@ -26,7 +26,7 @@ $python -m qa_cpg.run_cpg
 ```
 for cpu training or 
 ```
-$CUDA_VARIABLE_DEVICES=[id] python -m qa_cpg.run_cpg
+$CUDA_VISIBLE_DEVICES=[id] python -m qa_cpg.run_cpg
 ```
 for gpu, where [id] is the gpu id.
 
