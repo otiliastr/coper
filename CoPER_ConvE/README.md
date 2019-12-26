@@ -42,7 +42,7 @@ in place of the above. 'needs_test_set_cleaning' denotes whether to filter out a
 
 ### Configuration Parameters
 Below is an example config (from 'config_WN18RR_cpg.yaml') which explains experiment config options:
-```
+```yaml
 model:
   entity_embedding_size: 200 # Entity embedding size
   relation_embedding_size: 8 # Relation embedding size
