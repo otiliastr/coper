@@ -364,9 +364,6 @@ class ConvE(object):
         if self.context_rel_conv is None and self.context_rel_out is None and not self.is_parameter_lookup:
             reshaped_rel_emb = tf.reshape(rel_emb, [-1, 10, self.rel_emb_size // 10, 1])
             stacked_emb = tf.concat([e1_emb, reshaped_rel_emb], 1)
-        elif self.context_rel_conv is None:
-            size = int(math.sqrt(self.ent_emb_size))
-            stacked_emb = tf.reshape(e1_emb, [-1, size, size, 1])
         else:
             stacked_emb = e1_emb
 
