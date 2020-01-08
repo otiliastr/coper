@@ -7,7 +7,7 @@ import tensorflow as tf
 from functools import reduce
 from operator import mul
 
-from utils.amsgrad import AMSGradOptimizer
+from .utils.amsgrad import AMSGradOptimizer
 
 __all__ = ['ConvE']
 
@@ -263,10 +263,6 @@ class ConvE(object):
         if self.context_rel_conv is None and self.context_rel_out is None:
             conv_in_height += 10
             #conv_in_width += self.rel_emb_size // 10
-        elif self.context_rel_conv is None:
-            size = int(math.sqrt(self.ent_emb_size))
-            conv_in_height = size
-            conv_in_width = size
         conv_out_height = math.ceil(float(conv_in_height - self.conv_filter_height + 1))
         conv_out_width = math.ceil(float(conv_in_width - self.conv_filter_width + 1))
 
