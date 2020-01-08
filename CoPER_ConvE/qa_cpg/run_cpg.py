@@ -1,4 +1,3 @@
-
 from __future__ import absolute_import, division, print_function
 
 import logging
@@ -14,30 +13,6 @@ from qa_cpg.metrics import ranking_and_hits
 from qa_cpg.utils.dict_with_attributes import AttributeDict
 
 logger = logging.getLogger(__name__)
-
-
-def get_model_name(cfg, data_loader):
-    model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}'.format(
-        model_descr,
-        data_loader.dataset_name,
-        cfg.model.entity_embedding_size,
-        cfg.model.relation_embedding_size,
-        cfg.training.batch_size,
-        cfg.training.prop_negatives,
-        cfg.training.num_labels,
-        cfg.training.one_positive_label_per_sample,
-        cfg.model.batch_norm_momentum)
-    # Add more CPG-specific params to the model name.
-    suffix = ''
-    if model_type == 'cpg':
-        suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm)
-        if cfg.context.context_rel_out is not None and len(cfg.context.context_rel_out) > 0:
-            suffix += '-context_sz_' + '_'.join([str(sz) for sz in cfg.context.context_rel_out])
-        suffix += '-context_rel_dropout_%.1f' % cfg.context.context_rel_dropout
-    suffix += '-CLEAN' if data_loader.dataset_name.startswith('nell-995') and data_loader.needs_test_set_cleaning else ''
-    suffix += ''
-    model_name += suffix
-    return model_name
 
 
 def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
@@ -61,16 +36,23 @@ def _evaluate(data_iterator, data_iterator_handle, name, summary_writer, step):
 
 
 # Parameters.
-model_type = 'cpg'
+use_cpg = True
 use_parameter_lookup = False
 save_best_embeddings = True
 model_load_path = None
-get_relation_metrics = True
 
 # Load data.
-data_loader = data.FB15k237Loader()
-# data_loader = data.FB15kLoader(is_test=False, needs_test_set_cleaning=True)
+# data_loader = data.FB15k237Loader()
+data_loader = data.NELL995Loader(is_test=True, needs_test_set_cleaning=True)
 
+# Load configuration parameters.
+if use_cpg:
+    model_descr = 'cpg'
+elif use_parameter_lookup:
+    model_descr = 'param_lookup'
+else:
+    model_descr = 'plain'
+# model_descr = 'cpg' if use_cpg else 'plain'
 config_path = 'qa_cpg/configs/config_%s_%s.yaml' % (data_loader.dataset_name, model_descr)
 with open(config_path, 'r') as file:
     cfg_dict = yaml.load(file)
@@ -78,8 +60,7 @@ print(cfg_dict)
 cfg = AttributeDict(cfg_dict)
 
 # Compose model name based on config params.
-#model_name = get_model_name(cfg, data_loader)
-model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}-eval_{}'.format(
+model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-OnePosPerSampl_{}-bn_momentum_{}-eval_{}-dropouts_{}_{}_{}_{}'.format(
     model_descr,
     data_loader.dataset_name,
     cfg.model.entity_embedding_size,
@@ -89,9 +70,14 @@ model_name = '{}-{}-ent_emb_{}-rel_emb_{}-batch_{}-prop_neg_{}-num_labels_{}-One
     cfg.training.num_labels,
     cfg.training.one_positive_label_per_sample,
     cfg.model.batch_norm_momentum,
-    cfg.eval.validation_metric)
+    cfg.eval.validation_metric,
+    cfg.model.input_dropout,
+    cfg.model.feature_map_dropout,
+    cfg.model.output_dropout,
+    cfg.context.context_rel_dropout,
+)
 # Add more CPG-specific params to the model name.
-suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if model_type == 'cpg' else ''
+suffix = '-context_batchnorm_{}'.format(cfg.context.context_rel_use_batch_norm) if use_cpg else ''
 suffix += '-CLEAN' if data_loader.needs_test_set_cleaning else ''
 suffix += ''
 model_name += suffix
@@ -248,7 +234,7 @@ if __name__ == '__main__':
                 metrics_test = _evaluate(
                     test_eval_iterator, test_eval_iterator_handle, 'test_evaluation', summary_writer, step)
             if cfg.eval.eval_on_dev and cfg.eval.eval_on_test:
-                if best_metrics_dev[validation_metric] < metrics_dev[validation_metric]:
+                if (best_metrics_dev[validation_metric] < metrics_dev[validation_metric]):
                     best_metrics_dev = metrics_dev
                     metrics_test_at_best_dev = metrics_test
                     best_iter = step
@@ -260,13 +246,17 @@ if __name__ == '__main__':
                         else:
                             ent_embed = session.run(model.variables['ent_emb'])
                             pickle.dump(ent_embed, open(embed_file, 'wb'))
+
+                    logger.info('Step %d. Saving checkpoint at %s...', step, ckpt_path)
+                    saver.save(session, ckpt_path)
+
                 logger.info('Best dev %s so far is at step %d. Best dev metrics: %s',
                             validation_metric, best_iter, str(best_metrics_dev))
                 logger.info('Test metrics at best dev: %s', str(metrics_test_at_best_dev))
 
-        if step % cfg.eval.ckpt_steps == 0 and step > 0:
-            logger.info('Step %d. Saving checkpoint at %s...', step, ckpt_path)
-            saver.save(session, ckpt_path)
+#         if step % cfg.eval.ckpt_steps == 0 and step > 0:
+#             logger.info('Step %d. Saving checkpoint at %s...', step, ckpt_path)
+#             saver.save(session, ckpt_path)
 
     if cfg.eval.eval_on_dev and cfg.eval.eval_on_test:
         logger.info('Best dev %s so far is at step %d. Best dev metrics: %s',
