@@ -31,7 +31,7 @@ $CUDA_VISIBLE_DEVICES=[id] python -m qa_cpg.run_cpg
 for gpu, where [id] is the gpu id.
 
 ### Configuring Datasets
-We have support for the following popular benchmark datasets: Nations, UMLS, Kinship, FB15k, FB15k-237, WN18, WN18RR, NELL-995. Each dataset can be loaded and experimented on simply be calling the corresponding 'Loader' class. The complete list of loaders can be found under 'qa_cpg/data.py'. **Note**: You do not need to worry about downloading the relevant data beforehand. The 'loader' class will do that for you in case it does not already exist. 
+We have support for the following popular benchmark datasets: UMLS, Kinship, FB15k, FB15k-237, WN18, WN18RR, NELL-995. Each dataset can be loaded and experimented on simply be calling the corresponding 'Loader' class. The complete list of loaders can be found under 'qa_cpg/data.py'. **Note**: You do not need to worry about downloading the relevant data beforehand. The 'loader' class will do that for you in case it does not already exist. 
 
 ### Note on NELL-995
 Like previous work, we evaluate performance on NELL-995 by combining the training and validation datasets together to create the dataset NELL-995-test. To run on NELL-995-test, simply call 
