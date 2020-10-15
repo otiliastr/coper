@@ -1,51 +1,78 @@
 # CoPER-ConvE & ConvE
 
 ## Requirements
-```$pip install -r requirements.txt```
+To install all requirements, you can use:
+```
+$ pip install -r requirements.txt
+```
 
-## Experiment Pipeline
-We describe how to run experiments using a demo example. Let us say that we wanted to examine the performance of CoPER-ConvE on the WN18RR dataset. 
-1. We first need to specify the exact experiment configuration such as training time, model hyperparameters, and parameter generation architecture. Thus, navigate to 'qa_cpg/configs/config_[dataset]_[experiment_type].yaml', where '[dataset]' in this case is 'WN18RR' and '[experiment_type]' is 'cpg'. Please refer to section 'Configuration Parameters' below for additional information regarding possible configuration options.
-2. Once you are satisfied with our configuration, navigate to 'ga_cpg/run_cpg.py' and open it. Change the lines (63-71) to:
+## Experimental Pipeline
+We describe how to run experiments using a demo example. 
+Let's say that we wanted to examine the performance of CoPER-ConvE on the WN18RR dataset. 
+Here are the main steps:
+
+1. We first need to specify the exact experiment configuration such as training time, model 
+hyperparameters, and parameter generation architecture. Thus, navigate to 
+`qa_cpg/configs/config_[dataset]_[experiment_type].yaml`, where `[dataset]` in this case 
+is `WN18RR` and `[experiment_type]` is `cpg`. Please refer to section 
+"Configuration Parameters" below for additional information regarding possible configuration options.
+
+2. Once you are satisfied with the configuration, navigate to `ga_cpg/run_cpg.py` and open it. 
+Change the lines (63-71) to:
 ```python
 # Parameters.
-model_type = 'cpg'  # Model type. Choose from ('cpg', 'param_lookup', 'plain')
-save_best_embeddings = True   # save best entity and relation embeddings through training
-model_load_path = None        # evaluate pretrained model 
+model_type = 'cpg'                 # Choose a model type from ('cpg', 'param_lookup', 'plain')
+save_best_embeddings = True        # Save best entity and relation embeddings after training.
+model_load_path = None             # Provide a path to pretrained model.
 
 # Load data.
-data_loader = data.WN18RRLoader()   # desired dataset to experiment on
+data_loader = data.WN18RRLoader()  # Select the data loader for the desired dataset.
 ``` 
-Note that model_type = 'cpg' indicates that you would like to use *parameter sharing* between relations (e.g. g_linear or g_MLP), while 'param_lookup' indicates embedding lookup (i.e. g_lookup). Additionally, 'plain' corresponds to ConvE.
+Note that `model_type = 'cpg'` indicates that you would like to use *parameter sharing* 
+between relations (e.g. g_linear or g_MLP), while `model_type = 'param_lookup'` indicates 
+embedding lookup (i.e. g_lookup). Additionally, `model_type = 'plain'` corresponds to ConvE.
 
+### Training
 Now we have everything we need to begin training!
 
-3. Simply: 
+3. Simply run the following command for CPU training:
+```bash
+$ python -m qa_cpg.run_cpg
 ```
-$python -m qa_cpg.run_cpg
+or the following command for GPU training:
+```bash
+$ CUDA_VISIBLE_DEVICES=[id] python -m qa_cpg.run_cpg
 ```
-for cpu training or 
-```
-$CUDA_VISIBLE_DEVICES=[id] python -m qa_cpg.run_cpg
-```
-for gpu, where [id] is the gpu id.
+where [id] is the gpu id.
 
 ### Configuring Datasets
-We have provided files for the main datasets used in our experiments: UMLS, Kinshop, FB15k-237, WN18RR, and NELL-995. To use, simply perform the following command,
+We have provided files for the main datasets used in our experiments: UMLS, 
+Kinship, FB15k-237, WN18RR, and NELL-995. To use them, run the following command:
+```bash
+$ unzip datasets.zip
 ```
-$unzip datasets.zip
-```
-However, new datasets can be easily added using our base "_DataLoader" in the data.py file. Each dataset can be loaded and experimented on simply be calling the corresponding 'Loader' class. The complete list of loaders can be found under 'qa_cpg/data.py'. **Note**: Even if you do not have the relevant data already downloaded, the "_DataLoader" class should be able to download the requested data in the correct file location for you, provided the data url exists.
+However, new datasets can be easily added using our base `_DataLoader` in the 
+`data.py` file. Each dataset can be loaded and experimented on by calling the 
+corresponding `Loader` class. The complete list of loaders can be found under 
+[qa_cpg/data.py](https://github.com/otiliastr/coper/blob/master/CoPER_ConvE/qa_cpg/data.py). 
 
-### Note on NELL-995
-Like previous work, we evaluate performance on NELL-995 by combining the training and validation datasets together to create the dataset NELL-995-test. To run on NELL-995-test, simply call 
+**Note**: Even if you do not have the relevant data already downloaded, the 
+`_DataLoader` class should be able to download the requested data in the correct
+file location for you, provided the data url exists.
+
+#### Note on NELL-995
+Like previous work, we evaluate performance on NELL-995 by combining the 
+training and validation datasets together to create the dataset NELL-995-test. 
+To run on NELL-995-test, run:
 ```python
 data_loader = data.NELL995Loader(is_test=True, needs_test_set_cleaning=True)
 ```
-in place of the above. 'needs_test_set_cleaning' denotes whether to filter out all entities or relations from the dev or test set which do not appear in training. This should be done for both FB15k-237 and NELL-995. 
+where the parameter `needs_test_set_cleaning` denotes whether to filter out all 
+entities or relations from the dev or test set which do not appear in training. 
+This should be done for both FB15k-237 and NELL-995. 
 
 ### Configuration Parameters
-Below is an example config (from 'config_WN18RR_cpg.yaml') which explains experiment config options:
+Below is an example config (from [config_WN18RR_cpg.yaml](https://github.com/otiliastr/coper/blob/master/CoPER_ConvE/qa_cpg/configs/config_WN18RR_cpg.yaml)) which explains experiment config options:
 ```yaml
 model:
   entity_embedding_size: 200 # Entity embedding size
@@ -86,4 +113,4 @@ eval:
 ```
 
 ### Testing Environments
-All our code was tested on python3.6 and Tensorflow-gpu==1.14
+All our code was tested on python3.6 and tensorflow-gpu==1.14
